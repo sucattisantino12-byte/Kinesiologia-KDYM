@@ -169,3 +169,16 @@ async function guardarNuevoPaciente() {
   const b = document.getElementById('np-guardar');
   if (b) b.addEventListener('click', guardarNuevoPaciente);
 })();
+
+// ---- Contador de notificaciones en el menú (todas las pantallas) ----
+async function actualizarBadgeNotif() {
+  const b = document.getElementById('nav-notif-badge');
+  if (!b) return;
+  try {
+    const r = await apiGet('/api/notificaciones/count');
+    if (r.count > 0) { b.textContent = r.count; b.style.display = 'inline-flex'; }
+    else { b.style.display = 'none'; }
+  } catch (e) {}
+}
+actualizarBadgeNotif();
+setInterval(actualizarBadgeNotif, 15000);

@@ -504,6 +504,15 @@ body.splashing { overflow: hidden; }
 }
 .seg button.on { background: #fff; color: var(--azul-oscuro); box-shadow: var(--sombra); }
 
+/* ---------- Contador del menú (notificaciones) ---------- */
+.nav-badge {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 18px; height: 18px; padding: 0 5px; margin-left: 5px;
+  border-radius: 999px; background: var(--rojo); color: #fff;
+  font-size: 11px; font-weight: 800; line-height: 1; vertical-align: middle;
+}
+.notif-item { display: flex; align-items: center; gap: 12px; margin-bottom: 8px; }
+
 /* ---------- Tarjeta de alertas (últimas sesiones) ---------- */
 .alerta-card { border-color: var(--amarillo); background: #fffbeb; margin-bottom: 6px; }
 .alerta-title { font-weight: 800; font-size: 14px; color: var(--amarillo); margin-bottom: 8px; }

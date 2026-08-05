@@ -7,7 +7,6 @@ let TURNO_INICIAR = null;   // turno pendiente de asignar a un box
 let ABOX_BOX = null;        // box elegido para "añadir a box"
 let NOVINO = null;          // turno en el modal "no vino"
 let CONFIG = {};            // config (WhatsApp de la kine, etc.)
-let ALERTAS = [];           // pacientes con pocas sesiones
 
 const DIAS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 
@@ -116,22 +115,6 @@ function render() {
   pintarStats();
   pintarBoxes();
   pintarSala();
-  pintarAlertas();
-}
-
-function pintarAlertas() {
-  const cont = document.getElementById('alertas-wrap');
-  if (!cont) return;
-  if (!ALERTAS.length) { cont.innerHTML = ''; return; }
-  const items = ALERTAS.map(a => {
-    const txt = a.quedan <= 0 ? 'sin sesiones' : `${a.quedan} restante(s)`;
-    return `<a href="/paciente/${a.id}" class="chip">
-      <span class="st ${a.quedan <= 0 ? 'perdido' : ''}"></span>
-      ${escapeHtml(a.nombre_completo)} · <b>${txt}</b></a>`;
-  }).join('');
-  cont.innerHTML = `<div class="card card-pad alerta-card">
-    <div class="alerta-title">⚠️ Últimas sesiones — por renovar bono/autorización</div>
-    <div>${items}</div></div>`;
 }
 
 function pintarStats() {
@@ -436,11 +419,6 @@ async function guardarConfig() {
   if (ESTADO) render();
 }
 
-// ---- Alertas ----
-async function cargarAlertas() {
-  try { ALERTAS = await apiGet('/api/alertas'); pintarAlertas(); } catch (e) {}
-}
-
 // ---- Repetición de alarma mientras un box siga vencido ----
 function repetirAlarmas() {
   const rep = document.getElementById('sound-repeat');
@@ -469,9 +447,7 @@ async function refrescar() {
 
 pintarFecha();
 cargarConfig().then(refrescar);
-cargarAlertas();
 setInterval(refrescar, 5000);
-setInterval(cargarAlertas, 20000);
 setInterval(tick, 1000);
 setInterval(repetirAlarmas, 1000);
 setInterval(pintarFecha, 30000);

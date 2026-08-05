@@ -151,7 +151,12 @@ def init_db():
             ts TEXT,
             tipo TEXT,
             paciente_id INTEGER,
-            texto TEXT
+            texto TEXT,
+            cerrada INTEGER DEFAULT 0
+        );
+
+        CREATE TABLE IF NOT EXISTS notif_cerradas (
+            clave TEXT PRIMARY KEY
         );
 
         CREATE TABLE IF NOT EXISTS config (
@@ -169,6 +174,8 @@ def init_db():
         db.execute("ALTER TABLE pacientes ADD COLUMN horarios TEXT")
     if "categoria" not in _cols(db, "ejercicios"):
         db.execute("ALTER TABLE ejercicios ADD COLUMN categoria TEXT")
+    if "cerrada" not in _cols(db, "eventos"):
+        db.execute("ALTER TABLE eventos ADD COLUMN cerrada INTEGER DEFAULT 0")
     db.commit()
 
     if db.execute("SELECT COUNT(*) FROM boxes").fetchone()[0] == 0:
@@ -369,6 +376,69 @@ def agenda():
 @app.route("/ejercicios")
 def ejercicios_page():
     return render_template("ejercicios.html", activo="ejercicios")
+
+
+@app.route("/notificaciones")
+def notificaciones_page():
+    return render_template("notificaciones.html", activo="notificaciones")
+
+
+# --------------------------------------------------------------------------
+# API — notificaciones (alertas de últimas sesiones + actividad)
+# --------------------------------------------------------------------------
+def _alertas_abiertas():
+    cerradas = {r["clave"] for r in q("SELECT clave FROM notif_cerradas")}
+    out = []
+    for r in q("""SELECT * FROM pacientes WHERE sesiones_totales > 0
+                  AND (sesiones_totales - sesiones_usadas) <= 2
+                  ORDER BY (sesiones_totales - sesiones_usadas), apellido"""):
+        clave = f"alerta:{r['id']}"
+        if clave in cerradas:
+            continue
+        quedan = max(0, (r["sesiones_totales"] or 0) - (r["sesiones_usadas"] or 0))
+        out.append({"clave": clave, "paciente_id": r["id"],
+                    "nombre_completo": nombre_completo(r),
+                    "obra_social": r["obra_social"] or "", "quedan": quedan})
+    return out
+
+
+@app.route("/api/notificaciones")
+def api_notificaciones():
+    alertas = _alertas_abiertas()
+    eventos = [{"id": r["id"], "ts": r["ts"], "tipo": r["tipo"],
+                "texto": r["texto"], "paciente_id": r["paciente_id"]}
+               for r in q("SELECT * FROM eventos WHERE cerrada=0 ORDER BY id DESC LIMIT 60")]
+    return jsonify({"alertas": alertas, "eventos": eventos,
+                    "count": len(alertas) + len(eventos)})
+
+
+@app.route("/api/notificaciones/count")
+def api_notificaciones_count():
+    n = len(_alertas_abiertas()) + q1(
+        "SELECT COUNT(*) c FROM eventos WHERE cerrada=0")["c"]
+    return jsonify(count=n)
+
+
+@app.route("/api/notificaciones/alerta/<int:pid>/cerrar", methods=["POST"])
+def api_cerrar_alerta(pid):
+    run("INSERT OR IGNORE INTO notif_cerradas (clave) VALUES (?)", (f"alerta:{pid}",))
+    return jsonify(ok=True)
+
+
+@app.route("/api/evento/<int:eid>/cerrar", methods=["POST"])
+def api_cerrar_evento(eid):
+    run("UPDATE eventos SET cerrada=1 WHERE id=?", (eid,))
+    return jsonify(ok=True)
+
+
+@app.route("/api/notificaciones/limpiar", methods=["POST"])
+def api_limpiar_notif():
+    run("UPDATE eventos SET cerrada=1 WHERE cerrada=0")
+    for r in q("""SELECT id FROM pacientes WHERE sesiones_totales > 0
+                  AND (sesiones_totales - sesiones_usadas) <= 2"""):
+        run("INSERT OR IGNORE INTO notif_cerradas (clave) VALUES (?)",
+            (f"alerta:{r['id']}",))
+    return jsonify(ok=True)
 
 
 # --------------------------------------------------------------------------
@@ -844,6 +914,8 @@ def api_editar_paciente(pid):
             (d.get("dias") or "").strip(), (d.get("notas") or "").strip(), pid,
         ),
     )
+    # Si le renovaron/cambiaron sesiones, re-habilitar su alerta de últimas sesiones.
+    run("DELETE FROM notif_cerradas WHERE clave=?", (f"alerta:{pid}",))
     return jsonify(ok=True)
 
 
