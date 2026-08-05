@@ -1,12 +1,15 @@
-// Pantalla de recepción: estado en vivo de boxes, sala de espera, agenda y stats.
+// Pantalla de recepción: boxes en vivo, sala del día (por horas, vino/no vino), stats.
 
 let ESTADO = null;
 let AVISADOS = new Set();   // boxes ya avisados como "terminados" (aviso inicial)
 let REPEAT_LAST = {};       // último re-beep por box (para repetir alarma)
 let TURNO_INICIAR = null;   // turno pendiente de asignar a un box
-let ABOX_BOX = null;        // box elegido para "poner paciente directo"
+let ABOX_BOX = null;        // box elegido para "añadir a box"
+let NOVINO = null;          // turno en el modal "no vino"
 let CONFIG = {};            // config (WhatsApp de la kine, etc.)
 let ALERTAS = [];           // pacientes con pocas sesiones
+
+const DIAS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 
 // ---- Reloj / fecha ----
 function pintarFecha() {
@@ -27,7 +30,6 @@ function audioCtx() {
   return AUDIO_CTX;
 }
 
-// Un tono simple con envolvente.
 function tono(ctx, freq, t0, dur, vol, tipo) {
   const o = ctx.createOscillator();
   const g = ctx.createGain();
@@ -40,7 +42,6 @@ function tono(ctx, freq, t0, dur, vol, tipo) {
   o.start(t0); o.stop(t0 + dur);
 }
 
-// Barrido de sirena (para sirena / sirena intensa).
 function sweep(ctx, t0, dur, f1, f2, vol, tipo) {
   const o = ctx.createOscillator(), g = ctx.createGain();
   o.connect(g); g.connect(ctx.destination); o.type = tipo || 'sawtooth';
@@ -54,34 +55,34 @@ function sweep(ctx, t0, dur, f1, f2, vol, tipo) {
   o.start(t0); o.stop(t0 + dur);
 }
 
+// Alarmas ~3-4 segundos (duran más).
 function reproducirAlarma(tipo) {
   try {
     const ctx = audioCtx();
     const n = ctx.currentTime;
     if (tipo === 'triple') {
-      [0, 0.22, 0.44].forEach(dt => tono(ctx, 880, n + dt, 0.16, 0.4));
+      for (let i = 0; i < 8; i++) tono(ctx, 880, n + i * 0.30, 0.16, 0.4);
     } else if (tipo === 'suave') {
-      tono(ctx, 523, n, 0.3, 0.3);
-      tono(ctx, 659, n + 0.18, 0.5, 0.3);
+      for (let i = 0; i < 4; i++) {
+        tono(ctx, 523, n + i * 0.8, 0.3, 0.3);
+        tono(ctx, 659, n + i * 0.8 + 0.18, 0.5, 0.3);
+      }
     } else if (tipo === 'sirena') {
-      sweep(ctx, n, 1.0, 600, 1000, 0.5, 'sawtooth');
+      sweep(ctx, n, 3.0, 600, 1000, 0.5, 'sawtooth');
     } else if (tipo === 'fuerte') {
-      // Beeps cuadrados rápidos y fuertes.
-      for (let i = 0; i < 5; i++) tono(ctx, 1000, n + i * 0.16, 0.11, 0.9, 'square');
+      for (let i = 0; i < 16; i++) tono(ctx, 1000, n + i * 0.19, 0.12, 0.9, 'square');
     } else if (tipo === 'sirena_intensa') {
-      // Dos barridos de ida y vuelta, bien fuertes.
-      sweep(ctx, n, 0.9, 500, 1200, 0.9, 'sawtooth');
-      sweep(ctx, n + 0.9, 0.9, 500, 1200, 0.9, 'sawtooth');
+      for (let i = 0; i < 4; i++) sweep(ctx, n + i * 0.9, 0.9, 500, 1200, 0.9, 'sawtooth');
     } else if (tipo === 'timbre') {
-      // Zumbido continuo tipo timbre de puerta.
-      tono(ctx, 480, n, 1.2, 0.9, 'square');
-      tono(ctx, 620, n, 1.2, 0.5, 'square');
+      tono(ctx, 480, n, 3.2, 0.9, 'square');
+      tono(ctx, 620, n, 3.2, 0.5, 'square');
     } else if (tipo === 'alarma') {
-      // Alarma de reloj: on/off rápido y estridente.
-      for (let i = 0; i < 8; i++) tono(ctx, i % 2 ? 1200 : 900, n + i * 0.12, 0.09, 0.85, 'square');
-    } else { // campana (default)
-      tono(ctx, 988, n, 0.9, 0.4);
-      tono(ctx, 1319, n, 0.9, 0.22);
+      for (let i = 0; i < 26; i++) tono(ctx, i % 2 ? 1200 : 900, n + i * 0.14, 0.1, 0.85, 'square');
+    } else { // campana
+      for (let i = 0; i < 4; i++) {
+        tono(ctx, 988, n + i * 0.85, 0.9, 0.4);
+        tono(ctx, 1319, n + i * 0.85, 0.9, 0.22);
+      }
     }
   } catch (e) {}
 }
@@ -90,24 +91,23 @@ function alarmaSeleccionada() {
   const s = document.getElementById('sound-tipo');
   return s ? s.value : 'campana';
 }
-
 function beep() {
   if (!document.getElementById('sound-on').checked) return;
   reproducirAlarma(alarmaSeleccionada());
 }
-
-// Botón "Probar": suena siempre (aunque la alarma esté apagada).
 function probarAlarma() {
   reproducirAlarma(alarmaSeleccionada());
   toast('🔊 Así suena la alarma', 'ok');
 }
 
 function fmt(seg) {
-  const neg = seg < 0;
-  seg = Math.abs(seg);
-  const m = Math.floor(seg / 60);
-  const s = seg % 60;
+  const neg = seg < 0; seg = Math.abs(seg);
+  const m = Math.floor(seg / 60), s = seg % 60;
   return (neg ? '+' : '') + m + ':' + String(s).padStart(2, '0');
+}
+
+function escapeJs(s) {
+  return (s || '').replace(/\\/g, '\\\\').replace(/'/g, "\\'").replace(/"/g, '\\"');
 }
 
 // ---- Render principal ----
@@ -115,8 +115,7 @@ function render() {
   if (!ESTADO) return;
   pintarStats();
   pintarBoxes();
-  pintarEspera();
-  pintarAgendaMini();
+  pintarSala();
   pintarAlertas();
 }
 
@@ -125,7 +124,6 @@ function pintarAlertas() {
   if (!cont) return;
   if (!ALERTAS.length) { cont.innerHTML = ''; return; }
   const items = ALERTAS.map(a => {
-    const cls = a.quedan <= 0 ? 'danger' : 'warn';
     const txt = a.quedan <= 0 ? 'sin sesiones' : `${a.quedan} restante(s)`;
     return `<a href="/paciente/${a.id}" class="chip">
       <span class="st ${a.quedan <= 0 ? 'perdido' : ''}"></span>
@@ -139,14 +137,14 @@ function pintarAlertas() {
 function pintarStats() {
   const s = ESTADO.stats;
   const items = [
-    ['n', s.total, 'Turnos hoy'],
-    ['', s.atendidos, 'Atendidos'],
-    ['', s.en_curso, 'En sesión'],
-    ['', s.espera, 'En espera'],
-    ['', s.pendientes, 'Por venir'],
-    ['', s.ausentes, 'Ausentes'],
+    [s.total, 'Turnos hoy'],
+    [s.atendidos, 'Vinieron'],
+    [s.en_curso, 'En box'],
+    [s.presentes, 'Presentes'],
+    [s.pendientes, 'Por venir'],
+    [s.ausentes, 'No vinieron'],
   ];
-  document.getElementById('stats').innerHTML = items.map(([_, n, l]) =>
+  document.getElementById('stats').innerHTML = items.map(([n, l]) =>
     `<div class="stat"><div class="n">${n}</div><div class="l">${l}</div></div>`
   ).join('');
 }
@@ -187,56 +185,98 @@ function pintarBoxes() {
   }).join('');
 }
 
-function pintarEspera() {
-  const cont = document.getElementById('espera-list');
-  if (!ESTADO.espera.length) {
-    cont.innerHTML = '<div class="empty">Nadie esperando 🙌</div>';
+// ---- Sala del día (agrupada por hora, con vino/no vino) ----
+function pintarSala() {
+  const cont = document.getElementById('sala-list');
+  const sala = ESTADO.sala || [];
+  if (!sala.length) {
+    cont.innerHTML = '<div class="card"><div class="empty">No hay turnos cargados para hoy</div></div>';
     return;
   }
-  cont.innerHTML = ESTADO.espera.map(e => {
-    const sesTxt = e.sesiones_quedan > 0
-      ? `${e.sesiones_quedan} sesiones restantes`
-      : 'sin sesiones';
-    const warn = e.sesiones_quedan <= 1 ? 'warn' : '';
-    const os = e.obra_social ? `<span class="pill">${escapeHtml(e.obra_social)}</span> ` : '';
-    return `<div class="espera-item">
-      <div class="avatar">${iniciales(e.paciente)}</div>
-      <div class="li-main">
-        <div class="li-name">${escapeHtml(e.paciente)}</div>
-        <div class="li-sub">${e.hora ? e.hora + ' · ' : ''}${os}<span class="pill ${warn}">${sesTxt}</span></div>
-      </div>
-      <div class="li-actions">
-        <button class="btn btn-primary btn-sm" onclick="pedirIniciar(${e.turno_id}, '${escapeJs(e.paciente)}')">A un box →</button>
-      </div>
-    </div>`;
-  }).join('');
-}
-
-function pintarAgendaMini() {
-  const cont = document.getElementById('agenda-mini');
-  if (!ESTADO.agenda_por_hora.length) {
-    cont.innerHTML = '<div class="empty">No hay turnos cargados para hoy</div>';
-    return;
-  }
-  cont.innerHTML = ESTADO.agenda_por_hora.map(g => {
-    const chips = g.turnos.map(t =>
-      `<span class="chip"><span class="st ${t.estado}"></span>${escapeHtml(t.paciente)}</span>`
-    ).join('');
-    return `<div class="hora-block">
+  cont.innerHTML = sala.map(g => `
+    <div class="hora-block">
       <div class="hora-head">
         <span class="h">${escapeHtml(g.hora)}</span>
         <span class="hora-count">${g.cantidad} ${g.cantidad === 1 ? 'persona' : 'personas'}</span>
       </div>
-      <div>${chips}</div>
-    </div>`;
-  }).join('');
+      <div class="card">${g.turnos.map(filaSala).join('')}</div>
+    </div>`).join('');
 }
 
-function escapeJs(s) {
-  return (s || '').replace(/'/g, "\\'").replace(/"/g, '\\"');
+function filaSala(t) {
+  const os = t.obra_social ? `<span class="pill">${escapeHtml(t.obra_social)}</span> ` : '';
+  const ses = t.sesiones_quedan <= 1 ? 'warn' : '';
+  let acciones = '', badge = '';
+  if (t.estado === 'agendado' || t.estado === 'en_espera') {
+    acciones = `
+      <button class="btn btn-ok btn-sm" title="Vino" onclick="vino(${t.turno_id})">✓ Vino</button>
+      <button class="btn btn-danger-soft btn-sm" title="No vino" onclick="noVino(${t.turno_id})">✗</button>`;
+  } else if (t.estado === 'presente') {
+    badge = `<span class="pill ok">Presente ✓</span>`;
+    acciones = `<button class="btn btn-primary btn-sm" onclick="pedirIniciar(${t.turno_id}, '${escapeJs(t.paciente)}')">A un box →</button>`;
+  } else if (t.estado === 'en_curso') {
+    badge = `<span class="pill">En ${escapeHtml(t.box || 'box')}</span>`;
+  } else if (t.estado === 'terminado') {
+    badge = `<span class="pill ok">Terminó</span>`;
+  } else if (t.estado === 'ausente') {
+    badge = `<span class="pill danger">No vino</span>`;
+  } else if (t.estado === 'perdido') {
+    badge = `<span class="pill danger">Perdido</span>`;
+  }
+  return `<div class="espera-item">
+    <div class="avatar">${iniciales(t.paciente)}</div>
+    <div class="li-main">
+      <a href="/paciente/${t.paciente_id}" class="li-name">${escapeHtml(t.paciente)}</a>
+      <div class="li-sub">${os}<span class="pill ${ses}">${t.sesiones_quedan} ses.</span> ${badge}</div>
+    </div>
+    <div class="li-actions">${acciones}</div>
+  </div>`;
 }
 
-// ---- Ticking local del timer entre polls (para que no se congele) ----
+// ---- Vino / No vino ----
+async function vino(tid) {
+  const r = await api(`/api/turno/${tid}/vino`);
+  toast(`Vino ✓ — sesión contada · quedan ${r.sesiones_quedan}`, 'ok');
+  refrescar();
+}
+
+function noVino(tid) {
+  const t = (ESTADO.sala || []).flatMap(g => g.turnos).find(x => x.turno_id === tid);
+  if (!t) return;
+  NOVINO = t;
+  document.getElementById('novino-nombre').textContent = t.paciente + ' no vino. ¿Qué hacemos?';
+  // Mostrar los horarios del paciente.
+  let hs = '';
+  if (t.horarios && Object.keys(t.horarios).length) {
+    hs = Object.keys(t.horarios).sort().map(k => `${DIAS[k]} ${t.horarios[k]}`).join(' · ');
+  }
+  const dias = t.dias || '—';
+  document.getElementById('novino-horarios').innerHTML =
+    `Sus días: <b>${escapeHtml(dias)}</b>` + (hs ? `<br>Horarios: <b>${escapeHtml(hs)}</b>` : '');
+  document.getElementById('novino-fecha').value = '';
+  abrirModal('modal-novino');
+}
+
+async function reprogNovino() {
+  const r = await api(`/api/turno/${NOVINO.turno_id}/reprogramar`);
+  cerrarModal('modal-novino');
+  toast('Reprogramado al ' + r.fecha + ' ✓', 'ok');
+  refrescar();
+}
+async function elegirFechaNovino() {
+  const f = document.getElementById('novino-fecha').value;
+  if (!f) { toast('Elegí una fecha', 'alert'); return; }
+  const r = await api(`/api/turno/${NOVINO.turno_id}/elegir_fecha`, { fecha: f });
+  cerrarModal('modal-novino');
+  toast('Turno movido al ' + r.fecha + ' ✓', 'ok');
+  refrescar();
+}
+function dejarDespues() {
+  cerrarModal('modal-novino');
+  toast('Lo dejamos para después', 'ok');
+}
+
+// ---- Ticking local del timer ----
 function tick() {
   document.querySelectorAll('.timer[data-restante]').forEach(el => {
     let r = parseInt(el.dataset.restante, 10) - 1;
@@ -248,11 +288,7 @@ function tick() {
       const badge = box.querySelector('.box-badge');
       if (badge) { badge.className = 'box-badge badge-vencido'; badge.textContent = '¡Terminó!'; }
     }
-    // Aviso al cruzar el cero.
-    if (r === 0) {
-      const id = box ? box.dataset.box : null;
-      dispararAviso(id, box);
-    }
+    if (r === 0) dispararAviso(box ? box.dataset.box : null, box);
   });
 }
 
@@ -265,10 +301,10 @@ function dispararAviso(boxId, box) {
   toast(`⏰ ${nom} terminó — ${pac}`, 'alert');
 }
 
-// ---- Acciones ----
+// ---- Acciones de box ----
 async function terminar(tid) {
   await api(`/api/turno/${tid}/terminar`);
-  toast('Sesión terminada ✓', 'ok');
+  toast('Box liberado ✓', 'ok');
   refrescar();
 }
 
@@ -276,10 +312,7 @@ function pedirIniciar(tid, nombre) {
   TURNO_INICIAR = tid;
   document.getElementById('iniciar-titulo').textContent = 'Enviar a box: ' + nombre;
   const sel = document.getElementById('iniciar-box');
-  if (!ESTADO.libres.length) {
-    toast('No hay boxes libres en este momento', 'alert');
-    return;
-  }
+  if (!ESTADO.libres.length) { toast('No hay boxes libres en este momento', 'alert'); return; }
   sel.innerHTML = ESTADO.libres.map(b => `<option value="${b.id}">${escapeHtml(b.nombre)}</option>`).join('');
   abrirModal('modal-iniciar');
 }
@@ -299,14 +332,40 @@ async function agregarBox() {
   await api('/api/box', { nombre });
   refrescar();
 }
-
 async function borrarBox(id) {
   if (!confirm('¿Quitar este box de la sala?')) return;
   await api(`/api/box/${id}/borrar`);
   refrescar();
 }
 
-// ---- Check-in / registrar llegada ----
+// ---- Añadir a box: sólo pacientes presentes ----
+function ponerEnBox(boxId, nombre) {
+  ABOX_BOX = boxId;
+  document.getElementById('abox-titulo').textContent = 'Añadir a ' + nombre;
+  const pres = ESTADO.presentes || [];
+  const cont = document.getElementById('abox-resultados');
+  if (!pres.length) {
+    cont.innerHTML = '<div class="empty">No hay pacientes presentes.<br>Marcá ✓ Vino en la sala del día primero.</div>';
+  } else {
+    cont.innerHTML = pres.map(p => `
+      <div class="list-item">
+        <div class="avatar">${iniciales(p.paciente)}</div>
+        <div class="li-main"><div class="li-name">${escapeHtml(p.paciente)}</div>
+        <div class="li-sub">${p.hora ? p.hora + ' · ' : ''}${p.sesiones_quedan} sesiones</div></div>
+        <button class="btn btn-primary btn-sm" onclick="confirmarAbox(${p.turno_id})">Al box</button>
+      </div>`).join('');
+  }
+  abrirModal('modal-abox');
+}
+async function confirmarAbox(turnoId) {
+  const dur = document.getElementById('abox-dur').value;
+  await api(`/api/turno/${turnoId}/iniciar`, { box_id: ABOX_BOX, duracion: +dur });
+  cerrarModal('modal-abox');
+  toast('Paciente en el box ✓', 'ok');
+  refrescar();
+}
+
+// ---- Registrar llegada (walk-in): marca vino ----
 function abrirCheckin() {
   document.getElementById('checkin-buscar').value = '';
   document.getElementById('checkin-resultados').innerHTML =
@@ -323,17 +382,10 @@ document.getElementById('checkin-buscar').addEventListener('input', e => {
 });
 
 async function buscarPacientes(term) {
-  if (!term) {
-    document.getElementById('checkin-resultados').innerHTML =
-      '<div class="empty">Escribí un nombre para buscar</div>';
-    return;
-  }
-  const rows = await apiGet('/api/pacientes?q=' + encodeURIComponent(term));
   const cont = document.getElementById('checkin-resultados');
-  if (!rows.length) {
-    cont.innerHTML = '<div class="empty">Sin resultados</div>';
-    return;
-  }
+  if (!term) { cont.innerHTML = '<div class="empty">Escribí un nombre para buscar</div>'; return; }
+  const rows = await apiGet('/api/pacientes?q=' + encodeURIComponent(term));
+  if (!rows.length) { cont.innerHTML = '<div class="empty">Sin resultados</div>'; return; }
   cont.innerHTML = rows.map(p => `
     <div class="list-item">
       <div class="avatar">${iniciales(p.nombre_completo)}</div>
@@ -341,73 +393,26 @@ async function buscarPacientes(term) {
         <div class="li-name">${escapeHtml(p.nombre_completo)}</div>
         <div class="li-sub">${p.dni ? 'DNI ' + escapeHtml(p.dni) + ' · ' : ''}${p.sesiones_quedan} sesiones restantes</div>
       </div>
-      <button class="btn btn-primary btn-sm" onclick="registrarLlegada(${p.id}, '${escapeJs(p.nombre_completo)}')">Llegó</button>
+      <button class="btn btn-primary btn-sm" onclick="registrarLlegada(${p.id}, '${escapeJs(p.nombre_completo)}')">Vino ✓</button>
     </div>`).join('');
 }
 
 async function registrarLlegada(pid, nombre) {
-  // Busca un turno de hoy agendado; si no hay, crea uno al vuelo.
   const hoy = new Date().toISOString().slice(0, 10);
   const hora = new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
-  let turnoId = null;
-
-  // ¿Tiene turno agendado hoy?
   const est = await apiGet('/api/estado');
-  const enAgenda = est.agenda_por_hora
-    .flatMap(g => g.turnos)
-    .find(t => t.paciente_id === pid && t.estado === 'agendado');
-
-  if (enAgenda) {
-    turnoId = enAgenda.turno_id;
-  } else {
-    const r = await api('/api/turno', { paciente_id: pid, fecha: hoy, hora });
-    turnoId = r.id;
-  }
-  await api(`/api/turno/${turnoId}/asistencia`);
+  const enSala = (est.sala || []).flatMap(g => g.turnos)
+    .find(t => t.paciente_id === pid && (t.estado === 'agendado' || t.estado === 'en_espera'));
+  let turnoId;
+  if (enSala) turnoId = enSala.turno_id;
+  else { const r = await api('/api/turno', { paciente_id: pid, fecha: hoy, hora }); turnoId = r.id; }
+  await api(`/api/turno/${turnoId}/vino`);
   cerrarModal('modal-checkin');
-  toast(`${nombre} en sala de espera ✓`, 'ok');
+  toast(`${nombre}: vino ✓`, 'ok');
   refrescar();
 }
 
-// ---- Poner paciente directo en un box (cuenta como asistencia) ----
-function ponerEnBox(boxId, nombre) {
-  ABOX_BOX = boxId;
-  document.getElementById('abox-titulo').textContent = 'Poner en ' + nombre;
-  document.getElementById('abox-buscar').value = '';
-  document.getElementById('abox-resultados').innerHTML = '<div class="empty">Buscá un paciente</div>';
-  abrirModal('modal-abox');
-  setTimeout(() => document.getElementById('abox-buscar').focus(), 100);
-}
-
-let aboxTimer = null;
-document.getElementById('abox-buscar').addEventListener('input', e => {
-  clearTimeout(aboxTimer);
-  const term = e.target.value.trim();
-  aboxTimer = setTimeout(() => buscarAbox(term), 220);
-});
-
-async function buscarAbox(term) {
-  const cont = document.getElementById('abox-resultados');
-  if (!term) { cont.innerHTML = '<div class="empty">Buscá un paciente</div>'; return; }
-  const rows = await apiGet('/api/pacientes?q=' + encodeURIComponent(term));
-  cont.innerHTML = rows.length ? rows.map(p => `
-    <div class="list-item">
-      <div class="avatar">${iniciales(p.nombre_completo)}</div>
-      <div class="li-main"><div class="li-name">${escapeHtml(p.nombre_completo)}</div>
-      <div class="li-sub">${p.sesiones_quedan} sesiones restantes</div></div>
-      <button class="btn btn-primary btn-sm" onclick="confirmarAbox(${p.id})">Al box</button>
-    </div>`).join('') : '<div class="empty">Sin resultados</div>';
-}
-
-async function confirmarAbox(pid) {
-  const dur = document.getElementById('abox-dur').value;
-  await api('/api/paciente/' + pid + '/a_box', { box_id: ABOX_BOX, duracion: +dur });
-  cerrarModal('modal-abox');
-  toast('Paciente en el box — asistencia registrada ✓', 'ok');
-  refrescar();
-}
-
-// ---- WhatsApp (puente manual; base para el bot/IA a futuro) ----
+// ---- WhatsApp ----
 function waLink(msg) {
   return 'https://wa.me/' + (CONFIG.wa_kine || '').replace(/[^0-9]/g, '') +
     '?text=' + encodeURIComponent(msg);
@@ -431,7 +436,7 @@ async function guardarConfig() {
   if (ESTADO) render();
 }
 
-// ---- Alertas de últimas sesiones ----
+// ---- Alertas ----
 async function cargarAlertas() {
   try { ALERTAS = await apiGet('/api/alertas'); pintarAlertas(); } catch (e) {}
 }
@@ -443,8 +448,8 @@ function repetirAlarmas() {
   const now = Date.now();
   ESTADO.boxes.forEach(b => {
     if (b.ocupado && b.vencido) {
-      if (!(b.id in REPEAT_LAST)) { REPEAT_LAST[b.id] = now; return; } // 1er aviso lo da tick()
-      if (now - REPEAT_LAST[b.id] > 5000) { reproducirAlarma(alarmaSeleccionada()); REPEAT_LAST[b.id] = now; }
+      if (!(b.id in REPEAT_LAST)) { REPEAT_LAST[b.id] = now; return; }
+      if (now - REPEAT_LAST[b.id] > 6000) { reproducirAlarma(alarmaSeleccionada()); REPEAT_LAST[b.id] = now; }
     } else {
       delete REPEAT_LAST[b.id];
     }
@@ -465,8 +470,8 @@ async function refrescar() {
 pintarFecha();
 cargarConfig().then(refrescar);
 cargarAlertas();
-setInterval(refrescar, 5000);       // sincroniza con el server cada 5s
-setInterval(cargarAlertas, 20000);  // alertas de sesiones
-setInterval(tick, 1000);            // baja el timer local cada segundo
-setInterval(repetirAlarmas, 1000);  // repite la alarma si sigue vencido
+setInterval(refrescar, 5000);
+setInterval(cargarAlertas, 20000);
+setInterval(tick, 1000);
+setInterval(repetirAlarmas, 1000);
 setInterval(pintarFecha, 30000);

@@ -44,13 +44,8 @@
   </div>
 
   <div class="col-side">
-    <div class="section-title" style="margin:6px 0 8px;">Sala de espera</div>
-    <div class="card" id="espera-card">
-      <div id="espera-list"></div>
-    </div>
-
-    <div class="section-title">Próximos turnos</div>
-    <div class="card card-pad" id="agenda-mini"></div>
+    <div class="section-title" style="margin:6px 0 8px;">Sala del día — turnos por hora</div>
+    <div id="sala-list"></div>
   </div>
 </div>
 
@@ -110,10 +105,6 @@
     </div>
     <div class="modal-body">
       <div class="field">
-        <input class="input" id="abox-buscar" placeholder="Buscar por nombre, apellido o DNI…" autocomplete="off">
-      </div>
-      <div id="abox-resultados"></div>
-      <div class="field" style="margin-top:12px;">
         <label>Duración de la sesión</label>
         <select class="input" id="abox-dur">
           <option value="20">20 minutos</option>
@@ -123,7 +114,33 @@
           <option value="60">60 minutos</option>
         </select>
       </div>
-      <div class="hint">Al ponerlo en el box queda registrada su asistencia automáticamente.</div>
+      <div class="hint" style="margin-bottom:8px;">Sólo aparecen los pacientes presentes (que ya marcaste ✓ Vino en la sala).</div>
+      <div id="abox-resultados"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: no vino (reprogramar / elegir fecha / dejar) -->
+<div class="modal-bg" id="modal-novino">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>No vino</h3>
+      <button class="x" onclick="cerrarModal('modal-novino')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p id="novino-nombre" style="margin:0 0 6px; font-weight:600;"></p>
+      <div class="hint" id="novino-horarios" style="margin-bottom:14px;"></div>
+      <button class="btn btn-primary btn-block" style="margin-bottom:10px;" onclick="reprogNovino()">
+        📅 Reprogramar al próximo turno disponible
+      </button>
+      <div class="field">
+        <label>O elegir una fecha puntual</label>
+        <div class="row" style="gap:8px;">
+          <input class="input grow" id="novino-fecha" type="date">
+          <button class="btn btn-line" onclick="elegirFechaNovino()">Mover acá</button>
+        </div>
+      </div>
+      <button class="btn btn-ghost btn-block" style="margin-top:6px;" onclick="dejarDespues()">Dejar para después</button>
     </div>
   </div>
 </div>

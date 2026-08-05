@@ -328,13 +328,20 @@ def recepcion():
 
 @app.route("/pacientes")
 def pacientes():
+    hoy = date.today().isoformat()
+    hoy_ids = {r["paciente_id"] for r in
+               q("SELECT DISTINCT paciente_id FROM turnos WHERE fecha=?", (hoy,))}
     filas = q(
         "SELECT * FROM pacientes ORDER BY apellido COLLATE NOCASE, nombre COLLATE NOCASE"
     )
-    return render_template(
-        "pacientes.html", activo="pacientes",
-        pacientes=[paciente_dict(p) for p in filas],
-    )
+    lista = []
+    for p in filas:
+        d = paciente_dict(p)
+        d["hoy"] = d["id"] in hoy_ids
+        lista.append(d)
+    # Los que tienen turno hoy van primero.
+    lista.sort(key=lambda x: (not x["hoy"], x["nombre_completo"].lower()))
+    return render_template("pacientes.html", activo="pacientes", pacientes=lista)
 
 
 @app.route("/paciente/<int:pid>")
@@ -402,37 +409,34 @@ def api_estado():
     libres = [{"id": b["id"], "nombre": b["nombre"]}
               for b in boxes if b["id"] not in ocupados]
 
-    espera_rows = q(
+    # Sala del día: TODOS los turnos de hoy, agrupados por hora, con su estado.
+    sala_rows = q(
         """SELECT t.*, p.nombre, p.apellido, p.diagnostico, p.obra_social,
-                  p.sesiones_totales, p.sesiones_usadas
+                  p.dias, p.horarios, p.sesiones_totales, p.sesiones_usadas,
+                  b.nombre AS box_nombre
            FROM turnos t JOIN pacientes p ON p.id = t.paciente_id
-           WHERE t.fecha=? AND t.estado='en_espera'
-           ORDER BY t.hora, t.id""",
+           LEFT JOIN boxes b ON b.id = t.box_id
+           WHERE t.fecha=? ORDER BY t.hora, t.id""",
         (hoy,),
     )
-    espera = [{
-        "turno_id": t["id"], "paciente_id": t["paciente_id"],
-        "paciente": f"{t['nombre']} {t['apellido']}", "hora": t["hora"] or "",
-        "diagnostico": t["diagnostico"] or "", "obra_social": t["obra_social"] or "",
-        "sesiones_quedan": (t["sesiones_totales"] or 0) - (t["sesiones_usadas"] or 0),
-    } for t in espera_rows]
-
-    agenda_rows = q(
-        """SELECT t.*, p.nombre, p.apellido
-           FROM turnos t JOIN pacientes p ON p.id = t.paciente_id
-           WHERE t.fecha=? AND t.estado NOT IN ('terminado','ausente','perdido')
-           ORDER BY t.hora, t.id""",
-        (hoy,),
-    )
-    por_hora = {}
-    for t in agenda_rows:
-        h = t["hora"] or "Sin hora"
-        por_hora.setdefault(h, []).append({
+    sala_por_hora = {}
+    presentes = []
+    for t in sala_rows:
+        quedan = (t["sesiones_totales"] or 0) - (t["sesiones_usadas"] or 0)
+        item = {
             "turno_id": t["id"], "paciente_id": t["paciente_id"],
-            "paciente": f"{t['nombre']} {t['apellido']}", "estado": t["estado"],
-        })
-    agenda_por_hora = [{"hora": h, "cantidad": len(v), "turnos": v}
-                       for h, v in sorted(por_hora.items())]
+            "paciente": f"{t['nombre']} {t['apellido']}", "hora": t["hora"] or "",
+            "estado": t["estado"], "diagnostico": t["diagnostico"] or "",
+            "obra_social": t["obra_social"] or "", "sesiones_quedan": quedan,
+            "dias": t["dias"] or "", "horarios": parse_horarios(t["horarios"]),
+            "box": t["box_nombre"] or "",
+        }
+        h = t["hora"] or "Sin hora"
+        sala_por_hora.setdefault(h, []).append(item)
+        if t["estado"] == "presente":
+            presentes.append(item)
+    sala = [{"hora": h, "cantidad": len(v), "turnos": v}
+            for h, v in sorted(sala_por_hora.items())]
 
     def count(estado):
         return q1("SELECT COUNT(*) c FROM turnos WHERE fecha=? AND estado=?",
@@ -440,15 +444,17 @@ def api_estado():
 
     total = q1("SELECT COUNT(*) c FROM turnos WHERE fecha=?", (hoy,))["c"]
     stats = {
-        "total": total, "atendidos": count("terminado"),
-        "en_curso": count("en_curso"), "espera": count("en_espera"),
+        "total": total,
+        "atendidos": count("presente") + count("en_curso") + count("terminado"),
+        "en_curso": count("en_curso"),
+        "presentes": count("presente"),
         "ausentes": count("ausente") + count("perdido"),
-        "pendientes": count("agendado"),
+        "pendientes": count("agendado") + count("en_espera"),
     }
 
     return jsonify({
         "ahora": ahora.isoformat(), "boxes": box_estado, "libres": libres,
-        "espera": espera, "agenda_por_hora": agenda_por_hora, "stats": stats,
+        "sala": sala, "presentes": presentes, "stats": stats,
     })
 
 
@@ -515,6 +521,51 @@ def api_asistencia(tid):
     return jsonify(ok=True)
 
 
+@app.route("/api/turno/<int:tid>/vino", methods=["POST"])
+def api_vino(tid):
+    """El paciente vino (✓): marca presente y cuenta la sesión (una sola vez)."""
+    t = q1("""SELECT t.*, p.nombre, p.apellido FROM turnos t
+              JOIN pacientes p ON p.id=t.paciente_id WHERE t.id=?""", (tid,))
+    if not t:
+        return jsonify(ok=False, error="Turno inexistente"), 404
+    ya_conto = t["estado"] in ("presente", "en_curso", "terminado")
+    run("UPDATE turnos SET estado='presente' WHERE id=?", (tid,))
+    if not ya_conto:
+        _descontar_sesion(t["paciente_id"])
+        registrar_evento("vino", t["paciente_id"],
+                         f"{t['nombre']} {t['apellido']} vino (sesión contada)")
+    p = q1("SELECT sesiones_totales, sesiones_usadas FROM pacientes WHERE id=?",
+           (t["paciente_id"],))
+    quedan = (p["sesiones_totales"] or 0) - (p["sesiones_usadas"] or 0)
+    return jsonify(ok=True, sesiones_quedan=quedan)
+
+
+@app.route("/api/turno/<int:tid>/elegir_fecha", methods=["POST"])
+def api_elegir_fecha(tid):
+    """No vino: el kine elige una fecha nueva para el turno."""
+    d = request.get_json(force=True, silent=True) or {}
+    fecha = d.get("fecha")
+    if not fecha:
+        return jsonify(ok=False, error="Elegí una fecha"), 400
+    t = q1("SELECT * FROM turnos WHERE id=?", (tid,))
+    if not t:
+        return jsonify(ok=False, error="Turno inexistente"), 404
+    p = q1("SELECT * FROM pacientes WHERE id=?", (t["paciente_id"],))
+    horarios = parse_horarios(p["horarios"]) if p else {}
+    try:
+        wd = date.fromisoformat(fecha).weekday()
+    except Exception:
+        return jsonify(ok=False, error="Fecha inválida"), 400
+    hora = d.get("hora") or horarios.get(str(wd)) or t["hora"] or ""
+    run("UPDATE turnos SET estado='ausente', box_id=NULL WHERE id=?", (tid,))
+    nid = run(
+        """INSERT INTO turnos (paciente_id, fecha, hora, estado, duracion_min)
+           VALUES (?,?,?, 'agendado', ?)""",
+        (t["paciente_id"], fecha, hora, t["duracion_min"] or DURACION_DEFAULT),
+    )
+    return jsonify(ok=True, id=nid, fecha=fecha, hora=hora)
+
+
 @app.route("/api/turno/<int:tid>/iniciar", methods=["POST"])
 def api_iniciar(tid):
     data = request.get_json(force=True, silent=True) or {}
@@ -569,6 +620,9 @@ def api_a_box(pid):
            duracion_min=?, fin=NULL WHERE id=?""",
         (box_id, datetime.now().isoformat(), dur, tid),
     )
+    # Llegada directa al box: cuenta la sesión si el turno no la contó todavía.
+    if not t or t["estado"] not in ("presente", "en_curso", "terminado"):
+        _descontar_sesion(pid)
     info = q1("""SELECT p.nombre, p.apellido, b.nombre AS box
                  FROM pacientes p, boxes b WHERE p.id=? AND b.id=?""",
               (pid, box_id))
@@ -588,18 +642,15 @@ def _descontar_sesion(pid):
 
 
 @app.route("/api/turno/<int:tid>/terminar", methods=["POST"])
-@app.route("/api/turno/<int:tid>/asistio", methods=["POST"])
 def api_terminar(tid):
     t = q1("""SELECT t.*, p.nombre, p.apellido, b.nombre AS box
               FROM turnos t JOIN pacientes p ON p.id=t.paciente_id
               LEFT JOIN boxes b ON b.id=t.box_id WHERE t.id=?""", (tid,))
     if not t:
         return jsonify(ok=False, error="Turno inexistente"), 404
-    ya_contaba = t["estado"] == "terminado"
+    # La sesión ya se contó al marcar "vino" (✓); acá sólo se libera el box.
     run("UPDATE turnos SET estado='terminado', fin=?, box_id=NULL WHERE id=?",
         (datetime.now().isoformat(), tid))
-    if not ya_contaba:
-        _descontar_sesion(t["paciente_id"])
     box = t["box"] or ""
     registrar_evento("fin", t["paciente_id"],
                      f"{t['nombre']} {t['apellido']} terminó" + (f" en {box}" if box else ""))

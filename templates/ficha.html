@@ -140,7 +140,7 @@
         <div class="field"><label>Categoría</label><input class="input" id="ej-categoria" list="cats-list" placeholder="Miembro inferior, Cervical…"></div>
       </div>
 
-      <div id="ej-elegido" class="hint" style="margin:6px 0 12px;"></div>
+      <div class="hint" style="margin:8px 0 12px;">💡 Tocá un ejercicio del catálogo y se agrega al instante. Podés sumar varios seguidos. Series y reps son opcionales.</div>
 
       <div class="grid2">
         <div class="field"><label>Series</label><input class="input" id="ej-series" placeholder="3"></div>
@@ -150,8 +150,8 @@
       <datalist id="cats-list"></datalist>
     </div>
     <div class="modal-foot">
-      <button class="btn btn-ghost" onclick="cerrarModal('modal-ej')">Cancelar</button>
-      <button class="btn btn-primary" onclick="guardarEjercicio()">Agregar</button>
+      <button class="btn btn-primary" onclick="cerrarModal('modal-ej')">Listo</button>
+      <button class="btn btn-ghost" onclick="guardarEjercicio()">Agregar (modo escribir)</button>
     </div>
   </div>
 </div>
@@ -188,7 +188,6 @@ async function guardarEditar() {
 async function abrirEjercicio() {
   EJ_ELEGIDO = { nombre: '', categoria: '' };
   ['ej-series', 'ej-reps', 'ej-notas', 'ej-nombre', 'ej-categoria'].forEach(id => document.getElementById(id).value = '');
-  document.getElementById('ej-elegido').textContent = '';
   modoEj('catalogo');
   if (!Object.keys(CATALOGO).length) CATALOGO = await apiGet('/api/catalogo');
   pintarCategorias();
@@ -203,8 +202,6 @@ function modoEj(m) {
   document.getElementById('ej-modo-escribir').style.display = cat ? 'none' : '';
   document.getElementById('tab-catalogo').classList.toggle('on', cat);
   document.getElementById('tab-escribir').classList.toggle('on', !cat);
-  document.getElementById('ej-elegido').textContent = '';
-  EJ_ELEGIDO = { nombre: '', categoria: '' };
 }
 
 function pintarCategorias() {
@@ -226,25 +223,42 @@ function pintarOpciones() {
   ).join('') || '<div class="empty">Sin ejercicios en esta categoría</div>';
 }
 
-function elegirEj(nombre, categoria) {
-  EJ_ELEGIDO = { nombre, categoria };
-  document.getElementById('ej-elegido').innerHTML = '✓ <b>' + escapeHtml(nombre) + '</b> — ' + escapeHtml(categoria);
+// Agrega al instante (sin recargar) y deja el modal abierto para seguir sumando.
+async function addEjercicio(nombre, categoria) {
+  if (!nombre || !nombre.trim()) { toast('Elegí o escribí un ejercicio', 'alert'); return; }
+  const series = val('ej-series'), reps = val('ej-reps'), notas = val('ej-notas');
+  const r = await api('/api/paciente/' + PID + '/ejercicio',
+    { nombre, categoria, series, reps, notas });
+  agregarEjDOM({ id: r.id, nombre, categoria, series, reps, notas });
+  toast('Agregado: ' + nombre + ' ✓', 'ok');
 }
 
+function agregarEjDOM(e) {
+  const list = document.getElementById('ej-list');
+  const vacio = list.querySelector('.empty'); if (vacio) vacio.remove();
+  const n = list.querySelectorAll('.ej-item').length + 1;
+  const sub = [e.series ? e.series + ' series' : '', e.reps ? '× ' + e.reps : '', e.notas || '']
+    .filter(Boolean).join(' · ');
+  const div = document.createElement('div');
+  div.className = 'ej-item'; div.id = 'ej-' + e.id;
+  div.innerHTML = `<div class="ej-num">${n}</div>` +
+    `<div class="li-main"><div class="li-name">${escapeHtml(e.nombre)}` +
+    (e.categoria ? `<span class="tag-cat">${escapeHtml(e.categoria)}</span>` : '') +
+    `</div><div class="li-sub">${escapeHtml(sub)}</div></div>` +
+    `<button class="x" onclick="borrarEjercicio(${e.id})" title="Quitar">&times;</button>`;
+  list.appendChild(div);
+}
+
+// Tocar un ejercicio del catálogo lo agrega al instante.
+async function elegirEj(nombre, categoria) { await addEjercicio(nombre, categoria); }
+
+// Botón "Agregar" (modo escribir): agrega y limpia para el siguiente.
 async function guardarEjercicio() {
-  let nombre, categoria;
-  const modoEscribir = document.getElementById('tab-escribir').classList.contains('on');
-  if (modoEscribir) {
-    nombre = val('ej-nombre'); categoria = val('ej-categoria');
-  } else {
-    nombre = EJ_ELEGIDO.nombre; categoria = EJ_ELEGIDO.categoria;
-  }
-  if (!nombre.trim()) { toast('Elegí o escribí un ejercicio', 'alert'); return; }
-  await api('/api/paciente/' + PID + '/ejercicio', {
-    nombre, categoria, series: val('ej-series'), reps: val('ej-reps'), notas: val('ej-notas'),
-  });
-  toast('Ejercicio agregado ✓', 'ok');
-  setTimeout(() => location.reload(), 400);
+  const escribir = document.getElementById('tab-escribir').classList.contains('on');
+  if (!escribir) { toast('Tocá un ejercicio del catálogo para agregarlo', 'ok'); return; }
+  await addEjercicio(val('ej-nombre'), val('ej-categoria'));
+  document.getElementById('ej-nombre').value = '';
+  document.getElementById('ej-nombre').focus();
 }
 
 async function borrarEjercicio(eid) {
