@@ -1,0 +1,21 @@
+# Base de datos (¡contiene datos de pacientes! NO debe subirse)
+kinesio.db
+*.db
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+venv/
+env/
+
+# Configuración local del editor / entorno
+.claude/
+.vscode/
+.idea/
+*.log
+
+# Sistema
+.DS_Store
+Thumbs.db
