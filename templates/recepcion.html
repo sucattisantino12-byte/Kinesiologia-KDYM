@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% block title %}Recepción — KDYM{% endblock %}
+
+{% block content %}
+<div class="row" style="align-items:center; margin-bottom:6px;">
+  <div class="grow">
+    <div class="page-title" style="margin-bottom:2px;">Recepción</div>
+    <div class="muted" id="fecha-hoy"></div>
+  </div>
+  <div class="sound-bar">
+    <label class="sound-toggle">
+      <input type="checkbox" id="sound-on" checked> 🔔 Alarma
+    </label>
+    <select id="sound-tipo" title="Sonido de la alarma">
+      <option value="campana">Campana</option>
+      <option value="triple">Triple beep</option>
+      <option value="suave">Suave</option>
+      <option value="sirena">Sirena</option>
+      <option value="fuerte">Fuerte 🔊</option>
+      <option value="sirena_intensa">Sirena intensa 🔊</option>
+      <option value="timbre">Timbre 🔊</option>
+      <option value="alarma">Alarma reloj 🔊</option>
+    </select>
+    <label class="sound-toggle" title="Repetir la alarma hasta terminar la sesión">
+      <input type="checkbox" id="sound-repeat" checked> repetir
+    </label>
+    <button class="btn btn-ghost btn-sm" onclick="probarAlarma()">▶ Probar</button>
+  </div>
+  <button class="btn btn-ghost btn-sm" onclick="abrirConfig()" title="Configurar WhatsApp">⚙</button>
+  <button class="btn btn-primary" onclick="abrirCheckin()">+ Registrar llegada</button>
+</div>
+
+<div id="alertas-wrap"></div>
+
+<div class="stats" id="stats"></div>
+
+<div class="split" style="margin-top:14px;">
+  <div class="col-main">
+    <div class="row" style="align-items:center; justify-content:space-between;">
+      <div class="section-title" style="margin:6px 0 8px;">Boxes</div>
+      <button class="btn btn-ghost btn-sm" onclick="agregarBox()">+ Box</button>
+    </div>
+    <div class="boxes" id="boxes"></div>
+  </div>
+
+  <div class="col-side">
+    <div class="section-title" style="margin:6px 0 8px;">Sala de espera</div>
+    <div class="card" id="espera-card">
+      <div id="espera-list"></div>
+    </div>
+
+    <div class="section-title">Próximos turnos</div>
+    <div class="card card-pad" id="agenda-mini"></div>
+  </div>
+</div>
+
+<!-- Modal: registrar llegada / check-in -->
+<div class="modal-bg" id="modal-checkin">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>Registrar llegada</h3>
+      <button class="x" onclick="cerrarModal('modal-checkin')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <input class="input" id="checkin-buscar" placeholder="Buscar por nombre, apellido o DNI…" autocomplete="off">
+      </div>
+      <div id="checkin-resultados"></div>
+      <div class="hint">¿No está en la lista? <a href="{{ url_for('pacientes') }}" style="color:var(--azul-oscuro); font-weight:700;">Cargar paciente nuevo</a></div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: iniciar sesión en box -->
+<div class="modal-bg" id="modal-iniciar">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="iniciar-titulo">Iniciar sesión</h3>
+      <button class="x" onclick="cerrarModal('modal-iniciar')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>Box</label>
+        <select class="input" id="iniciar-box"></select>
+      </div>
+      <div class="field">
+        <label>Duración de la sesión</label>
+        <select class="input" id="iniciar-dur">
+          <option value="20">20 minutos</option>
+          <option value="30" selected>30 minutos</option>
+          <option value="40">40 minutos</option>
+          <option value="45">45 minutos</option>
+          <option value="60">60 minutos</option>
+        </select>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="cerrarModal('modal-iniciar')">Cancelar</button>
+      <button class="btn btn-primary" id="iniciar-confirm">Iniciar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: poner paciente directo en un box -->
+<div class="modal-bg" id="modal-abox">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="abox-titulo">Poner paciente en el box</h3>
+      <button class="x" onclick="cerrarModal('modal-abox')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <input class="input" id="abox-buscar" placeholder="Buscar por nombre, apellido o DNI…" autocomplete="off">
+      </div>
+      <div id="abox-resultados"></div>
+      <div class="field" style="margin-top:12px;">
+        <label>Duración de la sesión</label>
+        <select class="input" id="abox-dur">
+          <option value="20">20 minutos</option>
+          <option value="30" selected>30 minutos</option>
+          <option value="40">40 minutos</option>
+          <option value="45">45 minutos</option>
+          <option value="60">60 minutos</option>
+        </select>
+      </div>
+      <div class="hint">Al ponerlo en el box queda registrada su asistencia automáticamente.</div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: configurar WhatsApp de la kine -->
+<div class="modal-bg" id="modal-config">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>Aviso por WhatsApp</h3>
+      <button class="x" onclick="cerrarModal('modal-config')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>WhatsApp de la kinesióloga</label>
+        <input class="input" id="cfg-wa" inputmode="numeric" placeholder="Ej: 5491156789012">
+        <div class="hint">Código de país + área + número, sin “+” ni espacios (Argentina: 549 + área + número). Cuando una sesión termina, aparece un botón 📲 en el box para avisarle por WhatsApp.</div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="cerrarModal('modal-config')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarConfig()">Guardar</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='recepcion.js') }}"></script>
+{% endblock %}

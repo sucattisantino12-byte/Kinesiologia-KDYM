@@ -1,0 +1,42 @@
+{# Modal compartido de alta de paciente. Se incluye desde pacientes.html y agenda.html #}
+<div class="modal-bg" id="modal-paciente">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>Nuevo paciente</h3>
+      <button class="x" onclick="cerrarModal('modal-paciente')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="grid2">
+        <div class="field"><label>Nombre *</label><input class="input" id="np-nombre"></div>
+        <div class="field"><label>Apellido *</label><input class="input" id="np-apellido"></div>
+      </div>
+      <div class="grid2">
+        <div class="field"><label>DNI</label><input class="input" id="np-dni"></div>
+        <div class="field"><label>Teléfono</label><input class="input" id="np-telefono"></div>
+      </div>
+      <div class="field">
+        <label>Obra social</label>
+        <input class="input" id="np-obra" list="obras-sociales" placeholder="OSDE, Swiss Medical, Particular…">
+      </div>
+      <div class="field"><label>Diagnóstico / lesión</label><input class="input" id="np-diagnostico"></div>
+      <div class="grid2">
+        <div class="field"><label>Sesiones totales</label><input class="input" id="np-tot" type="number" min="0" value="0"></div>
+        <div class="field"><label>Sesiones ya hechas</label><input class="input" id="np-usadas" type="number" min="0" value="0"></div>
+      </div>
+
+      <div class="field">
+        <label>Días que viene <span class="muted" style="font-weight:500;">(con horario de cada día)</span></label>
+        <div class="dias-picker" id="np-dias-picker"></div>
+        <div class="dias-horas" id="np-dias-rows"></div>
+      </div>
+      <div class="field"><label>Empezar desde</label><input class="input" id="np-desde" type="date"></div>
+      <div class="hint">Si elegís días, se generan los turnos automáticamente según las sesiones que le quedan.</div>
+
+      <div class="field"><label>Notas</label><textarea id="np-notas"></textarea></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="cerrarModal('modal-paciente')">Cancelar</button>
+      <button class="btn btn-primary" id="np-guardar">Guardar</button>
+    </div>
+  </div>
+</div>

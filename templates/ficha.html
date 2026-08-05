@@ -1,0 +1,265 @@
+{% extends "base.html" %}
+{% block title %}{{ p.nombre_completo }} — KDYM{% endblock %}
+
+{% block content %}
+<a href="{{ url_for('pacientes') }}" class="muted" style="font-weight:600;">← Volver a pacientes</a>
+
+<div class="card card-pad" style="margin-top:12px;">
+  <div class="ficha-head">
+    <div class="ficha-avatar">{{ (p.nombre[:1] ~ p.apellido[:1])|upper }}</div>
+    <div class="grow">
+      <div class="ficha-name">{{ p.nombre_completo }}</div>
+      <div class="muted">
+        {% if p.obra_social %}<span class="pill">{{ p.obra_social }}</span> {% endif %}
+        {{ p.diagnostico or 'Sin diagnóstico cargado' }}
+      </div>
+    </div>
+    <div style="text-align:right;">
+      <div style="font-size:28px; font-weight:800; color:var(--azul-oscuro); line-height:1;">
+        {{ p.sesiones_quedan }}</div>
+      <div class="muted" style="font-size:12px; font-weight:700;">sesiones restantes</div>
+    </div>
+  </div>
+  <div class="sesiones-bar"><span id="barra-ses"></span></div>
+  <div class="muted" style="font-size:12px; margin-top:6px;">
+    {{ p.sesiones_usadas }} de {{ p.sesiones_totales }} sesiones realizadas
+  </div>
+  <div class="row" style="margin-top:14px;">
+    <button class="btn btn-line btn-sm" onclick="abrirEditar()">✎ Editar datos</button>
+    <button class="btn btn-danger-soft btn-sm" onclick="borrarPaciente()">Eliminar paciente</button>
+  </div>
+</div>
+
+<div class="split" style="margin-top:14px;">
+  <div class="col-side">
+    <div class="section-title" style="margin-top:6px;">Datos</div>
+    <div class="card card-pad">
+      <div class="dato"><div class="k">DNI</div><div class="v">{{ p.dni or '—' }}</div></div>
+      <div class="dato"><div class="k">Teléfono</div><div class="v">{{ p.telefono or '—' }}</div></div>
+      <div class="dato"><div class="k">Obra social</div><div class="v">{{ p.obra_social or '—' }}</div></div>
+      <div class="dato"><div class="k">Días que viene</div><div class="v">{{ p.dias or '—' }}</div></div>
+      <div class="dato"><div class="k">Diagnóstico</div><div class="v">{{ p.diagnostico or '—' }}</div></div>
+      <div class="dato"><div class="k">Notas</div><div class="v">{{ p.notas or '—' }}</div></div>
+    </div>
+  </div>
+
+  <div class="col-main">
+    <div class="row" style="align-items:center; justify-content:space-between;">
+      <div class="section-title" style="margin-top:6px;">Ejercicios</div>
+      <button class="btn btn-ghost btn-sm" onclick="abrirEjercicio()">+ Agregar</button>
+    </div>
+    <div class="card" id="ej-list">
+      {% for e in ejercicios %}
+      <div class="ej-item" id="ej-{{ e.id }}">
+        <div class="ej-num">{{ loop.index }}</div>
+        <div class="li-main">
+          <div class="li-name">{{ e.nombre }}{% if e.categoria %}<span class="tag-cat">{{ e.categoria }}</span>{% endif %}</div>
+          <div class="li-sub">
+            {% if e.series %}{{ e.series }} series{% endif %}
+            {% if e.reps %} × {{ e.reps }}{% endif %}
+            {% if e.notas %} · {{ e.notas }}{% endif %}
+          </div>
+        </div>
+        <button class="x" onclick="borrarEjercicio({{ e.id }})" title="Quitar">&times;</button>
+      </div>
+      {% else %}
+      <div class="empty">Sin ejercicios cargados todavía.</div>
+      {% endfor %}
+    </div>
+    <div class="hint">💡 Podés elegir del catálogo por categoría o escribir uno nuevo. Gestioná el catálogo en <a href="{{ url_for('ejercicios_page') }}" style="color:var(--azul-oscuro); font-weight:700;">Ejercicios</a>.</div>
+
+    <div class="section-title">Historial de turnos</div>
+    <div class="card">
+      {% for h in historial %}
+      <div class="list-item">
+        <div class="li-main">
+          <div class="li-name">{{ h.fecha }}{% if h.hora %} · {{ h.hora }}{% endif %}</div>
+        </div>
+        <span class="pill {{ 'ok' if h.estado=='terminado' else ('danger' if h.estado in ['ausente','perdido'] else '') }}">
+          {{ h.estado|replace('_',' ') }}</span>
+      </div>
+      {% else %}
+      <div class="empty">Sin turnos registrados.</div>
+      {% endfor %}
+    </div>
+  </div>
+</div>
+
+<!-- Modal editar -->
+<div class="modal-bg" id="modal-editar">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>Editar paciente</h3>
+      <button class="x" onclick="cerrarModal('modal-editar')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="grid2">
+        <div class="field"><label>Nombre *</label><input class="input" id="e-nombre" value="{{ p.nombre }}"></div>
+        <div class="field"><label>Apellido *</label><input class="input" id="e-apellido" value="{{ p.apellido }}"></div>
+      </div>
+      <div class="grid2">
+        <div class="field"><label>DNI</label><input class="input" id="e-dni" value="{{ p.dni }}"></div>
+        <div class="field"><label>Teléfono</label><input class="input" id="e-telefono" value="{{ p.telefono }}"></div>
+      </div>
+      <div class="field"><label>Obra social</label><input class="input" id="e-obra" list="obras-sociales" value="{{ p.obra_social }}"></div>
+      <div class="field"><label>Diagnóstico / lesión</label><input class="input" id="e-diagnostico" value="{{ p.diagnostico }}"></div>
+      <div class="grid2">
+        <div class="field"><label>Sesiones totales</label><input class="input" id="e-tot" type="number" min="0" value="{{ p.sesiones_totales }}"></div>
+        <div class="field"><label>Sesiones hechas</label><input class="input" id="e-usadas" type="number" min="0" value="{{ p.sesiones_usadas }}"></div>
+      </div>
+      <div class="field"><label>Días que viene</label><input class="input" id="e-dias" value="{{ p.dias }}"></div>
+      <div class="field"><label>Notas</label><textarea id="e-notas">{{ p.notas }}</textarea></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="cerrarModal('modal-editar')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarEditar()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal ejercicio -->
+<div class="modal-bg" id="modal-ej">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>Agregar ejercicio</h3>
+      <button class="x" onclick="cerrarModal('modal-ej')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="seg" style="margin-bottom:14px;">
+        <button id="tab-catalogo" class="on" onclick="modoEj('catalogo')">Del catálogo</button>
+        <button id="tab-escribir" onclick="modoEj('escribir')">Escribir</button>
+      </div>
+
+      <div id="ej-modo-catalogo">
+        <div class="cat-tabs" id="ej-cats"></div>
+        <div class="cat-lista" id="ej-catalogo-lista"></div>
+      </div>
+
+      <div id="ej-modo-escribir" style="display:none;">
+        <div class="field"><label>Ejercicio *</label><input class="input" id="ej-nombre" placeholder="Ej: Sentadilla asistida"></div>
+        <div class="field"><label>Categoría</label><input class="input" id="ej-categoria" list="cats-list" placeholder="Miembro inferior, Cervical…"></div>
+      </div>
+
+      <div id="ej-elegido" class="hint" style="margin:6px 0 12px;"></div>
+
+      <div class="grid2">
+        <div class="field"><label>Series</label><input class="input" id="ej-series" placeholder="3"></div>
+        <div class="field"><label>Repeticiones</label><input class="input" id="ej-reps" placeholder="12"></div>
+      </div>
+      <div class="field"><label>Notas</label><input class="input" id="ej-notas" placeholder="Con banda, sin dolor…"></div>
+      <datalist id="cats-list"></datalist>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="cerrarModal('modal-ej')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarEjercicio()">Agregar</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const PID = {{ p.id }};
+const TOT = {{ p.sesiones_totales }};
+const USADAS = {{ p.sesiones_usadas }};
+document.getElementById('barra-ses').style.width =
+  (TOT > 0 ? Math.min(100, USADAS / TOT * 100) : 0) + '%';
+
+let CATALOGO = {};
+let CAT_SEL = null;
+let EJ_ELEGIDO = { nombre: '', categoria: '' };
+
+function abrirEditar() { abrirModal('modal-editar'); }
+
+async function guardarEditar() {
+  const body = {
+    nombre: val('e-nombre'), apellido: val('e-apellido'), dni: val('e-dni'),
+    telefono: val('e-telefono'), obra_social: val('e-obra'), diagnostico: val('e-diagnostico'),
+    sesiones_totales: val('e-tot'), sesiones_usadas: val('e-usadas'),
+    dias: val('e-dias'), notas: val('e-notas'),
+  };
+  if (!body.nombre.trim() || !body.apellido.trim()) { toast('Nombre y apellido obligatorios', 'alert'); return; }
+  await api('/api/paciente/' + PID, body);
+  toast('Guardado ✓', 'ok');
+  setTimeout(() => location.reload(), 400);
+}
+
+// ---- Ejercicios ----
+async function abrirEjercicio() {
+  EJ_ELEGIDO = { nombre: '', categoria: '' };
+  ['ej-series', 'ej-reps', 'ej-notas', 'ej-nombre', 'ej-categoria'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('ej-elegido').textContent = '';
+  modoEj('catalogo');
+  if (!Object.keys(CATALOGO).length) CATALOGO = await apiGet('/api/catalogo');
+  pintarCategorias();
+  const cats = Object.keys(CATALOGO);
+  document.getElementById('cats-list').innerHTML = cats.map(c => `<option value="${escapeHtml(c)}">`).join('');
+  abrirModal('modal-ej');
+}
+
+function modoEj(m) {
+  const cat = m === 'catalogo';
+  document.getElementById('ej-modo-catalogo').style.display = cat ? '' : 'none';
+  document.getElementById('ej-modo-escribir').style.display = cat ? 'none' : '';
+  document.getElementById('tab-catalogo').classList.toggle('on', cat);
+  document.getElementById('tab-escribir').classList.toggle('on', !cat);
+  document.getElementById('ej-elegido').textContent = '';
+  EJ_ELEGIDO = { nombre: '', categoria: '' };
+}
+
+function pintarCategorias() {
+  const cats = Object.keys(CATALOGO);
+  CAT_SEL = CAT_SEL && cats.includes(CAT_SEL) ? CAT_SEL : cats[0];
+  document.getElementById('ej-cats').innerHTML = cats.map(c =>
+    `<button class="cat-tab ${c === CAT_SEL ? 'on' : ''}" onclick="seleccionarCat('${escapeJs(c)}')">${escapeHtml(c)}</button>`
+  ).join('');
+  pintarOpciones();
+}
+
+function seleccionarCat(c) { CAT_SEL = c; pintarCategorias(); }
+
+function pintarOpciones() {
+  const lista = CATALOGO[CAT_SEL] || [];
+  document.getElementById('ej-catalogo-lista').innerHTML = lista.map(o =>
+    `<div class="cat-op" onclick="elegirEj('${escapeJs(o.nombre)}','${escapeJs(CAT_SEL)}')">
+      <span>${escapeHtml(o.nombre)}</span></div>`
+  ).join('') || '<div class="empty">Sin ejercicios en esta categoría</div>';
+}
+
+function elegirEj(nombre, categoria) {
+  EJ_ELEGIDO = { nombre, categoria };
+  document.getElementById('ej-elegido').innerHTML = '✓ <b>' + escapeHtml(nombre) + '</b> — ' + escapeHtml(categoria);
+}
+
+async function guardarEjercicio() {
+  let nombre, categoria;
+  const modoEscribir = document.getElementById('tab-escribir').classList.contains('on');
+  if (modoEscribir) {
+    nombre = val('ej-nombre'); categoria = val('ej-categoria');
+  } else {
+    nombre = EJ_ELEGIDO.nombre; categoria = EJ_ELEGIDO.categoria;
+  }
+  if (!nombre.trim()) { toast('Elegí o escribí un ejercicio', 'alert'); return; }
+  await api('/api/paciente/' + PID + '/ejercicio', {
+    nombre, categoria, series: val('ej-series'), reps: val('ej-reps'), notas: val('ej-notas'),
+  });
+  toast('Ejercicio agregado ✓', 'ok');
+  setTimeout(() => location.reload(), 400);
+}
+
+async function borrarEjercicio(eid) {
+  if (!confirm('¿Quitar este ejercicio?')) return;
+  await api('/api/ejercicio/' + eid + '/borrar');
+  document.getElementById('ej-' + eid).remove();
+}
+
+async function borrarPaciente() {
+  if (!confirm('¿Eliminar este paciente y todos sus datos? No se puede deshacer.')) return;
+  await api('/api/paciente/' + PID + '/borrar');
+  toast('Paciente eliminado', 'ok');
+  setTimeout(() => location.href = '/pacientes', 500);
+}
+
+function val(id) { return document.getElementById(id).value; }
+</script>
+{% endblock %}

@@ -1,0 +1,50 @@
+{% extends "base.html" %}
+{% block title %}Pacientes — KDYM{% endblock %}
+
+{% block content %}
+<div class="row" style="align-items:center; margin-bottom:14px;">
+  <div class="grow">
+    <div class="page-title" style="margin-bottom:2px;">Pacientes</div>
+    <div class="muted">{{ pacientes|length }} paciente(s) cargado(s)</div>
+  </div>
+  <button class="btn btn-primary" onclick="abrirNuevoPaciente(irAFicha)">+ Nuevo paciente</button>
+</div>
+
+<div class="field">
+  <input class="input" id="buscar" placeholder="🔍  Buscar por nombre, apellido o DNI…" autocomplete="off">
+</div>
+
+<div class="card" id="lista">
+  {% for p in pacientes %}
+  <a href="{{ url_for('ficha', pid=p.id) }}" class="list-item" data-nombre="{{ (p.nombre_completo ~ ' ' ~ p.dni ~ ' ' ~ p.obra_social)|lower }}">
+    <div class="avatar">{{ (p.nombre[:1] ~ p.apellido[:1])|upper }}</div>
+    <div class="li-main">
+      <div class="li-name">{{ p.nombre_completo }}</div>
+      <div class="li-sub">
+        {% if p.obra_social %}<span class="pill">{{ p.obra_social }}</span> {% endif %}
+        {{ p.diagnostico or 'Sin diagnóstico' }}
+      </div>
+    </div>
+    <span class="pill {{ 'danger' if p.sesiones_quedan <= 0 else ('warn' if p.sesiones_quedan <= 1 else '') }}">
+      {{ p.sesiones_quedan }} / {{ p.sesiones_totales }} sesiones
+    </span>
+  </a>
+  {% else %}
+  <div class="empty">Todavía no hay pacientes. Cargá el primero con “+ Nuevo paciente”.</div>
+  {% endfor %}
+</div>
+
+{% include "_paciente_modal.html" %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+document.getElementById('buscar').addEventListener('input', e => {
+  const t = e.target.value.trim().toLowerCase();
+  document.querySelectorAll('#lista .list-item').forEach(it => {
+    it.style.display = it.dataset.nombre.includes(t) ? '' : 'none';
+  });
+});
+function irAFicha(id) { setTimeout(() => location.href = '/paciente/' + id, 400); }
+</script>
+{% endblock %}

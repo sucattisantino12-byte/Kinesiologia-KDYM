@@ -1,0 +1,79 @@
+{% extends "base.html" %}
+{% block title %}Ejercicios — KDYM{% endblock %}
+
+{% block content %}
+<div class="row" style="align-items:center; margin-bottom:14px;">
+  <div class="grow">
+    <div class="page-title" style="margin-bottom:2px;">Biblioteca de ejercicios</div>
+    <div class="muted">Catálogo por categorías para asignar a los pacientes</div>
+  </div>
+  <button class="btn btn-primary" onclick="abrirModal('modal-cat')">+ Nuevo ejercicio</button>
+</div>
+
+<div id="catalogo"></div>
+
+<!-- Modal nuevo ejercicio de catálogo -->
+<div class="modal-bg" id="modal-cat">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>Nuevo ejercicio</h3>
+      <button class="x" onclick="cerrarModal('modal-cat')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="field"><label>Nombre *</label><input class="input" id="c-nombre" placeholder="Ej: Puente de glúteos"></div>
+      <div class="field">
+        <label>Categoría</label>
+        <input class="input" id="c-categoria" list="cats-list" placeholder="Miembro inferior, Cervical…">
+        <datalist id="cats-list"></datalist>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="cerrarModal('modal-cat')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarCat()">Agregar</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+async function cargar() {
+  const cat = await apiGet('/api/catalogo');
+  const cats = Object.keys(cat);
+  document.getElementById('cats-list').innerHTML = cats.map(c => `<option value="${escapeHtml(c)}">`).join('');
+  const cont = document.getElementById('catalogo');
+  if (!cats.length) { cont.innerHTML = '<div class="card"><div class="empty">Todavía no hay ejercicios en el catálogo.</div></div>'; return; }
+  cont.innerHTML = cats.map(c => `
+    <div class="cat-grupo">
+      <h4>${escapeHtml(c)}</h4>
+      <div class="card">
+        ${cat[c].map(o => `
+          <div class="list-item">
+            <div class="ej-num">${iniciales(o.nombre).slice(0,1)}</div>
+            <div class="li-main"><div class="li-name">${escapeHtml(o.nombre)}</div></div>
+            <button class="x" onclick="borrarCat(${o.id})" title="Quitar">&times;</button>
+          </div>`).join('')}
+      </div>
+    </div>`).join('');
+}
+
+async function guardarCat() {
+  const nombre = document.getElementById('c-nombre').value;
+  const categoria = document.getElementById('c-categoria').value;
+  if (!nombre.trim()) { toast('Falta el nombre', 'alert'); return; }
+  await api('/api/catalogo', { nombre, categoria });
+  document.getElementById('c-nombre').value = '';
+  cerrarModal('modal-cat');
+  toast('Ejercicio agregado ✓', 'ok');
+  cargar();
+}
+
+async function borrarCat(id) {
+  if (!confirm('¿Quitar del catálogo?')) return;
+  await api('/api/catalogo/' + id + '/borrar');
+  cargar();
+}
+
+cargar();
+</script>
+{% endblock %}

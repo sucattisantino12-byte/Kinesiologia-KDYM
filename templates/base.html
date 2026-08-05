@@ -1,0 +1,89 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>{% block title %}KDYM{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <!-- Animación de inicio: círculo azul + la silueta que se va dibujando -->
+  <div id="splash">
+    <div class="splash-inner">
+      <svg class="kdym-mark" viewBox="0 0 200 200" aria-label="KDYM">
+        <defs>
+          <radialGradient id="kdymCirc" cx="38%" cy="30%" r="82%">
+            <stop offset="0%" stop-color="#6d9be0"/>
+            <stop offset="45%" stop-color="#2f5fb0"/>
+            <stop offset="100%" stop-color="#0f2350"/>
+          </radialGradient>
+        </defs>
+        <circle class="kdym-circle" cx="100" cy="100" r="84" fill="url(#kdymCirc)"/>
+        <g class="kdym-figure" fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round">
+          <circle class="fig f-head" cx="100" cy="55" r="12" pathLength="100" stroke-width="10"/>
+          <path class="fig f-torso" d="M100 70 V118" pathLength="100" stroke-width="12"/>
+          <path class="fig f-arml" d="M100 84 L63 49" pathLength="100" stroke-width="12"/>
+          <path class="fig f-armr" d="M100 84 L137 49" pathLength="100" stroke-width="12"/>
+          <path class="fig f-legl" d="M100 118 L71 153" pathLength="100" stroke-width="12"/>
+          <path class="fig f-legr" d="M100 118 L129 153" pathLength="100" stroke-width="12"/>
+        </g>
+      </svg>
+      <div class="splash-hi">Bienvenido</div>
+      <div class="splash-name">KDYM</div>
+      <div class="splash-line"></div>
+      <div class="splash-sub">Kinesiología y rehabilitación</div>
+    </div>
+  </div>
+
+  <div id="toasts"></div>
+
+  <header class="topbar">
+    <div class="topbar-inner">
+      <a href="{{ url_for('recepcion') }}" class="logo">
+        <span class="logo-mark">
+          <svg class="kdym-mark static" viewBox="0 0 200 200" aria-hidden="true">
+            <defs>
+              <radialGradient id="kdymCircTop" cx="38%" cy="30%" r="82%">
+                <stop offset="0%" stop-color="#6d9be0"/>
+                <stop offset="45%" stop-color="#2f5fb0"/>
+                <stop offset="100%" stop-color="#0f2350"/>
+              </radialGradient>
+            </defs>
+            <circle cx="100" cy="100" r="84" fill="url(#kdymCircTop)"/>
+            <g fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="100" cy="55" r="12" stroke-width="10"/>
+              <path d="M100 70 V118" stroke-width="12"/>
+              <path d="M100 84 L63 49" stroke-width="12"/>
+              <path d="M100 84 L137 49" stroke-width="12"/>
+              <path d="M100 118 L71 153" stroke-width="12"/>
+              <path d="M100 118 L129 153" stroke-width="12"/>
+            </g>
+          </svg>
+        </span>
+        <span class="full">KDYM</span>
+      </a>
+      <nav class="nav">
+        <a href="{{ url_for('recepcion') }}" class="{{ 'on' if activo=='recepcion' }}">Recepción</a>
+        <a href="{{ url_for('agenda') }}" class="{{ 'on' if activo=='agenda' }}">Agenda</a>
+        <a href="{{ url_for('pacientes') }}" class="{{ 'on' if activo=='pacientes' }}">Pacientes</a>
+        <a href="{{ url_for('ejercicios_page') }}" class="{{ 'on' if activo=='ejercicios' }}">Ejercicios</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    {% block content %}{% endblock %}
+  </main>
+
+  <!-- Datalist global de obras sociales -->
+  <datalist id="obras-sociales">
+    <option value="OSDE"><option value="Swiss Medical"><option value="Galeno">
+    <option value="Medifé"><option value="OMINT"><option value="IOMA">
+    <option value="PAMI"><option value="OSECAC"><option value="OSDEPYM">
+    <option value="Unión Personal"><option value="Sancor Salud"><option value="Particular">
+  </datalist>
+
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+  {% block scripts %}{% endblock %}
+</body>
+</html>

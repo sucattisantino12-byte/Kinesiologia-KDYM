@@ -1,0 +1,316 @@
+{% extends "base.html" %}
+{% block title %}Agenda — KDYM{% endblock %}
+
+{% block content %}
+<div class="row" style="align-items:center; margin-bottom:14px;">
+  <div class="grow">
+    <div class="page-title" style="margin-bottom:2px;">Agenda</div>
+    <div class="muted" id="fecha-hoy"></div>
+  </div>
+  <button class="btn btn-ghost" onclick="abrirNuevoPaciente(elegirDesdeNuevo)">+ Nuevo paciente</button>
+  <button class="btn btn-primary" onclick="abrirPlan()">📅 Días que viene</button>
+</div>
+
+<div class="stats" id="stats"></div>
+
+<div class="split" style="margin-top:8px;">
+  <div class="col-main">
+    <div class="card card-pad">
+      <div class="cal-head">
+        <button class="btn btn-ghost btn-sm" onclick="cambiarMes(-1)">←</button>
+        <div class="mes" id="cal-mes"></div>
+        <button class="btn btn-ghost btn-sm" onclick="cambiarMes(1)">→</button>
+        <button class="btn btn-line btn-sm" style="margin-left:auto;" onclick="irHoy()">Hoy</button>
+      </div>
+      <div class="cal-grid" id="cal-dow"></div>
+      <div class="cal-grid" id="cal-grid" style="margin-top:6px;"></div>
+    </div>
+  </div>
+
+  <div class="col-side">
+    <div class="section-title" style="margin-top:6px;">Día seleccionado</div>
+    <div class="muted" id="dia-titulo" style="font-weight:700; margin-bottom:8px;"></div>
+    <div class="card" id="dia-detalle"></div>
+  </div>
+</div>
+
+<!-- Modal plan de sesiones -->
+<div class="modal-bg" id="modal-plan">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>Días que viene</h3>
+      <button class="x" onclick="cerrarModal('modal-plan')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="field">
+        <label>Paciente *</label>
+        <input class="input" id="p-buscar" placeholder="Buscar paciente…" autocomplete="off">
+        <div id="p-resultados"></div>
+        <div id="p-elegido" class="hint"></div>
+      </div>
+
+      <div class="field">
+        <label>¿Qué días viene? <span class="muted" style="font-weight:500;">(horario de cada día)</span></label>
+        <div class="dias-picker" id="p-dias-picker"></div>
+        <div class="dias-horas" id="p-dias-rows"></div>
+      </div>
+
+      <div class="field"><label>Empezar desde</label><input class="input" id="p-desde" type="date"></div>
+      <div class="grid2">
+        <div class="field">
+          <label>Cantidad de sesiones</label>
+          <input class="input" id="p-cantidad" type="number" min="1" placeholder="sesiones restantes">
+        </div>
+        <div class="field">
+          <label>Duración</label>
+          <select class="input" id="p-dur">
+            <option value="20">20 min</option>
+            <option value="30" selected>30 min</option>
+            <option value="45">45 min</option>
+            <option value="60">60 min</option>
+          </select>
+        </div>
+      </div>
+      <div class="hint" id="p-preview"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="cerrarModal('modal-plan')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarPlan()">Generar turnos</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal "no asistió" -->
+<div class="modal-bg" id="modal-falto">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>No asistió</h3>
+      <button class="x" onclick="cerrarModal('modal-falto')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <p id="falto-nombre" style="margin:0 0 14px; font-weight:600;"></p>
+      <button class="btn btn-primary btn-block" style="margin-bottom:8px;" onclick="reprogramar()">
+        📅 Reprogramar a la próxima fecha disponible
+      </button>
+      <div class="hint" style="margin:-2px 0 12px;">Agrega el turno después de su última sesión, respetando sus días.</div>
+      <button class="btn btn-danger-soft btn-block" onclick="darPerdido()">✕ Dar el turno por perdido</button>
+    </div>
+  </div>
+</div>
+
+{% include "_paciente_modal.html" %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+let MES = new Date(); MES.setDate(1);
+let SEL = ymd(new Date());       // fecha seleccionada
+let DATA = {};                   // {fecha: [turnos]} del mes visible
+let PLAN_PAC = null;
+let PLAN_PICKER = null;
+let FALTO_TID = null;
+
+function ymd(d) {
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+function pintarFecha() {
+  const d = new Date();
+  let t = d.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
+  document.getElementById('fecha-hoy').textContent = t.charAt(0).toUpperCase() + t.slice(1);
+}
+
+// ---- Stats ----
+async function cargarStats() {
+  const est = await apiGet('/api/estado');
+  const s = est.stats;
+  document.getElementById('stats').innerHTML = [
+    [s.total, 'Turnos hoy'], [s.atendidos, 'Atendidos'],
+    [s.espera + s.en_curso, 'En el centro'], [s.pendientes, 'Por venir'],
+    [s.ausentes, 'Faltas'],
+  ].map(([n, l]) => `<div class="stat"><div class="n">${n}</div><div class="l">${l}</div></div>`).join('');
+}
+
+// ---- Calendario ----
+function inicioGrid(mes) {
+  const d = new Date(mes);
+  const dow = (d.getDay() + 6) % 7; // Lunes=0
+  d.setDate(d.getDate() - dow);
+  return d;
+}
+
+async function cargarMes() {
+  const ini = inicioGrid(MES);
+  const fin = new Date(ini); fin.setDate(fin.getDate() + 41);
+  DATA = await apiGet('/api/agenda_rango?desde=' + ymd(ini) + '&hasta=' + ymd(fin));
+  pintarCalendario();
+  pintarDia();
+}
+
+function pintarCalendario() {
+  document.getElementById('cal-mes').textContent =
+    MES.toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
+  document.getElementById('cal-dow').innerHTML =
+    ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map(d => `<div class="cal-dow">${d}</div>`).join('');
+
+  const ini = inicioGrid(MES);
+  const hoy = ymd(new Date());
+  let html = '';
+  for (let i = 0; i < 42; i++) {
+    const d = new Date(ini); d.setDate(d.getDate() + i);
+    const key = ymd(d);
+    const turnos = (DATA[key] || []).filter(t => t.estado !== 'perdido' && t.estado !== 'ausente');
+    const otro = d.getMonth() !== MES.getMonth();
+    const cls = ['cal-cell'];
+    if (otro) cls.push('otro');
+    if (key === hoy) cls.push('hoy');
+    if (key === SEL) cls.push('sel');
+    const count = turnos.length
+      ? `<span class="cal-count">${turnos.length}</span>` : '';
+    const nombres = turnos.slice(0, 3).map(t =>
+      `<div class="cal-mini">${escapeHtml(t.paciente.split(' ')[0])}</div>`).join('');
+    html += `<div class="${cls.join(' ')}" onclick="seleccionar('${key}')">
+      <div class="cal-num">${d.getDate()}</div>${count}${nombres}</div>`;
+  }
+  document.getElementById('cal-grid').innerHTML = html;
+}
+
+function seleccionar(key) { SEL = key; pintarCalendario(); pintarDia(); }
+function cambiarMes(n) { MES.setMonth(MES.getMonth() + n); cargarMes(); }
+function irHoy() { MES = new Date(); MES.setDate(1); SEL = ymd(new Date()); cargarMes(); }
+
+// ---- Detalle del día ----
+function pintarDia() {
+  const d = new Date(SEL + 'T12:00:00');
+  let t = d.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
+  document.getElementById('dia-titulo').textContent = t.charAt(0).toUpperCase() + t.slice(1);
+
+  const turnos = (DATA[SEL] || []).slice().sort((a, b) => (a.hora || '').localeCompare(b.hora || ''));
+  const cont = document.getElementById('dia-detalle');
+  if (!turnos.length) {
+    cont.innerHTML = '<div class="empty">Sin turnos este día.</div>';
+    return;
+  }
+  cont.innerHTML = turnos.map(t => {
+    const fin = ['terminado', 'ausente', 'perdido'].includes(t.estado);
+    const acciones = fin ? '' : `
+      <button class="btn btn-ok btn-sm" onclick="asistio(${t.turno_id})" title="Asistió">✓</button>
+      <button class="btn btn-danger-soft btn-sm" onclick="abrirFalto(${t.turno_id}, '${escapeJs(t.paciente)}')" title="No asistió">✗</button>`;
+    const pill = t.estado === 'terminado' ? 'ok' : (['ausente', 'perdido'].includes(t.estado) ? 'danger' : '');
+    return `<div class="list-item">
+      <div class="avatar">${iniciales(t.paciente)}</div>
+      <div class="li-main">
+        <a href="/paciente/${t.paciente_id}" class="li-name">${escapeHtml(t.paciente)}</a>
+        <div class="li-sub">${t.hora ? t.hora + ' · ' : ''}<span class="pill ${pill}">${t.estado.replace('_', ' ')}</span></div>
+      </div>
+      <div class="li-actions">${acciones}
+        <button class="x" onclick="borrarTurno(${t.turno_id})" title="Quitar">&times;</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ---- Acciones de asistencia ----
+async function asistio(tid) { await api('/api/turno/' + tid + '/asistio'); toast('Asistencia confirmada ✓', 'ok'); recargar(); }
+
+function abrirFalto(tid, nombre) {
+  FALTO_TID = tid;
+  document.getElementById('falto-nombre').textContent = nombre + ' no asistió. ¿Qué querés hacer?';
+  abrirModal('modal-falto');
+}
+async function reprogramar() {
+  const r = await api('/api/turno/' + FALTO_TID + '/reprogramar');
+  cerrarModal('modal-falto');
+  toast('Reprogramado al ' + r.fecha + ' ✓', 'ok');
+  recargar();
+}
+async function darPerdido() {
+  await api('/api/turno/' + FALTO_TID + '/perdido');
+  cerrarModal('modal-falto');
+  toast('Turno dado por perdido', 'ok');
+  recargar();
+}
+async function borrarTurno(tid) {
+  if (!confirm('¿Quitar este turno?')) return;
+  await api('/api/turno/' + tid + '/borrar'); recargar();
+}
+
+async function recargar() { await cargarMes(); cargarStats(); }
+
+// ---- Plan de sesiones ----
+function abrirPlan() {
+  PLAN_PAC = null;
+  document.getElementById('p-buscar').value = '';
+  document.getElementById('p-resultados').innerHTML = '';
+  document.getElementById('p-elegido').textContent = '';
+  document.getElementById('p-cantidad').value = '';
+  document.getElementById('p-preview').textContent = '';
+  document.getElementById('p-desde').value = SEL;
+  PLAN_PICKER = crearDiasPicker('p-dias-picker', 'p-dias-rows');
+  abrirModal('modal-plan');
+}
+
+let pbt = null;
+document.getElementById('p-buscar').addEventListener('input', e => {
+  clearTimeout(pbt);
+  const term = e.target.value.trim();
+  pbt = setTimeout(async () => {
+    if (!term) { document.getElementById('p-resultados').innerHTML = ''; return; }
+    const rows = await apiGet('/api/pacientes?q=' + encodeURIComponent(term));
+    document.getElementById('p-resultados').innerHTML = rows.map(p => `
+      <div class="list-item" style="cursor:pointer;" onclick='elegirPac(${JSON.stringify(p)})'>
+        <div class="avatar">${iniciales(p.nombre_completo)}</div>
+        <div class="li-main"><div class="li-name">${escapeHtml(p.nombre_completo)}</div>
+        <div class="li-sub">${p.sesiones_quedan} sesiones restantes${p.dias ? ' · ' + escapeHtml(p.dias) : ''}</div></div>
+      </div>`).join('');
+  }, 220);
+});
+
+function elegirPac(p) {
+  PLAN_PAC = p.id;
+  document.getElementById('p-resultados').innerHTML = '';
+  document.getElementById('p-buscar').value = p.nombre_completo;
+  document.getElementById('p-elegido').innerHTML = '✓ ' + escapeHtml(p.nombre_completo) + ' seleccionado';
+  document.getElementById('p-cantidad').value = p.sesiones_quedan > 0 ? p.sesiones_quedan : '';
+  if (PLAN_PICKER) PLAN_PICKER.setData(p.dias_idx || [], p.horarios || {});
+  actualizarPreview();
+}
+
+// Al crear un paciente nuevo desde la agenda, ya se agendaron sus turnos en el modal:
+// solo refrescamos el calendario.
+function elegirDesdeNuevo(id, nombre) { recargar(); }
+
+['p-cantidad', 'p-desde'].forEach(id =>
+  document.getElementById(id).addEventListener('input', actualizarPreview));
+
+function actualizarPreview() {
+  const cant = parseInt(document.getElementById('p-cantidad').value, 10);
+  const el = document.getElementById('p-preview');
+  const data = PLAN_PICKER ? PLAN_PICKER.getData() : { dias: [] };
+  if (!data.dias.length || !cant) { el.textContent = ''; return; }
+  const dias = data.dias.map(i => DIAS_ABBR[i]).join(', ');
+  el.textContent = `Se generarán ${cant} turno(s) los días ${dias}.`;
+}
+
+async function guardarPlan() {
+  if (!PLAN_PAC) { toast('Elegí un paciente', 'alert'); return; }
+  const data = PLAN_PICKER ? PLAN_PICKER.getData() : { dias: [], horarios: {} };
+  if (!data.dias.length) { toast('Elegí al menos un día', 'alert'); return; }
+  const r = await api('/api/plan', {
+    paciente_id: PLAN_PAC,
+    dias: data.dias,
+    horarios: data.horarios,
+    desde: document.getElementById('p-desde').value,
+    cantidad: document.getElementById('p-cantidad').value,
+    duracion: document.getElementById('p-dur').value,
+  });
+  cerrarModal('modal-plan');
+  toast(`${r.creados} turno(s) generados ✓`, 'ok');
+  recargar();
+}
+
+pintarFecha();
+cargarMes();
+cargarStats();
+setInterval(cargarStats, 15000);
+</script>
+{% endblock %}
