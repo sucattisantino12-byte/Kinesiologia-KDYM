@@ -299,13 +299,15 @@ function pedirIniciar(tid, nombre) {
   const sel = document.getElementById('iniciar-box');
   if (!ESTADO.libres.length) { toast('No hay boxes libres en este momento', 'alert'); return; }
   sel.innerHTML = ESTADO.libres.map(b => `<option value="${b.id}">${escapeHtml(b.nombre)}</option>`).join('');
+  document.getElementById('iniciar-dur-custom').value = '';
   abrirModal('modal-iniciar');
 }
 
 document.getElementById('iniciar-confirm').addEventListener('click', async () => {
   const box_id = document.getElementById('iniciar-box').value;
-  const dur = document.getElementById('iniciar-dur').value;
-  await api(`/api/turno/${TURNO_INICIAR}/iniciar`, { box_id: +box_id, duracion: +dur });
+  const dur = +document.getElementById('iniciar-dur-custom').value ||
+              +document.getElementById('iniciar-dur').value;
+  await api(`/api/turno/${TURNO_INICIAR}/iniciar`, { box_id: +box_id, duracion: dur });
   cerrarModal('modal-iniciar');
   toast('Sesión iniciada', 'ok');
   refrescar();
@@ -327,6 +329,7 @@ async function borrarBox(id) {
 function ponerEnBox(boxId, nombre) {
   ABOX_BOX = boxId;
   document.getElementById('abox-titulo').textContent = 'Añadir a ' + nombre;
+  document.getElementById('abox-dur-custom').value = '';
   const pres = ESTADO.presentes || [];
   const cont = document.getElementById('abox-resultados');
   if (!pres.length) {
@@ -343,8 +346,9 @@ function ponerEnBox(boxId, nombre) {
   abrirModal('modal-abox');
 }
 async function confirmarAbox(turnoId) {
-  const dur = document.getElementById('abox-dur').value;
-  await api(`/api/turno/${turnoId}/iniciar`, { box_id: ABOX_BOX, duracion: +dur });
+  const dur = +document.getElementById('abox-dur-custom').value ||
+              +document.getElementById('abox-dur').value;
+  await api(`/api/turno/${turnoId}/iniciar`, { box_id: ABOX_BOX, duracion: dur });
   cerrarModal('modal-abox');
   toast('Paciente en el box ✓', 'ok');
   refrescar();

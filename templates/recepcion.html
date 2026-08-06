@@ -27,13 +27,13 @@
     <button class="btn btn-ghost btn-sm" onclick="probarAlarma()">▶ Probar</button>
   </div>
   <button class="btn btn-ghost btn-sm" onclick="abrirConfig()" title="Configurar WhatsApp">⚙</button>
-  <button class="btn btn-primary" onclick="abrirCheckin()">+ Registrar llegada</button>
 </div>
 
 <div class="stats" id="stats"></div>
 
 <div class="split" style="margin-top:14px;">
   <div class="col-main">
+    <button class="btn btn-primary btn-block" style="margin-bottom:12px;" onclick="abrirCheckin()">+ Registrar llegada</button>
     <div class="row" style="align-items:center; justify-content:space-between;">
       <div class="section-title" style="margin:6px 0 8px;">Boxes</div>
       <button class="btn btn-ghost btn-sm" onclick="agregarBox()">+ Box</button>
@@ -85,6 +85,7 @@
           <option value="45">45 minutos</option>
           <option value="60">60 minutos</option>
         </select>
+        <input class="input" id="iniciar-dur-custom" type="number" min="1" placeholder="…o escribí los minutos que quieras" style="margin-top:8px;">
       </div>
     </div>
     <div class="modal-foot">
@@ -111,6 +112,7 @@
           <option value="45">45 minutos</option>
           <option value="60">60 minutos</option>
         </select>
+        <input class="input" id="abox-dur-custom" type="number" min="1" placeholder="…o escribí los minutos que quieras" style="margin-top:8px;">
       </div>
       <div class="hint" style="margin-bottom:8px;">Sólo aparecen los pacientes presentes (que ya marcaste ✓ Vino en la sala).</div>
       <div id="abox-resultados"></div>

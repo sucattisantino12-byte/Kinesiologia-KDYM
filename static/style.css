@@ -329,6 +329,12 @@ textarea { resize: vertical; min-height: 70px; }
 .split > .col-main { flex: 1.6; min-width: 0; }
 .split > .col-side { flex: 1; min-width: 0; }
 
+/* ---------- Transición fluida al cambiar de pestaña ---------- */
+@view-transition { navigation: auto; }   /* cross-fade entre páginas (navegadores compatibles) */
+main.wrap { animation: pageIn .3s ease both; }   /* fallback: entra suave en todos lados */
+@keyframes pageIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { main.wrap { animation: none; } }
+
 @media (max-width: 760px) {
   .split { flex-direction: column; }
   .grid2 { grid-template-columns: 1fr; }
@@ -362,7 +368,14 @@ textarea { resize: vertical; min-height: 70px; }
 
 @media (max-width: 440px) {
   .stats { grid-template-columns: repeat(2, 1fr); }
-  .boxes { grid-template-columns: 1fr; }
+  /* Boxes de a 2 (uno al lado del otro) para aprovechar la pantalla */
+  .boxes { grid-template-columns: 1fr 1fr; gap: 8px; }
+  .box { padding: 10px; min-height: 126px; }
+  .box-nom { font-size: 14px; }
+  .box-badge { font-size: 10px; padding: 2px 6px; }
+  .timer { font-size: 26px; }
+  .box-pac { font-size: 13px; }
+  .box-actions { flex-direction: column; gap: 6px; }
   .sound-bar { flex-wrap: wrap; }
   .ficha-name { font-size: 20px; }
 }
