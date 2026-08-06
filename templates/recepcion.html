@@ -78,14 +78,15 @@
       </div>
       <div class="field">
         <label>Duración de la sesión</label>
-        <select class="input" id="iniciar-dur">
+        <select class="input" id="iniciar-dur" onchange="toggleDur('iniciar-dur','iniciar-dur-custom')">
           <option value="20">20 minutos</option>
           <option value="30" selected>30 minutos</option>
           <option value="40">40 minutos</option>
           <option value="45">45 minutos</option>
           <option value="60">60 minutos</option>
+          <option value="custom">Personalizado…</option>
         </select>
-        <input class="input" id="iniciar-dur-custom" type="number" min="1" placeholder="…o escribí los minutos que quieras" style="margin-top:8px;">
+        <input class="input" id="iniciar-dur-custom" type="number" min="1" placeholder="Escribí los minutos" style="margin-top:8px; display:none;">
       </div>
     </div>
     <div class="modal-foot">
@@ -105,14 +106,15 @@
     <div class="modal-body">
       <div class="field">
         <label>Duración de la sesión</label>
-        <select class="input" id="abox-dur">
+        <select class="input" id="abox-dur" onchange="toggleDur('abox-dur','abox-dur-custom')">
           <option value="20">20 minutos</option>
           <option value="30" selected>30 minutos</option>
           <option value="40">40 minutos</option>
           <option value="45">45 minutos</option>
           <option value="60">60 minutos</option>
+          <option value="custom">Personalizado…</option>
         </select>
-        <input class="input" id="abox-dur-custom" type="number" min="1" placeholder="…o escribí los minutos que quieras" style="margin-top:8px;">
+        <input class="input" id="abox-dur-custom" type="number" min="1" placeholder="Escribí los minutos" style="margin-top:8px; display:none;">
       </div>
       <div class="hint" style="margin-bottom:8px;">Sólo aparecen los pacientes presentes (que ya marcaste ✓ Vino en la sala).</div>
       <div id="abox-resultados"></div>

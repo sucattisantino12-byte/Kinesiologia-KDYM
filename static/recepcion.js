@@ -99,6 +99,27 @@ function probarAlarma() {
   toast('🔊 Así suena la alarma', 'ok');
 }
 
+// Muestra/oculta el campo de minutos según se elija "Personalizado" en el select.
+function toggleDur(selId, inpId) {
+  const sel = document.getElementById(selId);
+  const inp = document.getElementById(inpId);
+  const custom = sel.value === 'custom';
+  inp.style.display = custom ? '' : 'none';
+  if (custom) setTimeout(() => inp.focus(), 50);
+}
+// Devuelve la duración elegida (recomendada o personalizada).
+function leerDur(selId, inpId) {
+  const sel = document.getElementById(selId);
+  if (sel.value === 'custom') return +document.getElementById(inpId).value || 30;
+  return +sel.value;
+}
+// Resetea el selector de duración a 30 min (recomendado) y oculta el personalizado.
+function resetDur(selId, inpId) {
+  document.getElementById(selId).value = '30';
+  const inp = document.getElementById(inpId);
+  inp.value = ''; inp.style.display = 'none';
+}
+
 function fmt(seg) {
   const neg = seg < 0; seg = Math.abs(seg);
   const m = Math.floor(seg / 60), s = seg % 60;
@@ -299,14 +320,13 @@ function pedirIniciar(tid, nombre) {
   const sel = document.getElementById('iniciar-box');
   if (!ESTADO.libres.length) { toast('No hay boxes libres en este momento', 'alert'); return; }
   sel.innerHTML = ESTADO.libres.map(b => `<option value="${b.id}">${escapeHtml(b.nombre)}</option>`).join('');
-  document.getElementById('iniciar-dur-custom').value = '';
+  resetDur('iniciar-dur', 'iniciar-dur-custom');
   abrirModal('modal-iniciar');
 }
 
 document.getElementById('iniciar-confirm').addEventListener('click', async () => {
   const box_id = document.getElementById('iniciar-box').value;
-  const dur = +document.getElementById('iniciar-dur-custom').value ||
-              +document.getElementById('iniciar-dur').value;
+  const dur = leerDur('iniciar-dur', 'iniciar-dur-custom');
   await api(`/api/turno/${TURNO_INICIAR}/iniciar`, { box_id: +box_id, duracion: dur });
   cerrarModal('modal-iniciar');
   toast('Sesión iniciada', 'ok');
@@ -329,7 +349,7 @@ async function borrarBox(id) {
 function ponerEnBox(boxId, nombre) {
   ABOX_BOX = boxId;
   document.getElementById('abox-titulo').textContent = 'Añadir a ' + nombre;
-  document.getElementById('abox-dur-custom').value = '';
+  resetDur('abox-dur', 'abox-dur-custom');
   const pres = ESTADO.presentes || [];
   const cont = document.getElementById('abox-resultados');
   if (!pres.length) {
@@ -346,8 +366,7 @@ function ponerEnBox(boxId, nombre) {
   abrirModal('modal-abox');
 }
 async function confirmarAbox(turnoId) {
-  const dur = +document.getElementById('abox-dur-custom').value ||
-              +document.getElementById('abox-dur').value;
+  const dur = leerDur('abox-dur', 'abox-dur-custom');
   await api(`/api/turno/${turnoId}/iniciar`, { box_id: ABOX_BOX, duracion: dur });
   cerrarModal('modal-abox');
   toast('Paciente en el box ✓', 'ok');
@@ -444,15 +463,13 @@ let LAST_SOUND = 0;
 function hayVencido() { return !!document.querySelector('.box.ocupado.vencido'); }
 
 function alarmaLoop() {
-  const rep = document.getElementById('sound-repeat');
-  const soundOn = document.getElementById('sound-on');
   if (hayVencido()) {
-    if (rep && rep.checked) {
-      vibrar([800, 250]);             // vibración continua (se re-dispara cada 1s)
-      if (soundOn && soundOn.checked) {
-        const now = Date.now();
-        if (now - LAST_SOUND > 3200) { reproducirAlarma(alarmaSeleccionada()); LAST_SOUND = now; }
-      }
+    vibrar([800, 250]);   // vibra siempre que un box esté vencido (hasta Terminar)
+    const rep = document.getElementById('sound-repeat');
+    const soundOn = document.getElementById('sound-on');
+    if (rep && rep.checked && soundOn && soundOn.checked) {
+      const now = Date.now();
+      if (now - LAST_SOUND > 3200) { reproducirAlarma(alarmaSeleccionada()); LAST_SOUND = now; }
     }
   } else {
     pararVibracion();

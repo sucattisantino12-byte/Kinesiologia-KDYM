@@ -268,13 +268,14 @@ textarea { resize: vertical; min-height: 70px; }
 /* ---------- Modal ---------- */
 .modal-bg {
   position: fixed; inset: 0; background: rgba(15, 23, 42, .5);
-  display: none; align-items: flex-start; justify-content: center;
+  display: none; align-items: center; justify-content: center;
   z-index: 100; padding: 20px; overflow-y: auto;
 }
 .modal-bg.show { display: flex; }
 .modal {
   background: #fff; border-radius: 18px; width: 100%; max-width: 480px;
-  margin-top: 40px; box-shadow: 0 20px 60px rgba(15, 23, 42, .3);
+  margin: auto; max-height: calc(100vh - 40px); overflow-y: auto;
+  box-shadow: 0 20px 60px rgba(15, 23, 42, .3);
   animation: pop .16s ease-out;
 }
 @keyframes pop { from { transform: scale(.96); opacity: 0; } to { transform: scale(1); opacity: 1; } }
@@ -362,7 +363,7 @@ main.wrap { animation: pageIn .3s ease both; }   /* fallback: entra suave en tod
   .btn { padding: 10px 14px; }
   .btn-sm { padding: 9px 12px; font-size: 13px; }
 
-  .modal { margin-top: 18px; }
+  .modal { max-height: calc(100vh - 24px); }
   .li-actions { flex-wrap: wrap; justify-content: flex-end; }
 }
 
