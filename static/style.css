@@ -332,8 +332,39 @@ textarea { resize: vertical; min-height: 70px; }
 @media (max-width: 760px) {
   .split { flex-direction: column; }
   .grid2 { grid-template-columns: 1fr; }
-  .nav a { padding: 8px 11px; }
   .logo span.full { display: none; }
+
+  /* Menú: una sola fila que se desliza en horizontal (no rompe el layout) */
+  .topbar-inner { padding: 8px 10px; gap: 8px; }
+  .nav { flex-wrap: nowrap; overflow-x: auto; min-width: 0; margin-left: auto; -webkit-overflow-scrolling: touch; }
+  .nav::-webkit-scrollbar { display: none; }
+  .nav a { padding: 7px 10px; font-size: 13px; white-space: nowrap; }
+
+  .wrap { padding: 12px 12px 70px; }
+  .page-title { font-size: 19px; }
+
+  /* Barra superior de recepción: cada control baja prolijo */
+  .sound-bar { width: 100%; justify-content: space-between; }
+
+  .stats { grid-template-columns: repeat(3, 1fr); gap: 8px; }
+  .stat { padding: 10px 12px; }
+  .stat .n { font-size: 22px; }
+
+  .boxes { grid-template-columns: 1fr 1fr; }
+
+  /* Botones más cómodos para el dedo */
+  .btn { padding: 10px 14px; }
+  .btn-sm { padding: 9px 12px; font-size: 13px; }
+
+  .modal { margin-top: 18px; }
+  .li-actions { flex-wrap: wrap; justify-content: flex-end; }
+}
+
+@media (max-width: 440px) {
+  .stats { grid-template-columns: repeat(2, 1fr); }
+  .boxes { grid-template-columns: 1fr; }
+  .sound-bar { flex-wrap: wrap; }
+  .ficha-name { font-size: 20px; }
 }
 
 /* Barra de sonido */

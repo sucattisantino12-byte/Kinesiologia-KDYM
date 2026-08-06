@@ -281,11 +281,13 @@ function dispararAviso(boxId, box) {
   const nom = box ? box.querySelector('.box-nom').textContent : 'Un box';
   const pac = box ? box.querySelector('.box-pac').textContent : '';
   beep();
+  vibrar([700, 300, 700]);
   toast(`⏰ ${nom} terminó — ${pac}`, 'alert');
 }
 
 // ---- Acciones de box ----
 async function terminar(tid) {
+  pararVibracion();
   await api(`/api/turno/${tid}/terminar`);
   toast('Box liberado ✓', 'ok');
   refrescar();
@@ -419,19 +421,38 @@ async function guardarConfig() {
   if (ESTADO) render();
 }
 
-// ---- Repetición de alarma mientras un box siga vencido ----
-function repetirAlarmas() {
+// ---- Vibración del celular ----
+function vibrar(pattern) {
+  if (navigator.vibrate) { try { navigator.vibrate(pattern || [700, 300]); } catch (e) {} }
+}
+function pararVibracion() {
+  if (navigator.vibrate) { try { navigator.vibrate(0); } catch (e) {} }
+}
+
+// Desbloquear el audio en el primer toque (los celulares lo bloquean hasta que
+// el usuario interactúa). Así la alarma suena sin problemas.
+function unlockAudio() { try { audioCtx(); } catch (e) {} }
+['click', 'touchstart', 'keydown'].forEach(ev =>
+  document.addEventListener(ev, unlockAudio, { once: true }));
+
+// ---- Alarma continua + vibración mientras un box siga vencido ----
+let LAST_SOUND = 0;
+function hayVencido() { return !!document.querySelector('.box.ocupado.vencido'); }
+
+function alarmaLoop() {
   const rep = document.getElementById('sound-repeat');
-  if (!rep || !rep.checked || !document.getElementById('sound-on').checked || !ESTADO) return;
-  const now = Date.now();
-  ESTADO.boxes.forEach(b => {
-    if (b.ocupado && b.vencido) {
-      if (!(b.id in REPEAT_LAST)) { REPEAT_LAST[b.id] = now; return; }
-      if (now - REPEAT_LAST[b.id] > 6000) { reproducirAlarma(alarmaSeleccionada()); REPEAT_LAST[b.id] = now; }
-    } else {
-      delete REPEAT_LAST[b.id];
+  const soundOn = document.getElementById('sound-on');
+  if (hayVencido()) {
+    if (rep && rep.checked) {
+      vibrar([800, 250]);             // vibración continua (se re-dispara cada 1s)
+      if (soundOn && soundOn.checked) {
+        const now = Date.now();
+        if (now - LAST_SOUND > 3200) { reproducirAlarma(alarmaSeleccionada()); LAST_SOUND = now; }
+      }
     }
-  });
+  } else {
+    pararVibracion();
+  }
 }
 
 // ---- Polling ----
@@ -445,9 +466,13 @@ async function refrescar() {
   } catch (e) { /* silencioso */ }
 }
 
+// Al volver a la pestaña/app, re-sincronizar al instante (evita que quede colgada).
+document.addEventListener('visibilitychange', () => { if (!document.hidden) refrescar(); });
+window.addEventListener('focus', refrescar);
+
 pintarFecha();
 cargarConfig().then(refrescar);
 setInterval(refrescar, 5000);
 setInterval(tick, 1000);
-setInterval(repetirAlarmas, 1000);
+setInterval(alarmaLoop, 1000);
 setInterval(pintarFecha, 30000);
