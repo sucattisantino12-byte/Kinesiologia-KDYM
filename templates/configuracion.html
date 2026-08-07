@@ -1,0 +1,110 @@
+{% extends "base.html" %}
+{% block title %}Configuración — KDYM{% endblock %}
+
+{% block content %}
+<div class="page-title" style="margin-bottom:16px;">Configuración</div>
+
+<div class="section-title">🔔 Alarma de los boxes</div>
+<div class="card card-pad" style="margin-bottom:8px;">
+  <div class="field">
+    <label class="sound-toggle" style="font-size:15px;">
+      <input type="checkbox" id="cfg-alarma-on"> Alarma encendida
+    </label>
+  </div>
+  <div class="field">
+    <label>Sonido de la alarma</label>
+    <select class="input" id="cfg-alarma">
+      <option value="campana">Campana</option>
+      <option value="triple">Triple beep</option>
+      <option value="suave">Suave</option>
+      <option value="sirena">Sirena</option>
+      <option value="fuerte">Fuerte 🔊</option>
+      <option value="sirena_intensa">Sirena intensa 🔊</option>
+      <option value="timbre">Timbre 🔊</option>
+      <option value="alarma">Alarma reloj 🔊</option>
+    </select>
+  </div>
+  <button class="btn btn-primary" onclick="probarAlarma()">▶ Probar este sonido</button>
+  <div class="hint" style="margin-top:8px;">Este es el sonido que va a sonar cuando termine un box. El cambio se guarda solo, en este dispositivo.</div>
+</div>
+
+<div class="section-title">📲 Aviso por WhatsApp</div>
+<div class="card card-pad">
+  <div class="field">
+    <label>WhatsApp de la kinesióloga</label>
+    <input class="input" id="cfg-wa" inputmode="numeric" placeholder="Ej: 5491156789012">
+    <div class="hint">Código de país + área + número, sin “+” ni espacios (Argentina: 549 + área + número). Cuando termina una sesión aparece un botón 📲 en el box para avisarle.</div>
+  </div>
+  <button class="btn btn-primary" onclick="guardarWa()">Guardar WhatsApp</button>
+</div>
+
+<div class="section-title">🕗 Días y horario del centro</div>
+<div class="card card-pad" style="margin-bottom:8px;">
+  <div class="field">
+    <label>Días que abre</label>
+    <div class="dias-picker" id="centro-dias"></div>
+  </div>
+  <div class="grid2">
+    <div class="field"><label>Abre</label><input class="input" id="centro-apertura" type="time"></div>
+    <div class="field"><label>Cierra</label><input class="input" id="centro-cierre" type="time"></div>
+  </div>
+  <button class="btn btn-primary" onclick="guardarCentro()">Guardar horario</button>
+  <div class="hint" style="margin-top:8px;">Se usa en “Buscar hueco” de la agenda para mostrar los horarios disponibles.</div>
+</div>
+
+<div class="section-title">💾 Copia de seguridad</div>
+<div class="card card-pad">
+  <div class="hint" style="margin-bottom:10px;">Descargá una copia de todos los datos (pacientes, turnos, ejercicios, evolución). Guardala en un lugar seguro (pendrive, Drive) cada tanto.</div>
+  <a class="btn btn-primary" href="/api/backup">⬇ Descargar copia de seguridad</a>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Sonido: se guarda en el dispositivo (localStorage) y lo usa la recepción.
+const sel = document.getElementById('cfg-alarma');
+sel.value = localStorage.getItem('kdym_alarma') || 'campana';
+sel.addEventListener('change', () => {
+  localStorage.setItem('kdym_alarma', sel.value);
+  toast('Sonido guardado ✓', 'ok');
+});
+
+const onchk = document.getElementById('cfg-alarma-on');
+onchk.checked = (localStorage.getItem('kdym_alarma_on') !== '0');
+onchk.addEventListener('change', () => {
+  localStorage.setItem('kdym_alarma_on', onchk.checked ? '1' : '0');
+});
+
+// Días del centro (Lun-Dom).
+let CENTRO_DIAS = new Set();
+function pintarCentroDias() {
+  const D = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+  document.getElementById('centro-dias').innerHTML = D.map((d, i) =>
+    `<div class="dia-btn ${CENTRO_DIAS.has(i) ? 'on' : ''}" onclick="toggleCentroDia(${i})">${d}</div>`).join('');
+}
+function toggleCentroDia(i) { CENTRO_DIAS.has(i) ? CENTRO_DIAS.delete(i) : CENTRO_DIAS.add(i); pintarCentroDias(); }
+
+// Config del servidor (WhatsApp + horario del centro).
+apiGet('/api/config').then(c => {
+  document.getElementById('cfg-wa').value = c.wa_kine || '';
+  document.getElementById('centro-apertura').value = c.centro_apertura || '08:00';
+  document.getElementById('centro-cierre').value = c.centro_cierre || '20:00';
+  CENTRO_DIAS = new Set((c.centro_dias || '').split(',').filter(x => x !== '').map(Number));
+  if (!CENTRO_DIAS.size) CENTRO_DIAS = new Set([0, 1, 2, 3, 4, 5]); // Lun-Sáb por defecto
+  pintarCentroDias();
+});
+async function guardarWa() {
+  const wa = document.getElementById('cfg-wa').value.replace(/[^0-9]/g, '');
+  await api('/api/config', { wa_kine: wa });
+  toast('WhatsApp guardado ✓', 'ok');
+}
+async function guardarCentro() {
+  await api('/api/config', {
+    centro_apertura: document.getElementById('centro-apertura').value || '08:00',
+    centro_cierre: document.getElementById('centro-cierre').value || '20:00',
+    centro_dias: [...CENTRO_DIAS].sort((a, b) => a - b).join(','),
+  });
+  toast('Horario del centro guardado ✓', 'ok');
+}
+</script>
+{% endblock %}

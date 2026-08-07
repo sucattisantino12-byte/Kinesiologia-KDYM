@@ -7,8 +7,9 @@
     <div class="page-title" style="margin-bottom:2px;">Agenda</div>
     <div class="muted" id="fecha-hoy"></div>
   </div>
-  <button class="btn btn-ghost" onclick="abrirNuevoPaciente(elegirDesdeNuevo)">+ Nuevo paciente</button>
-  <button class="btn btn-primary" onclick="abrirPlan()">📅 Días que viene</button>
+  <button class="btn btn-ghost btn-sm" onclick="abrirNuevoPaciente(elegirDesdeNuevo)">+ Paciente</button>
+  <button class="btn btn-ghost btn-sm" onclick="abrirHuecos()">🔍 Buscar hueco</button>
+  <button class="btn btn-primary btn-sm" onclick="abrirPlan()">📅 Días que viene</button>
 </div>
 
 <div class="stats" id="stats"></div>
@@ -17,13 +18,22 @@
   <div class="col-main">
     <div class="card card-pad">
       <div class="cal-head">
-        <button class="btn btn-ghost btn-sm" onclick="cambiarMes(-1)">←</button>
+        <div class="seg" style="margin-right:auto;">
+          <button id="vista-mes" class="on" onclick="cambiarVista('mes')">Mes</button>
+          <button id="vista-sem" onclick="cambiarVista('semana')">Semana</button>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="navPeriodo(-1)">←</button>
         <div class="mes" id="cal-mes"></div>
-        <button class="btn btn-ghost btn-sm" onclick="cambiarMes(1)">→</button>
-        <button class="btn btn-line btn-sm" style="margin-left:auto;" onclick="irHoy()">Hoy</button>
+        <button class="btn btn-ghost btn-sm" onclick="navPeriodo(1)">→</button>
+        <button class="btn btn-line btn-sm" onclick="irHoy()">Hoy</button>
       </div>
-      <div class="cal-grid" id="cal-dow"></div>
-      <div class="cal-grid" id="cal-grid" style="margin-top:6px;"></div>
+      <div id="vista-mes-cont">
+        <div class="cal-grid" id="cal-dow"></div>
+        <div class="cal-grid" id="cal-grid" style="margin-top:6px;"></div>
+      </div>
+      <div id="vista-sem-cont" style="display:none; overflow-x:auto;">
+        <div class="sem-grid" id="sem-grid"></div>
+      </div>
     </div>
   </div>
 
@@ -98,21 +108,81 @@
   </div>
 </div>
 
+<!-- Modal editar / mover turno -->
+<div class="modal-bg" id="modal-turno">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="turno-titulo">Turno</h3>
+      <button class="x" onclick="cerrarModal('modal-turno')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="grid2">
+        <div class="field"><label>Fecha</label><input class="input" id="turno-fecha" type="date"></div>
+        <div class="field"><label>Hora</label><input class="input" id="turno-hora" type="time"></div>
+      </div>
+      <div class="field"><label>Duración (minutos)</label><input class="input" id="turno-dur" type="number" min="5"></div>
+      <div class="hint" style="margin:-4px 0 8px;">Para cambiarlo a mano (un día puntual), editá la fecha/hora y tocá “Guardar cambios”.</div>
+      <button class="btn btn-line btn-block" onclick="recordarWa()">📲 Recordar por WhatsApp al paciente</button>
+
+      <div style="margin-top:14px; border-top:1px solid var(--borde); padding-top:12px;">
+        <div class="hint" style="margin-bottom:6px; font-weight:700; color:#334155;">Cancelar este turno</div>
+        <div class="hint" id="turno-repro-info" style="margin-bottom:8px;"></div>
+        <button class="btn btn-primary btn-block" style="margin-bottom:8px;" onclick="reprogramarTurnoSel()">📅 Reprogramar al día más cercano según sus horarios</button>
+        <button class="btn btn-danger-soft btn-block" onclick="perderTurnoSel()">✕ Dar por perdido</button>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-danger-soft" onclick="borrarTurnoModal()">Borrar</button>
+      <button class="btn btn-primary" onclick="guardarTurnoEdit()">Guardar cambios</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal buscar hueco libre -->
+<div class="modal-bg" id="modal-huecos">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>Buscar horario libre</h3>
+      <button class="x" onclick="cerrarModal('modal-huecos')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="grid2">
+        <div class="field"><label>Día</label><input class="input" id="huecos-fecha" type="date"></div>
+        <div class="field"><label>Duración</label>
+          <select class="input" id="huecos-dur">
+            <option value="20">20 min</option>
+            <option value="30" selected>30 min</option>
+            <option value="45">45 min</option>
+            <option value="60">60 min</option>
+          </select>
+        </div>
+      </div>
+      <button class="btn btn-primary btn-block" onclick="buscarHuecos()">Buscar horarios</button>
+      <div id="huecos-res" style="margin-top:14px;"></div>
+    </div>
+  </div>
+</div>
+
 {% include "_paciente_modal.html" %}
 {% endblock %}
 
 {% block scripts %}
 <script>
+let VISTA = 'mes';               // 'mes' | 'semana'
 let MES = new Date(); MES.setDate(1);
+let SEM = null;                  // lunes de la semana visible
 let SEL = ymd(new Date());       // fecha seleccionada
-let DATA = {};                   // {fecha: [turnos]} del mes visible
+let DATA = {};                   // {fecha: [turnos]} del rango visible
 let PLAN_PAC = null;
 let PLAN_PICKER = null;
 let FALTO_TID = null;
+let TURNO_SEL = null;
 
 function ymd(d) {
   return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
 }
+SEM = inicioGrid(new Date());
+
 function pintarFecha() {
   const d = new Date();
   let t = d.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' });
@@ -124,26 +194,83 @@ async function cargarStats() {
   const est = await apiGet('/api/estado');
   const s = est.stats;
   document.getElementById('stats').innerHTML = [
-    [s.total, 'Turnos hoy'], [s.atendidos, 'Atendidos'],
-    [s.espera + s.en_curso, 'En el centro'], [s.pendientes, 'Por venir'],
-    [s.ausentes, 'Faltas'],
+    [s.total, 'Turnos hoy'], [s.atendidos, 'Vinieron'],
+    [s.presentes + s.en_curso, 'En el centro'], [s.pendientes, 'Por venir'],
+    [s.ausentes, 'No vinieron'],
   ].map(([n, l]) => `<div class="stat"><div class="n">${n}</div><div class="l">${l}</div></div>`).join('');
 }
 
-// ---- Calendario ----
+// ---- Carga de datos según la vista ----
 function inicioGrid(mes) {
   const d = new Date(mes);
   const dow = (d.getDay() + 6) % 7; // Lunes=0
   d.setDate(d.getDate() - dow);
+  d.setHours(0, 0, 0, 0);
   return d;
 }
 
-async function cargarMes() {
-  const ini = inicioGrid(MES);
-  const fin = new Date(ini); fin.setDate(fin.getDate() + 41);
+async function cargarDatos() {
+  let ini, fin;
+  if (VISTA === 'mes') {
+    ini = inicioGrid(MES); fin = new Date(ini); fin.setDate(fin.getDate() + 41);
+  } else {
+    ini = new Date(SEM); fin = new Date(SEM); fin.setDate(fin.getDate() + 6);
+  }
   DATA = await apiGet('/api/agenda_rango?desde=' + ymd(ini) + '&hasta=' + ymd(fin));
-  pintarCalendario();
+  render();
+}
+
+function render() {
+  document.getElementById('vista-mes-cont').style.display = VISTA === 'mes' ? '' : 'none';
+  document.getElementById('vista-sem-cont').style.display = VISTA === 'semana' ? '' : 'none';
+  document.getElementById('vista-mes').classList.toggle('on', VISTA === 'mes');
+  document.getElementById('vista-sem').classList.toggle('on', VISTA === 'semana');
+  labelPeriodo();
+  if (VISTA === 'mes') pintarCalendario(); else pintarSemana();
   pintarDia();
+}
+
+function labelPeriodo() {
+  const el = document.getElementById('cal-mes');
+  if (VISTA === 'mes') {
+    el.textContent = MES.toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
+  } else {
+    const fin = new Date(SEM); fin.setDate(fin.getDate() + 6);
+    el.textContent = SEM.getDate() + ' ' + SEM.toLocaleDateString('es-AR', { month: 'short' }) +
+      ' – ' + fin.getDate() + ' ' + fin.toLocaleDateString('es-AR', { month: 'short' });
+  }
+}
+
+function cambiarVista(v) { VISTA = v; cargarDatos(); }
+function navPeriodo(n) {
+  if (VISTA === 'mes') MES.setMonth(MES.getMonth() + n);
+  else SEM.setDate(SEM.getDate() + 7 * n);
+  cargarDatos();
+}
+
+// ---- Vista semanal ----
+function pintarSemana() {
+  const cont = document.getElementById('sem-grid');
+  const hoy = ymd(new Date());
+  const dnames = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
+  let html = '';
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(SEM); d.setDate(d.getDate() + i);
+    const key = ymd(d);
+    const turnos = (DATA[key] || []).slice().sort((a, b) => (a.hora || '').localeCompare(b.hora || ''));
+    const chips = turnos.map(t => {
+      const pill = ['terminado', 'presente', 'en_curso'].includes(t.estado) ? 'ok'
+        : (['ausente', 'perdido'].includes(t.estado) ? 'danger' : '');
+      return `<div class="sem-turno" onclick="abrirTurno(${t.turno_id})">
+        <span class="sem-hora">${t.hora || '--:--'}</span>
+        <span class="sem-nom">${escapeHtml(t.paciente.split(' ')[0])}</span>
+        <span class="dot-est ${pill}"></span></div>`;
+    }).join('') || '<div class="sem-vacio">—</div>';
+    html += `<div class="sem-col ${key === hoy ? 'hoy' : ''}">
+      <div class="sem-head" onclick="seleccionar('${key}')">${dnames[i]}<br><b>${d.getDate()}</b></div>
+      ${chips}</div>`;
+  }
+  cont.innerHTML = html;
 }
 
 function pintarCalendario() {
@@ -174,9 +301,13 @@ function pintarCalendario() {
   document.getElementById('cal-grid').innerHTML = html;
 }
 
-function seleccionar(key) { SEL = key; pintarCalendario(); pintarDia(); }
-function cambiarMes(n) { MES.setMonth(MES.getMonth() + n); cargarMes(); }
-function irHoy() { MES = new Date(); MES.setDate(1); SEL = ymd(new Date()); cargarMes(); }
+function seleccionar(key) { SEL = key; render(); }
+function irHoy() {
+  MES = new Date(); MES.setDate(1);
+  SEM = inicioGrid(new Date());
+  SEL = ymd(new Date());
+  cargarDatos();
+}
 
 // ---- Detalle del día ----
 function pintarDia() {
@@ -204,10 +335,14 @@ function pintarDia() {
 }
 
 function filaTurno(t) {
-  const fin = ['terminado', 'ausente', 'perdido', 'presente', 'en_curso'].includes(t.estado);
-  const acciones = fin ? '' : `
-    <button class="btn btn-ok btn-sm" onclick="asistio(${t.turno_id})" title="Vino">✓</button>
-    <button class="btn btn-danger-soft btn-sm" onclick="abrirFalto(${t.turno_id}, '${escapeJs(t.paciente)}')" title="No vino">✗</button>`;
+  let acciones = '';
+  if (t.estado === 'agendado' || t.estado === 'en_espera') {
+    acciones = `
+      <button class="btn btn-ok btn-sm" onclick="asistio(${t.turno_id})" title="Vino">✓</button>
+      <button class="btn btn-danger-soft btn-sm" onclick="abrirFalto(${t.turno_id}, '${escapeJs(t.paciente)}')" title="No vino">✗</button>`;
+  } else if (t.estado === 'presente') {
+    acciones = `<button class="btn btn-ghost btn-sm" onclick="deshacerVino(${t.turno_id})" title="Marqué por error — deshacer">↺</button>`;
+  }
   const pill = ['terminado', 'presente', 'en_curso'].includes(t.estado)
     ? 'ok' : (['ausente', 'perdido'].includes(t.estado) ? 'danger' : '');
   return `<div class="list-item">
@@ -217,13 +352,115 @@ function filaTurno(t) {
       <div class="li-sub"><span class="pill ${pill}">${t.estado.replace('_', ' ')}</span></div>
     </div>
     <div class="li-actions">${acciones}
+      <button class="btn btn-ghost btn-sm" onclick="abrirTurno(${t.turno_id})" title="Editar / mover">✎</button>
       <button class="x" onclick="borrarTurno(${t.turno_id})" title="Quitar">&times;</button>
     </div>
   </div>`;
 }
 
+// ---- Editar / mover turno + recordatorio ----
+function turnoById(tid) {
+  for (const f in DATA) {
+    const t = (DATA[f] || []).find(x => x.turno_id === tid);
+    if (t) return Object.assign({ fecha: f }, t);
+  }
+  return null;
+}
+let TURNO_PREVIEW = null;
+function abrirTurno(tid) {
+  const t = turnoById(tid); if (!t) return;
+  TURNO_SEL = t;
+  document.getElementById('turno-titulo').textContent = t.paciente;
+  document.getElementById('turno-fecha').value = t.fecha;
+  document.getElementById('turno-hora').value = t.hora || '';
+  document.getElementById('turno-dur').value = t.duracion || 30;
+  document.getElementById('turno-repro-info').textContent = 'Calculando…';
+  abrirModal('modal-turno');
+  apiGet('/api/turno/' + tid + '/reprogramar_preview').then(pv => {
+    TURNO_PREVIEW = pv;
+    const dias = pv.dias || 'sin días fijos';
+    let hs = '';
+    if (pv.horarios && Object.keys(pv.horarios).length) {
+      hs = ' · Horarios: ' + Object.keys(pv.horarios).sort()
+        .map(k => DIAS_ABBR[k] + ' ' + pv.horarios[k]).join(', ');
+    }
+    document.getElementById('turno-repro-info').innerHTML =
+      `Días: <b>${escapeHtml(dias)}</b>${escapeHtml(hs)}<br>` +
+      `Reprogramar lo mueve al <b>${pv.fecha}${pv.hora ? ' a las ' + pv.hora : ''}</b>.`;
+  }).catch(() => { document.getElementById('turno-repro-info').textContent = ''; });
+}
+async function guardarTurnoEdit() {
+  await api('/api/turno/' + TURNO_SEL.turno_id + '/editar', {
+    fecha: document.getElementById('turno-fecha').value,
+    hora: document.getElementById('turno-hora').value,
+    duracion: document.getElementById('turno-dur').value,
+  });
+  cerrarModal('modal-turno');
+  toast('Turno actualizado ✓', 'ok');
+  recargar();
+}
+async function borrarTurnoModal() {
+  if (!confirm('¿Borrar este turno?')) return;
+  await api('/api/turno/' + TURNO_SEL.turno_id + '/borrar');
+  cerrarModal('modal-turno');
+  recargar();
+}
+async function reprogramarTurnoSel() {
+  const dest = TURNO_PREVIEW ? (TURNO_PREVIEW.fecha + (TURNO_PREVIEW.hora ? ' a las ' + TURNO_PREVIEW.hora : '')) : 'la próxima fecha';
+  if (!confirm('Se reprograma al ' + dest + '. ¿Confirmar?')) return;
+  const r = await api('/api/turno/' + TURNO_SEL.turno_id + '/reprogramar');
+  cerrarModal('modal-turno');
+  toast('Reprogramado al ' + r.fecha + ' ✓', 'ok');
+  recargar();
+}
+async function perderTurnoSel() {
+  const dias = TURNO_PREVIEW && TURNO_PREVIEW.dias ? ' (sus días: ' + TURNO_PREVIEW.dias + ')' : '';
+  if (!confirm('¿Dar por perdido el turno de ' + TURNO_SEL.paciente + '?' + dias)) return;
+  await api('/api/turno/' + TURNO_SEL.turno_id + '/perdido');
+  cerrarModal('modal-turno');
+  toast('Turno dado por perdido', 'ok');
+  recargar();
+}
+function recordarWa() {
+  const tel = (TURNO_SEL.telefono || '').replace(/[^0-9]/g, '');
+  if (!tel) { toast('El paciente no tiene teléfono cargado en su ficha', 'alert'); return; }
+  const d = new Date(TURNO_SEL.fecha + 'T12:00:00');
+  const fstr = d.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
+  const msg = `Hola ${TURNO_SEL.paciente.split(' ')[0]}, te recordamos tu turno en KDYM el ${fstr}` +
+    (TURNO_SEL.hora ? ' a las ' + TURNO_SEL.hora : '') + '. ¡Te esperamos! 🙌';
+  window.open('https://wa.me/' + tel + '?text=' + encodeURIComponent(msg), '_blank');
+}
+
+// ---- Buscar hueco libre ----
+function abrirHuecos() {
+  document.getElementById('huecos-fecha').value = SEL || ymd(new Date());
+  document.getElementById('huecos-res').innerHTML = '';
+  abrirModal('modal-huecos');
+}
+async function buscarHuecos() {
+  const fecha = document.getElementById('huecos-fecha').value;
+  const dur = document.getElementById('huecos-dur').value;
+  if (!fecha) { toast('Elegí un día', 'alert'); return; }
+  const d = await apiGet('/api/huecos?fecha=' + fecha + '&duracion=' + dur);
+  const chips = d.slots.map(s =>
+    `<span class="chip" style="${s.libres > 0 ? '' : 'opacity:.35;'}">${s.hora} · ${s.libres > 0 ? s.libres + ' libre' : 'lleno'}</span>`
+  ).join('');
+  document.getElementById('huecos-res').innerHTML =
+    `<div class="hint" style="margin-bottom:8px;">${d.boxes} box(es) en total. Horarios de 08 a 20 hs:</div><div>${chips}</div>`;
+}
+
 // ---- Acciones de asistencia ----
-async function asistio(tid) { await api('/api/turno/' + tid + '/vino'); toast('Vino ✓ — sesión contada', 'ok'); recargar(); }
+async function asistio(tid) {
+  if (!confirm('¿Confirmás que vino? Se le cuenta la sesión.')) return;
+  await api('/api/turno/' + tid + '/vino');
+  toast('Vino ✓ — sesión contada', 'ok');
+  recargar();
+}
+async function deshacerVino(tid) {
+  await api('/api/turno/' + tid + '/deshacer_vino');
+  toast('Deshecho — vuelve a agendado', 'ok');
+  recargar();
+}
 
 function abrirFalto(tid, nombre) {
   FALTO_TID = tid;
@@ -247,7 +484,7 @@ async function borrarTurno(tid) {
   await api('/api/turno/' + tid + '/borrar'); recargar();
 }
 
-async function recargar() { await cargarMes(); cargarStats(); }
+async function recargar() { await cargarDatos(); cargarStats(); }
 
 // ---- Plan de sesiones ----
 function abrirPlan() {
@@ -322,7 +559,7 @@ async function guardarPlan() {
 }
 
 pintarFecha();
-cargarMes();
+cargarDatos();
 cargarStats();
 setInterval(cargarStats, 15000);
 </script>

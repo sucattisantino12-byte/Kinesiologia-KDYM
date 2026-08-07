@@ -19,13 +19,13 @@
           </radialGradient>
         </defs>
         <circle class="kdym-circle" cx="100" cy="100" r="84" fill="url(#kdymCirc)"/>
-        <g class="kdym-figure" fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round">
-          <circle class="fig f-head" cx="100" cy="55" r="12" pathLength="100" stroke-width="10"/>
-          <path class="fig f-torso" d="M100 70 V118" pathLength="100" stroke-width="12"/>
-          <path class="fig f-arml" d="M100 84 L63 49" pathLength="100" stroke-width="12"/>
-          <path class="fig f-armr" d="M100 84 L137 49" pathLength="100" stroke-width="12"/>
-          <path class="fig f-legl" d="M100 118 L71 153" pathLength="100" stroke-width="12"/>
-          <path class="fig f-legr" d="M100 118 L129 153" pathLength="100" stroke-width="12"/>
+        <g class="kdym-figure" fill="#fff" stroke="#fff" stroke-width="21" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="100" cy="58" r="17" stroke="none"/>
+          <path d="M100 80 L100 132" fill="none"/>
+          <path d="M100 98 L56 54" fill="none"/>
+          <path d="M100 98 L144 54" fill="none"/>
+          <path d="M100 132 L74 170" fill="none"/>
+          <path d="M100 132 L126 170" fill="none"/>
         </g>
       </svg>
       <div class="splash-hi">Bienvenido</div>
@@ -50,13 +50,13 @@
               </radialGradient>
             </defs>
             <circle cx="100" cy="100" r="84" fill="url(#kdymCircTop)"/>
-            <g fill="none" stroke="#fff" stroke-linecap="round" stroke-linejoin="round">
-              <circle cx="100" cy="55" r="12" stroke-width="10"/>
-              <path d="M100 70 V118" stroke-width="12"/>
-              <path d="M100 84 L63 49" stroke-width="12"/>
-              <path d="M100 84 L137 49" stroke-width="12"/>
-              <path d="M100 118 L71 153" stroke-width="12"/>
-              <path d="M100 118 L129 153" stroke-width="12"/>
+            <g fill="#fff" stroke="#fff" stroke-width="21" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="100" cy="58" r="17" stroke="none"/>
+              <path d="M100 80 L100 132" fill="none"/>
+              <path d="M100 98 L56 54" fill="none"/>
+              <path d="M100 98 L144 54" fill="none"/>
+              <path d="M100 132 L74 170" fill="none"/>
+              <path d="M100 132 L126 170" fill="none"/>
             </g>
           </svg>
         </span>
@@ -68,6 +68,7 @@
         <a href="{{ url_for('pacientes') }}" class="{{ 'on' if activo=='pacientes' }}">Pacientes</a>
         <a href="{{ url_for('ejercicios_page') }}" class="{{ 'on' if activo=='ejercicios' }}">Ejercicios</a>
         <a href="{{ url_for('notificaciones_page') }}" class="{{ 'on' if activo=='notificaciones' }}">Notificaciones<span class="nav-badge" id="nav-notif-badge" style="display:none;"></span></a>
+        <a href="{{ url_for('configuracion_page') }}" class="{{ 'on' if activo=='configuracion' }}">Configuración</a>
       </nav>
     </div>
   </header>

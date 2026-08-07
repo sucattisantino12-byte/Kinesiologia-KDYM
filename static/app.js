@@ -1,14 +1,17 @@
 // Utilidades compartidas por todas las pantallas.
 
-// ---- Animación de inicio (una vez por sesión de navegador) ----
+// ---- Animación de inicio ----
+// Se muestra solo en una apertura "fresca" (no al navegar entre pestañas de la app
+// ni al volver de otra app). El #splash está oculto por CSS y sólo se muestra si acá
+// le agregamos la clase 'on'.
 (function () {
   const splash = document.getElementById('splash');
   if (!splash) return;
-  if (sessionStorage.getItem('kdym_splash')) {
-    splash.remove();
-    return;
-  }
-  sessionStorage.setItem('kdym_splash', '1');
+  const ahora = Date.now();
+  const ult = +(localStorage.getItem('kdym_splash_ts') || 0);
+  if (ahora - ult < 30 * 60 * 1000) { splash.remove(); return; }  // < 30 min: no repetir
+  localStorage.setItem('kdym_splash_ts', String(ahora));
+  splash.classList.add('on');
   document.body.classList.add('splashing');
   setTimeout(() => splash.classList.add('hide'), 3300);
   setTimeout(() => { splash.remove(); document.body.classList.remove('splashing'); }, 3950);
@@ -182,3 +185,51 @@ async function actualizarBadgeNotif() {
 }
 actualizarBadgeNotif();
 setInterval(actualizarBadgeNotif, 15000);
+
+// ============ Motor de alarma (sonido elegido, en bucle) ============
+// La config del sonido vive en localStorage para que sea instantánea por dispositivo.
+function cfgAlarma() { return localStorage.getItem('kdym_alarma') || 'campana'; }
+function cfgAlarmaOn() { return localStorage.getItem('kdym_alarma_on') !== '0'; }  // default: on
+function alarmaSeleccionada() { return cfgAlarma(); }
+function alarmaEncendida() { return cfgAlarmaOn(); }
+
+function _sampleAlarma(tipo, t) {
+  const sq = f => Math.sign(Math.sin(2 * Math.PI * f * t));
+  const sn = f => Math.sin(2 * Math.PI * f * t);
+  switch (tipo) {
+    case 'triple': return (t < 0.66 && (t % 0.22) < 0.14) ? sq(880) * 0.6 : 0;
+    case 'suave': { const seg = Math.floor(t / 0.5) % 2; return ((t % 0.5) < 0.4 ? 1 : 0.2) * sn(seg ? 659 : 523) * 0.5; }
+    case 'sirena': { const f = 600 + 400 * (0.5 + 0.5 * Math.sin(2 * Math.PI * (t / 2))); return sn(f) * 0.5; }
+    case 'fuerte': return ((t % 0.19) < 0.12) ? sq(1000) * 0.7 : 0;
+    case 'sirena_intensa': { const f = 500 + 700 * (0.5 + 0.5 * Math.sin(2 * Math.PI * (t / 0.9))); return sq(f) * 0.6; }
+    case 'timbre': return sq(480) * 0.5 + sq(620) * 0.3;
+    case 'alarma': { const seg = Math.floor(t / 0.14) % 2; return ((t % 0.14) < 0.1) ? sq(seg ? 1200 : 900) * 0.6 : 0; }
+    default: { const env = Math.exp(-(t % 1.0) * 4); return (sn(988) + 0.5 * sn(1319)) * 0.5 * env; } // campana
+  }
+}
+function makeAlarmDataUri(tipo) {
+  const sr = 8000, dur = 2.0, n = Math.floor(sr * dur);
+  const buf = new ArrayBuffer(44 + n * 2), dv = new DataView(buf);
+  const wr = (o, s) => { for (let i = 0; i < s.length; i++) dv.setUint8(o + i, s.charCodeAt(i)); };
+  wr(0, 'RIFF'); dv.setUint32(4, 36 + n * 2, true); wr(8, 'WAVE'); wr(12, 'fmt ');
+  dv.setUint32(16, 16, true); dv.setUint16(20, 1, true); dv.setUint16(22, 1, true);
+  dv.setUint32(24, sr, true); dv.setUint32(28, sr * 2, true); dv.setUint16(32, 2, true); dv.setUint16(34, 16, true);
+  wr(36, 'data'); dv.setUint32(40, n * 2, true);
+  for (let i = 0; i < n; i++) { let s = _sampleAlarma(tipo, i / sr); s = Math.max(-1, Math.min(1, s)); dv.setInt16(44 + i * 2, s * 32767, true); }
+  let bin = ''; const by = new Uint8Array(buf);
+  for (let i = 0; i < by.length; i++) bin += String.fromCharCode(by[i]);
+  return 'data:audio/wav;base64,' + btoa(bin);
+}
+let _ALARM_AUDIO = null, _ALARM_TIPO = null;
+function alarmAudio() {
+  const tipo = cfgAlarma();
+  if (!_ALARM_AUDIO || _ALARM_TIPO !== tipo) {
+    if (_ALARM_AUDIO) { try { _ALARM_AUDIO.pause(); } catch (e) {} }
+    _ALARM_AUDIO = new Audio(makeAlarmDataUri(tipo));
+    _ALARM_AUDIO.loop = true; _ALARM_AUDIO.volume = 1; _ALARM_TIPO = tipo;
+  }
+  return _ALARM_AUDIO;
+}
+function sonarContinuo() { const a = alarmAudio(); if (a.paused) a.play().catch(() => {}); }
+function pararSonido() { if (_ALARM_AUDIO && !_ALARM_AUDIO.paused) { _ALARM_AUDIO.pause(); _ALARM_AUDIO.currentTime = 0; } }
+function probarAlarma() { sonarContinuo(); setTimeout(pararSonido, 3000); toast('🔊 Así suena la alarma elegida', 'ok'); }

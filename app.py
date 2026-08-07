@@ -16,7 +16,8 @@ import sqlite3
 from datetime import datetime, date, timedelta
 
 from flask import (
-    Flask, g, render_template, request, jsonify, redirect, url_for, abort
+    Flask, g, render_template, request, jsonify, redirect, url_for, abort,
+    Response, send_file
 )
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -157,6 +158,14 @@ def init_db():
 
         CREATE TABLE IF NOT EXISTS notif_cerradas (
             clave TEXT PRIMARY KEY
+        );
+
+        CREATE TABLE IF NOT EXISTS evoluciones (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            paciente_id INTEGER NOT NULL,
+            fecha TEXT,
+            texto TEXT,
+            FOREIGN KEY (paciente_id) REFERENCES pacientes(id) ON DELETE CASCADE
         );
 
         CREATE TABLE IF NOT EXISTS config (
@@ -362,9 +371,13 @@ def ficha(pid):
            ORDER BY fecha DESC, hora DESC LIMIT 40""",
         (pid,),
     )
+    evo = q(
+        "SELECT * FROM evoluciones WHERE paciente_id=? ORDER BY fecha DESC, id DESC",
+        (pid,),
+    )
     return render_template(
         "ficha.html", activo="pacientes", p=paciente_dict(p),
-        ejercicios=exs, historial=hist,
+        ejercicios=exs, historial=hist, evoluciones=evo,
     )
 
 
@@ -381,6 +394,30 @@ def ejercicios_page():
 @app.route("/notificaciones")
 def notificaciones_page():
     return render_template("notificaciones.html", activo="notificaciones")
+
+
+@app.route("/configuracion")
+def configuracion_page():
+    return render_template("configuracion.html", activo="configuracion")
+
+
+# Service worker (servido desde la raíz para tener alcance global).
+_SW_JS = """
+self.addEventListener('install', function(e){ self.skipWaiting(); });
+self.addEventListener('activate', function(e){ e.waitUntil(self.clients.claim()); });
+self.addEventListener('notificationclick', function(e){
+  e.notification.close();
+  e.waitUntil(clients.matchAll({type:'window', includeUncontrolled:true}).then(function(cs){
+    for (var i=0;i<cs.length;i++){ if ('focus' in cs[i]) return cs[i].focus(); }
+    if (clients.openWindow) return clients.openWindow('/recepcion');
+  }));
+});
+"""
+
+
+@app.route("/sw.js")
+def sw_js():
+    return Response(_SW_JS, mimetype="application/javascript")
 
 
 # --------------------------------------------------------------------------
@@ -414,9 +451,8 @@ def api_notificaciones():
 
 @app.route("/api/notificaciones/count")
 def api_notificaciones_count():
-    n = len(_alertas_abiertas()) + q1(
-        "SELECT COUNT(*) c FROM eventos WHERE cerrada=0")["c"]
-    return jsonify(count=n)
+    # Sólo cuenta las de renovar (últimas sesiones).
+    return jsonify(count=len(_alertas_abiertas()))
 
 
 @app.route("/api/notificaciones/alerta/<int:pid>/cerrar", methods=["POST"])
@@ -561,7 +597,7 @@ def api_agenda_rango():
     desde = request.args.get("desde") or date.today().isoformat()
     hasta = request.args.get("hasta") or desde
     rows = q(
-        """SELECT t.*, p.nombre, p.apellido
+        """SELECT t.*, p.nombre, p.apellido, p.telefono
            FROM turnos t JOIN pacientes p ON p.id = t.paciente_id
            WHERE t.fecha BETWEEN ? AND ?
            ORDER BY t.fecha, t.hora, t.id""",
@@ -573,6 +609,8 @@ def api_agenda_rango():
             "turno_id": t["id"], "paciente_id": t["paciente_id"],
             "paciente": f"{t['nombre']} {t['apellido']}",
             "hora": t["hora"] or "", "estado": t["estado"],
+            "telefono": t["telefono"] or "",
+            "duracion": t["duracion_min"] or DURACION_DEFAULT,
         })
     return jsonify(por_fecha)
 
@@ -727,7 +765,20 @@ def api_terminar(tid):
     p = q1("SELECT * FROM pacientes WHERE id=?", (t["paciente_id"],))
     quedan = (p["sesiones_totales"] or 0) - (p["sesiones_usadas"] or 0)
     return jsonify(ok=True, paciente=f"{t['nombre']} {t['apellido']}",
-                   box=box, sesiones_quedan=quedan)
+                   paciente_id=t["paciente_id"], box=box, sesiones_quedan=quedan)
+
+
+@app.route("/api/turno/<int:tid>/agregar_tiempo", methods=["POST"])
+def api_agregar_tiempo(tid):
+    """Suma minutos a un turno en curso (corta la alarma y extiende el timer)."""
+    d = request.get_json(force=True, silent=True) or {}
+    mins = int(d.get("minutos") or 10)
+    t = q1("SELECT * FROM turnos WHERE id=?", (tid,))
+    if not t:
+        return jsonify(ok=False, error="Turno inexistente"), 404
+    run("UPDATE turnos SET duracion_min = COALESCE(duracion_min, 0) + ? WHERE id=?",
+        (mins, tid))
+    return jsonify(ok=True, minutos=mins)
 
 
 @app.route("/api/turno/<int:tid>/ausente", methods=["POST"])
@@ -742,21 +793,29 @@ def api_perdido(tid):
     return jsonify(ok=True)
 
 
-@app.route("/api/turno/<int:tid>/reprogramar", methods=["POST"])
-def api_reprogramar(tid):
-    """No asistió: mueve el turno a la próxima fecha disponible después de la
-    última sesión agendada del paciente, respetando sus días y horarios."""
+@app.route("/api/turno/<int:tid>/deshacer_vino", methods=["POST"])
+def api_deshacer_vino(tid):
+    """Deshace un 'vino' marcado por error: vuelve a agendado y devuelve la sesión."""
     t = q1("SELECT * FROM turnos WHERE id=?", (tid,))
     if not t:
         return jsonify(ok=False, error="Turno inexistente"), 404
+    if t["estado"] == "presente":
+        run("UPDATE turnos SET estado='agendado' WHERE id=?", (tid,))
+        run("UPDATE pacientes SET sesiones_usadas = MAX(0, sesiones_usadas - 1) WHERE id=?",
+            (t["paciente_id"],))
+    return jsonify(ok=True)
+
+
+def _proximo_disponible(t):
+    """Calcula (fecha, hora, paciente_row) del próximo turno disponible para 't'
+    después de la última sesión agendada del paciente, respetando sus días."""
     p = q1("SELECT * FROM pacientes WHERE id=?", (t["paciente_id"],))
     dias = str_to_dias(p["dias"]) if p else []
     horarios = parse_horarios(p["horarios"]) if p else {}
-
     ult = q1(
         """SELECT MAX(fecha) f FROM turnos
            WHERE paciente_id=? AND estado='agendado' AND id<>?""",
-        (t["paciente_id"], tid),
+        (t["paciente_id"], t["id"]),
     )
     base = ult["f"] if ult and ult["f"] else t["fecha"]
     cur = date.fromisoformat(base) + timedelta(days=1)
@@ -766,15 +825,36 @@ def api_reprogramar(tid):
         if cur.weekday() in dias:
             break
         cur += timedelta(days=1)
-
     hora = horarios.get(str(cur.weekday())) or t["hora"] or ""
+    return cur.isoformat(), hora, p
+
+
+@app.route("/api/turno/<int:tid>/reprogramar_preview")
+def api_reprogramar_preview(tid):
+    """Muestra a qué fecha/hora se movería y los días/horarios del paciente."""
+    t = q1("SELECT * FROM turnos WHERE id=?", (tid,))
+    if not t:
+        return jsonify(ok=False, error="Turno inexistente"), 404
+    fecha, hora, p = _proximo_disponible(t)
+    return jsonify(ok=True, fecha=fecha, hora=hora,
+                   dias=(p["dias"] if p else "") or "",
+                   horarios=parse_horarios(p["horarios"]) if p else {})
+
+
+@app.route("/api/turno/<int:tid>/reprogramar", methods=["POST"])
+def api_reprogramar(tid):
+    """No asistió / cancela: mueve el turno a la próxima fecha disponible."""
+    t = q1("SELECT * FROM turnos WHERE id=?", (tid,))
+    if not t:
+        return jsonify(ok=False, error="Turno inexistente"), 404
+    fecha, hora, p = _proximo_disponible(t)
     run("UPDATE turnos SET estado='ausente', box_id=NULL WHERE id=?", (tid,))
     nid = run(
         """INSERT INTO turnos (paciente_id, fecha, hora, estado, duracion_min)
            VALUES (?,?,?, 'agendado', ?)""",
-        (t["paciente_id"], cur.isoformat(), hora, t["duracion_min"] or DURACION_DEFAULT),
+        (t["paciente_id"], fecha, hora, t["duracion_min"] or DURACION_DEFAULT),
     )
-    return jsonify(ok=True, id=nid, fecha=cur.isoformat())
+    return jsonify(ok=True, id=nid, fecha=fecha, hora=hora)
 
 
 @app.route("/api/turno/<int:tid>/cancelar", methods=["POST"])
@@ -853,6 +933,72 @@ def api_plan():
 def api_borrar_turno(tid):
     run("DELETE FROM turnos WHERE id=?", (tid,))
     return jsonify(ok=True)
+
+
+@app.route("/api/turno/<int:tid>/editar", methods=["POST"])
+def api_editar_turno(tid):
+    """Mover/editar un turno (fecha, hora, duración) desde la agenda."""
+    d = request.get_json(force=True, silent=True) or {}
+    t = q1("SELECT * FROM turnos WHERE id=?", (tid,))
+    if not t:
+        return jsonify(ok=False, error="Turno inexistente"), 404
+    fecha = d.get("fecha") or t["fecha"]
+    hora = d.get("hora") if d.get("hora") is not None else t["hora"]
+    dur = int(d.get("duracion") or t["duracion_min"] or DURACION_DEFAULT)
+    run("UPDATE turnos SET fecha=?, hora=?, duracion_min=? WHERE id=?",
+        (fecha, hora, dur, tid))
+    return jsonify(ok=True)
+
+
+@app.route("/api/huecos")
+def api_huecos():
+    """Horarios libres de un día según la cantidad de boxes."""
+    fecha = request.args.get("fecha") or date.today().isoformat()
+    dur = int(request.args.get("duracion") or DURACION_DEFAULT)
+    n_boxes = q1("SELECT COUNT(*) c FROM boxes WHERE activo=1")["c"] or 1
+    rows = q(
+        """SELECT hora, duracion_min FROM turnos
+           WHERE fecha=? AND estado NOT IN ('ausente','perdido')""",
+        (fecha,),
+    )
+    ocup = []
+    for r in rows:
+        if not r["hora"]:
+            continue
+        try:
+            hh, mm = map(int, r["hora"].split(":"))
+        except Exception:
+            continue
+        ini = hh * 60 + mm
+        ocup.append((ini, ini + (r["duracion_min"] or DURACION_DEFAULT)))
+
+    # Horario del centro (configurable).
+    cfg = get_config()
+
+    def tomin(s, defecto):
+        try:
+            hh, mm = map(int, str(s).split(":"))
+            return hh * 60 + mm
+        except Exception:
+            return defecto
+    m0 = tomin(cfg.get("centro_apertura", "08:00"), 8 * 60)
+    m1 = tomin(cfg.get("centro_cierre", "20:00"), 20 * 60)
+    dias_centro = (cfg.get("centro_dias", "") or "").split(",") if cfg.get("centro_dias") else []
+    try:
+        wd = date.fromisoformat(fecha).weekday()
+    except Exception:
+        wd = 0
+    abierto = (not dias_centro) or (str(wd) in dias_centro)
+
+    slots = []
+    for m in range(m0, m1, 30):
+        fin = m + dur
+        solap = sum(1 for (a, b) in ocup if a < fin and m < b)
+        slots.append({"hora": f"{m // 60:02d}:{m % 60:02d}",
+                      "libres": max(0, n_boxes - solap)})
+    return jsonify({"boxes": n_boxes, "slots": slots, "abierto": abierto,
+                    "apertura": cfg.get("centro_apertura", "08:00"),
+                    "cierre": cfg.get("centro_cierre", "20:00")})
 
 
 # --------------------------------------------------------------------------
@@ -949,6 +1095,24 @@ def api_borrar_ejercicio(eid):
     return jsonify(ok=True)
 
 
+@app.route("/api/paciente/<int:pid>/evolucion", methods=["POST"])
+def api_nueva_evolucion(pid):
+    d = request.get_json(force=True, silent=True) or {}
+    texto = (d.get("texto") or "").strip()
+    if not texto:
+        return jsonify(ok=False, error="Escribí la nota de evolución"), 400
+    fecha = d.get("fecha") or date.today().isoformat()
+    eid = run("INSERT INTO evoluciones (paciente_id, fecha, texto) VALUES (?,?,?)",
+              (pid, fecha, texto))
+    return jsonify(ok=True, id=eid, fecha=fecha)
+
+
+@app.route("/api/evolucion/<int:eid>/borrar", methods=["POST"])
+def api_borrar_evolucion(eid):
+    run("DELETE FROM evoluciones WHERE id=?", (eid,))
+    return jsonify(ok=True)
+
+
 # --------------------------------------------------------------------------
 # API — catálogo de ejercicios
 # --------------------------------------------------------------------------
@@ -996,6 +1160,14 @@ def api_config_set():
             "ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor",
             (k, str(v)))
     return jsonify(ok=True)
+
+
+@app.route("/api/backup")
+def api_backup():
+    """Descarga una copia de seguridad de toda la base (kinesio.db)."""
+    stamp = datetime.now().strftime("%Y%m%d_%H%M")
+    return send_file(DB_PATH, as_attachment=True,
+                     download_name=f"kdym_backup_{stamp}.db")
 
 
 # --------------------------------------------------------------------------

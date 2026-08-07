@@ -21,83 +21,9 @@ function pintarFecha() {
     d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
 }
 
-// ---- Alarmas (Web Audio, sin archivos) ----
-let AUDIO_CTX = null;
-function audioCtx() {
-  if (!AUDIO_CTX) AUDIO_CTX = new (window.AudioContext || window.webkitAudioContext)();
-  if (AUDIO_CTX.state === 'suspended') AUDIO_CTX.resume();
-  return AUDIO_CTX;
-}
-
-function tono(ctx, freq, t0, dur, vol, tipo) {
-  const o = ctx.createOscillator();
-  const g = ctx.createGain();
-  o.connect(g); g.connect(ctx.destination);
-  o.type = tipo || 'sine';
-  o.frequency.setValueAtTime(freq, t0);
-  g.gain.setValueAtTime(0.0001, t0);
-  g.gain.exponentialRampToValueAtTime(vol, t0 + 0.02);
-  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-  o.start(t0); o.stop(t0 + dur);
-}
-
-function sweep(ctx, t0, dur, f1, f2, vol, tipo) {
-  const o = ctx.createOscillator(), g = ctx.createGain();
-  o.connect(g); g.connect(ctx.destination); o.type = tipo || 'sawtooth';
-  o.frequency.setValueAtTime(f1, t0);
-  o.frequency.linearRampToValueAtTime(f2, t0 + dur / 2);
-  o.frequency.linearRampToValueAtTime(f1, t0 + dur);
-  g.gain.setValueAtTime(0.0001, t0);
-  g.gain.exponentialRampToValueAtTime(vol, t0 + 0.05);
-  g.gain.setValueAtTime(vol, t0 + dur - 0.05);
-  g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur);
-  o.start(t0); o.stop(t0 + dur);
-}
-
-// Alarmas ~3-4 segundos (duran más).
-function reproducirAlarma(tipo) {
-  try {
-    const ctx = audioCtx();
-    const n = ctx.currentTime;
-    if (tipo === 'triple') {
-      for (let i = 0; i < 8; i++) tono(ctx, 880, n + i * 0.30, 0.16, 0.4);
-    } else if (tipo === 'suave') {
-      for (let i = 0; i < 4; i++) {
-        tono(ctx, 523, n + i * 0.8, 0.3, 0.3);
-        tono(ctx, 659, n + i * 0.8 + 0.18, 0.5, 0.3);
-      }
-    } else if (tipo === 'sirena') {
-      sweep(ctx, n, 3.0, 600, 1000, 0.5, 'sawtooth');
-    } else if (tipo === 'fuerte') {
-      for (let i = 0; i < 16; i++) tono(ctx, 1000, n + i * 0.19, 0.12, 0.9, 'square');
-    } else if (tipo === 'sirena_intensa') {
-      for (let i = 0; i < 4; i++) sweep(ctx, n + i * 0.9, 0.9, 500, 1200, 0.9, 'sawtooth');
-    } else if (tipo === 'timbre') {
-      tono(ctx, 480, n, 3.2, 0.9, 'square');
-      tono(ctx, 620, n, 3.2, 0.5, 'square');
-    } else if (tipo === 'alarma') {
-      for (let i = 0; i < 26; i++) tono(ctx, i % 2 ? 1200 : 900, n + i * 0.14, 0.1, 0.85, 'square');
-    } else { // campana
-      for (let i = 0; i < 4; i++) {
-        tono(ctx, 988, n + i * 0.85, 0.9, 0.4);
-        tono(ctx, 1319, n + i * 0.85, 0.9, 0.22);
-      }
-    }
-  } catch (e) {}
-}
-
-function alarmaSeleccionada() {
-  const s = document.getElementById('sound-tipo');
-  return s ? s.value : 'campana';
-}
-function beep() {
-  if (!document.getElementById('sound-on').checked) return;
-  reproducirAlarma(alarmaSeleccionada());
-}
-function probarAlarma() {
-  reproducirAlarma(alarmaSeleccionada());
-  toast('🔊 Así suena la alarma', 'ok');
-}
+// El motor de sonido (alarmAudio / sonarContinuo / pararSonido / probarAlarma /
+// alarmaSeleccionada / alarmaEncendida) vive en app.js y usa el sonido elegido
+// en Configuración (localStorage 'kdym_alarma').
 
 // Muestra/oculta el campo de minutos según se elija "Personalizado" en el select.
 function toggleDur(selId, inpId) {
@@ -156,6 +82,23 @@ function pintarStats() {
 function pintarBoxes() {
   const cont = document.getElementById('boxes');
   cont.innerHTML = ESTADO.boxes.map(b => {
+    // Modo prueba (simulación de 10s) en un box libre.
+    if (!b.ocupado && TESTS[b.id] !== undefined) {
+      const rest = Math.round((TESTS[b.id] - Date.now()) / 1000);
+      const venc = rest <= 0;
+      return `<div class="box ocupado ${venc ? 'vencido' : ''}" data-box="t${b.id}">
+        <div class="box-head">
+          <span class="box-nom">${escapeHtml(b.nombre)}</span>
+          <span class="box-badge ${venc ? 'badge-vencido' : 'badge-ocupado'}">${venc ? '¡Terminó!' : '🧪 Prueba'}</span>
+        </div>
+        <div class="box-pac">🧪 Prueba de alarma</div>
+        <div class="box-diag"></div>
+        <div class="timer" data-restante="${rest}">${fmt(rest)}</div>
+        <div class="box-actions">
+          <button class="btn btn-ok btn-sm btn-block" onclick="terminarPrueba(${b.id})">✓ Terminar prueba</button>
+        </div>
+      </div>`;
+    }
     if (!b.ocupado) {
       return `<div class="box libre">
         <div class="box-head">
@@ -183,6 +126,7 @@ function pintarBoxes() {
       <div class="timer" data-restante="${b.restante_seg}">${fmt(b.restante_seg)}</div>
       <div class="box-actions">
         <button class="btn btn-ok btn-sm grow" onclick="terminar(${b.turno_id})">✓ Terminar</button>
+        <button class="btn btn-line btn-sm" onclick="agregarTiempo(${b.turno_id})">+ tiempo</button>
         ${wa}
       </div>
     </div>`;
@@ -217,7 +161,8 @@ function filaSala(t) {
       <button class="btn btn-danger-soft btn-sm" title="No vino" onclick="noVino(${t.turno_id})">✗</button>`;
   } else if (t.estado === 'presente') {
     badge = `<span class="pill ok">Presente ✓</span>`;
-    acciones = `<button class="btn btn-primary btn-sm" onclick="pedirIniciar(${t.turno_id}, '${escapeJs(t.paciente)}')">A un box →</button>`;
+    acciones = `<button class="btn btn-primary btn-sm" onclick="pedirIniciar(${t.turno_id}, '${escapeJs(t.paciente)}')">A un box →</button>
+      <button class="btn btn-ghost btn-sm" onclick="deshacerVino(${t.turno_id})" title="Marqué por error — deshacer">↺</button>`;
   } else if (t.estado === 'en_curso') {
     badge = `<span class="pill">En ${escapeHtml(t.box || 'box')}</span>`;
   } else if (t.estado === 'terminado') {
@@ -239,8 +184,14 @@ function filaSala(t) {
 
 // ---- Vino / No vino ----
 async function vino(tid) {
+  if (!confirm('¿Confirmás que vino? Se le cuenta la sesión.')) return;
   const r = await api(`/api/turno/${tid}/vino`);
   toast(`Vino ✓ — sesión contada · quedan ${r.sesiones_quedan}`, 'ok');
+  refrescar();
+}
+async function deshacerVino(tid) {
+  await api(`/api/turno/${tid}/deshacer_vino`);
+  toast('Deshecho — vuelve a agendado', 'ok');
   refrescar();
 }
 
@@ -258,10 +209,20 @@ function noVino(tid) {
   document.getElementById('novino-horarios').innerHTML =
     `Sus días: <b>${escapeHtml(dias)}</b>` + (hs ? `<br>Horarios: <b>${escapeHtml(hs)}</b>` : '');
   document.getElementById('novino-fecha').value = '';
+  NOVINO_PREVIEW = null;
   abrirModal('modal-novino');
+  // Mostrar a qué fecha se reprogramaría.
+  apiGet('/api/turno/' + tid + '/reprogramar_preview').then(pv => {
+    NOVINO_PREVIEW = pv;
+    document.getElementById('novino-horarios').innerHTML +=
+      `<br>Reprogramar lo mueve al <b>${pv.fecha}${pv.hora ? ' a las ' + pv.hora : ''}</b>.`;
+  }).catch(() => {});
 }
 
+let NOVINO_PREVIEW = null;
 async function reprogNovino() {
+  const dest = NOVINO_PREVIEW ? (NOVINO_PREVIEW.fecha + (NOVINO_PREVIEW.hora ? ' a las ' + NOVINO_PREVIEW.hora : '')) : 'la próxima fecha';
+  if (!confirm('Se reprograma al ' + dest + '. ¿Confirmar?')) return;
   const r = await api(`/api/turno/${NOVINO.turno_id}/reprogramar`);
   cerrarModal('modal-novino');
   toast('Reprogramado al ' + r.fecha + ' ✓', 'ok');
@@ -300,17 +261,57 @@ function dispararAviso(boxId, box) {
   if (boxId && AVISADOS.has(boxId)) return;
   if (boxId) AVISADOS.add(boxId);
   const nom = box ? box.querySelector('.box-nom').textContent : 'Un box';
-  const pac = box ? box.querySelector('.box-pac').textContent : '';
-  beep();
+  const pacEl = box ? box.querySelector('.box-pac') : null;
+  const pac = pacEl ? pacEl.textContent : '';
   vibrar([700, 300, 700]);
+  if (alarmaEncendida()) sonarContinuo();
+  mostrarNotif(boxId || 'x', '⏰ ' + nom + ' terminó', pac);
   toast(`⏰ ${nom} terminó — ${pac}`, 'alert');
 }
 
 // ---- Acciones de box ----
 async function terminar(tid) {
-  pararVibracion();
-  await api(`/api/turno/${tid}/terminar`);
-  toast('Box liberado ✓', 'ok');
+  pararSonido(); pararVibracion(); cerrarTodasNotifs();
+  const r = await api(`/api/turno/${tid}/terminar`);
+  refrescar();
+  if (r.paciente_id) abrirEjHoy(r.paciente_id, r.paciente);
+  else toast('Box liberado ✓', 'ok');
+}
+
+// ---- Menú de ejercicios al terminar un box ----
+let EJHOY_PID = null, EJHOY_CAT = null, CATALOGO_R = {};
+async function abrirEjHoy(pid, nombre) {
+  EJHOY_PID = pid;
+  document.getElementById('ejhoy-titulo').textContent = 'Ejercicios de hoy — ' + nombre;
+  document.getElementById('ejhoy-ficha').href = '/paciente/' + pid;
+  if (!Object.keys(CATALOGO_R).length) { try { CATALOGO_R = await apiGet('/api/catalogo'); } catch (e) {} }
+  EJHOY_CAT = Object.keys(CATALOGO_R)[0] || null;
+  pintarEjHoy();
+  abrirModal('modal-ejhoy');
+}
+function pintarEjHoy() {
+  const cats = Object.keys(CATALOGO_R);
+  document.getElementById('ejhoy-cats').innerHTML = cats.map(c =>
+    `<button class="cat-tab ${c === EJHOY_CAT ? 'on' : ''}" onclick="ejHoyCat('${escapeJs(c)}')">${escapeHtml(c)}</button>`).join('');
+  document.getElementById('ejhoy-lista').innerHTML = (CATALOGO_R[EJHOY_CAT] || []).map(o =>
+    `<div class="cat-op" onclick="ejHoyAdd('${escapeJs(o.nombre)}','${escapeJs(EJHOY_CAT)}')">
+       <span>${escapeHtml(o.nombre)}</span><span class="c">+ agregar</span></div>`).join('')
+    || '<div class="empty">Sin ejercicios en esta categoría</div>';
+}
+function ejHoyCat(c) { EJHOY_CAT = c; pintarEjHoy(); }
+async function ejHoyAdd(nombre, cat) {
+  await api('/api/paciente/' + EJHOY_PID + '/ejercicio', { nombre, categoria: cat });
+  toast('Agregado: ' + nombre + ' ✓', 'ok');
+}
+
+async function agregarTiempo(tid) {
+  const m = prompt('¿Cuántos minutos agregar?', '10');
+  if (!m) return;
+  const min = parseInt(m, 10);
+  if (!min || min <= 0) { toast('Poné un número de minutos', 'alert'); return; }
+  pararSonido(); pararVibracion(); cerrarTodasNotifs();
+  await api(`/api/turno/${tid}/agregar_tiempo`, { minutos: min });
+  toast('+' + min + ' min agregados ✓', 'ok');
   refrescar();
 }
 
@@ -426,22 +427,16 @@ function waLink(msg) {
     '?text=' + encodeURIComponent(msg);
 }
 function avisarWa(paciente, box) {
-  if (!CONFIG.wa_kine) { toast('Primero configurá el WhatsApp en ⚙', 'alert'); return; }
+  if (!CONFIG.wa_kine) { toast('Primero cargá el WhatsApp en Configuración', 'alert'); return; }
   window.open(waLink(`${paciente} terminó su sesión en ${box}. Ya podés pasar 🙌`), '_blank');
 }
 
 async function cargarConfig() { try { CONFIG = await apiGet('/api/config'); } catch (e) {} }
-function abrirConfig() {
-  document.getElementById('cfg-wa').value = CONFIG.wa_kine || '';
-  abrirModal('modal-config');
-}
-async function guardarConfig() {
-  const wa = document.getElementById('cfg-wa').value.replace(/[^0-9]/g, '');
-  await api('/api/config', { wa_kine: wa });
-  CONFIG.wa_kine = wa;
-  cerrarModal('modal-config');
-  toast('Guardado ✓', 'ok');
-  if (ESTADO) render();
+
+// Probar la alarma en el box elegido desde el modal "+ Paciente".
+function probarDesdeAbox() {
+  cerrarModal('modal-abox');
+  if (ABOX_BOX != null) probarBox(ABOX_BOX);
 }
 
 // ---- Vibración del celular ----
@@ -452,26 +447,74 @@ function pararVibracion() {
   if (navigator.vibrate) { try { navigator.vibrate(0); } catch (e) {} }
 }
 
-// Desbloquear el audio en el primer toque (los celulares lo bloquean hasta que
-// el usuario interactúa). Así la alarma suena sin problemas.
-function unlockAudio() { try { audioCtx(); } catch (e) {} }
-['click', 'touchstart', 'keydown'].forEach(ev =>
-  document.addEventListener(ev, unlockAudio, { once: true }));
+// (El sonido en bucle vive en app.js: sonarContinuo / pararSonido / alarmAudio.)
 
-// ---- Alarma continua + vibración mientras un box siga vencido ----
-let LAST_SOUND = 0;
-function hayVencido() { return !!document.querySelector('.box.ocupado.vencido'); }
+// ---- Notificaciones del sistema (avisan aunque estés en otra app del navegador) ----
+let SW_REG = null;
+async function initServiceWorker() {
+  if ('serviceWorker' in navigator) {
+    try { SW_REG = await navigator.serviceWorker.register('/sw.js'); } catch (e) {}
+  }
+}
+function pedirPermisoNotif() {
+  if ('Notification' in window && Notification.permission === 'default') {
+    try { Notification.requestPermission(); } catch (e) {}
+  }
+}
+function mostrarNotif(id, titulo, cuerpo) {
+  if (!('Notification' in window) || Notification.permission !== 'granted') return;
+  const opts = { body: cuerpo, tag: 'kdym-' + id, requireInteraction: true,
+                 vibrate: [600, 300, 600, 300, 600], renotify: true };
+  try {
+    if (SW_REG && SW_REG.showNotification) SW_REG.showNotification(titulo, opts);
+    else new Notification(titulo, opts);
+  } catch (e) {}
+}
+function cerrarTodasNotifs() {
+  if (SW_REG && SW_REG.getNotifications) SW_REG.getNotifications().then(ns => ns.forEach(n => n.close()));
+}
+
+// ---- Wake Lock: mantener la pantalla encendida mientras la app esté abierta ----
+let WAKE = null;
+async function pedirWakeLock() {
+  if (!('wakeLock' in navigator) || WAKE) return;
+  try { WAKE = await navigator.wakeLock.request('screen'); WAKE.addEventListener('release', () => { WAKE = null; }); } catch (e) {}
+}
+
+// Primer toque: desbloquea audio, pide permiso de notificaciones y wake lock.
+function primerToque() {
+  try { const a = alarmAudio(); a.play().then(() => { a.pause(); a.currentTime = 0; }).catch(() => {}); } catch (e) {}
+  pedirPermisoNotif();
+  pedirWakeLock();
+}
+['click', 'touchstart', 'keydown'].forEach(ev =>
+  document.addEventListener(ev, primerToque, { once: true }));
+
+// ---- Modo prueba: simulación de 10 segundos por box ----
+let TESTS = {};   // boxId -> timestamp de fin (ms)
+function probarBox(boxId) {
+  primerToque();
+  TESTS[boxId] = Date.now() + 10000;
+  toast('🧪 Prueba: la alarma sonará en 10 segundos…', 'ok');
+  pintarBoxes();
+}
+function terminarPrueba(boxId) {
+  delete TESTS[boxId];
+  AVISADOS.delete('t' + boxId);
+  pintarBoxes();
+  if (!hayVencido()) { pararSonido(); pararVibracion(); cerrarTodasNotifs(); }
+}
+
+// ---- Alarma continua (sonido en bucle + vibración) mientras haya box vencido ----
+function hayVencido() { return !!document.querySelector('.box.vencido'); }
 
 function alarmaLoop() {
   if (hayVencido()) {
-    vibrar([800, 250]);   // vibra siempre que un box esté vencido (hasta Terminar)
-    const rep = document.getElementById('sound-repeat');
-    const soundOn = document.getElementById('sound-on');
-    if (rep && rep.checked && soundOn && soundOn.checked) {
-      const now = Date.now();
-      if (now - LAST_SOUND > 3200) { reproducirAlarma(alarmaSeleccionada()); LAST_SOUND = now; }
-    }
+    vibrar([800, 250]);
+    if (alarmaEncendida()) sonarContinuo();
+    pedirWakeLock();
   } else {
+    pararSonido();
     pararVibracion();
   }
 }
@@ -487,10 +530,13 @@ async function refrescar() {
   } catch (e) { /* silencioso */ }
 }
 
-// Al volver a la pestaña/app, re-sincronizar al instante (evita que quede colgada).
-document.addEventListener('visibilitychange', () => { if (!document.hidden) refrescar(); });
+// Al volver a la pestaña/app, re-sincronizar y re-pedir la pantalla encendida.
+document.addEventListener('visibilitychange', () => {
+  if (!document.hidden) { refrescar(); pedirWakeLock(); }
+});
 window.addEventListener('focus', refrescar);
 
+initServiceWorker();
 pintarFecha();
 cargarConfig().then(refrescar);
 setInterval(refrescar, 5000);

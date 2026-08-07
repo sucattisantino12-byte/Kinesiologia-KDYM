@@ -7,63 +7,32 @@
     <div class="page-title" style="margin-bottom:2px;">Notificaciones</div>
     <div class="muted" id="notif-sub"></div>
   </div>
-  <button class="btn btn-ghost" onclick="limpiarTodo()">Limpiar todo</button>
 </div>
 
 <div class="section-title">⚠️ Últimas sesiones — por renovar bono/autorización</div>
 <div id="notif-alertas"></div>
-
-<div class="section-title">Actividad reciente</div>
-<div class="card" id="notif-eventos"></div>
 {% endblock %}
 
 {% block scripts %}
 <script>
-function fmtTs(ts) {
-  try {
-    const d = new Date(ts);
-    return d.toLocaleString('es-AR', { day: '2-digit', month: '2-digit', hour: '2-digit', minute: '2-digit' });
-  } catch (e) { return ''; }
-}
-
-const ICONO = { vino: '✅', a_box: '➡️', fin: '🏁', llegada: '🚪' };
-
 async function cargar() {
   const d = await apiGet('/api/notificaciones');
+  const alertas = d.alertas || [];
   document.getElementById('notif-sub').textContent =
-    d.count ? d.count + ' notificación(es) sin cerrar' : 'Todo al día 🙌';
+    alertas.length ? alertas.length + ' paciente(s) por renovar' : 'Todo al día 🙌';
 
-  // Alertas de últimas sesiones
   const ca = document.getElementById('notif-alertas');
-  ca.innerHTML = d.alertas.length ? d.alertas.map(a => `
+  ca.innerHTML = alertas.length ? alertas.map(a => `
     <div class="card card-pad alerta-card notif-item">
       <div class="grow">
         <a href="/paciente/${a.paciente_id}" class="li-name">${escapeHtml(a.nombre_completo)}</a>
         <div class="li-sub">${a.obra_social ? escapeHtml(a.obra_social) + ' · ' : ''}<b>${a.quedan > 0 ? a.quedan + ' sesión(es) restante(s)' : 'sin sesiones'}</b></div>
       </div>
       <button class="x" onclick="cerrarAlerta(${a.paciente_id})" title="Cerrar">&times;</button>
-    </div>`).join('') : '<div class="card"><div class="empty">Sin alertas 🙌</div></div>';
-
-  // Actividad (eventos)
-  const ce = document.getElementById('notif-eventos');
-  ce.innerHTML = d.eventos.length ? d.eventos.map(e => `
-    <div class="list-item">
-      <div class="avatar" style="font-size:16px;">${ICONO[e.tipo] || '🔔'}</div>
-      <div class="li-main">
-        <div class="li-name">${escapeHtml(e.texto)}</div>
-        <div class="li-sub">${fmtTs(e.ts)}</div>
-      </div>
-      <button class="x" onclick="cerrarEvento(${e.id})" title="Cerrar">&times;</button>
-    </div>`).join('') : '<div class="empty">Sin actividad reciente.</div>';
+    </div>`).join('') : '<div class="card"><div class="empty">No hay pacientes por renovar 🙌</div></div>';
 }
 
 async function cerrarAlerta(pid) { await api('/api/notificaciones/alerta/' + pid + '/cerrar'); cargar(); actualizarBadgeNotif(); }
-async function cerrarEvento(id) { await api('/api/evento/' + id + '/cerrar'); cargar(); actualizarBadgeNotif(); }
-async function limpiarTodo() {
-  if (!confirm('¿Cerrar todas las notificaciones?')) return;
-  await api('/api/notificaciones/limpiar');
-  cargar(); actualizarBadgeNotif();
-}
 
 cargar();
 setInterval(cargar, 10000);
