@@ -173,18 +173,53 @@ async function guardarNuevoPaciente() {
   if (b) b.addEventListener('click', guardarNuevoPaciente);
 })();
 
-// ---- Contador de notificaciones en el menú (todas las pantallas) ----
+// ---- Contador de notificaciones (sidebar + nav inferior) ----
 async function actualizarBadgeNotif() {
-  const b = document.getElementById('nav-notif-badge');
-  if (!b) return;
+  const badges = [document.getElementById('nav-notif-badge'), document.getElementById('nav-notif-badge-m')];
+  if (!badges.some(Boolean)) return;
   try {
     const r = await apiGet('/api/notificaciones/count');
-    if (r.count > 0) { b.textContent = r.count; b.style.display = 'inline-flex'; }
-    else { b.style.display = 'none'; }
+    badges.forEach(b => {
+      if (!b) return;
+      if (r.count > 0) { b.textContent = r.count; b.style.display = 'inline-flex'; }
+      else { b.style.display = 'none'; }
+    });
   } catch (e) {}
 }
 actualizarBadgeNotif();
 setInterval(actualizarBadgeNotif, 15000);
+
+// ---- Menú "Más" (celular) ----
+function toggleMas() {
+  const s = document.getElementById('mas-sheet');
+  if (s) s.classList.toggle('show');
+}
+
+// ---- Reloj/fecha del header (celular) + contador de sesiones (sidebar) ----
+function _cabeceraReloj() {
+  const rel = document.getElementById('m-reloj');
+  const fec = document.getElementById('m-fecha');
+  const d = new Date();
+  if (rel) rel.textContent = d.toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
+  if (fec) {
+    let t = d.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
+    fec.textContent = t.charAt(0).toUpperCase() + t.slice(1);
+  }
+}
+async function _sidebarSesiones() {
+  const enc = document.getElementById('side-encurso');
+  if (!enc) return;
+  try {
+    const e = await apiGet('/api/estado');
+    enc.textContent = e.stats.en_curso;
+    const bx = document.getElementById('side-boxes');
+    if (bx) bx.textContent = (e.boxes || []).length;
+  } catch (err) {}
+}
+_cabeceraReloj();
+_sidebarSesiones();
+setInterval(_cabeceraReloj, 30000);
+setInterval(_sidebarSesiones, 15000);
 
 // ============ Motor de alarma (sonido elegido, en bucle) ============
 // La config del sonido vive en localStorage para que sea instantánea por dispositivo.

@@ -40,16 +40,9 @@
 
 <div class="section-title">🕗 Días y horario del centro</div>
 <div class="card card-pad" style="margin-bottom:8px;">
-  <div class="field">
-    <label>Días que abre</label>
-    <div class="dias-picker" id="centro-dias"></div>
-  </div>
-  <div class="grid2">
-    <div class="field"><label>Abre</label><input class="input" id="centro-apertura" type="time"></div>
-    <div class="field"><label>Cierra</label><input class="input" id="centro-cierre" type="time"></div>
-  </div>
-  <button class="btn btn-primary" onclick="guardarCentro()">Guardar horario</button>
-  <div class="hint" style="margin-top:8px;">Se usa en “Buscar hueco” de la agenda para mostrar los horarios disponibles.</div>
+  <div class="hint" style="margin-bottom:10px;">Marcá los días que abre el centro y el horario de cada uno (puede ser distinto por día).</div>
+  <div id="centro-horarios"></div>
+  <button class="btn btn-primary" style="margin-top:10px;" onclick="guardarCentro()">Guardar horario</button>
 </div>
 
 <div class="section-title">💾 Copia de seguridad</div>
@@ -75,23 +68,33 @@ onchk.addEventListener('change', () => {
   localStorage.setItem('kdym_alarma_on', onchk.checked ? '1' : '0');
 });
 
-// Días del centro (Lun-Dom).
-let CENTRO_DIAS = new Set();
-function pintarCentroDias() {
-  const D = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
-  document.getElementById('centro-dias').innerHTML = D.map((d, i) =>
-    `<div class="dia-btn ${CENTRO_DIAS.has(i) ? 'on' : ''}" onclick="toggleCentroDia(${i})">${d}</div>`).join('');
+// Horario del centro por día. CENTRO_HOR = {0:{a,c}, ...} sólo los días abiertos.
+let CENTRO_HOR = {};
+const DIAS7 = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+function pintarCentroHor() {
+  document.getElementById('centro-horarios').innerHTML = DIAS7.map((d, i) => {
+    const on = CENTRO_HOR[i] != null;
+    const a = on ? CENTRO_HOR[i].a : '08:00';
+    const c = on ? CENTRO_HOR[i].c : '20:00';
+    return `<div class="centro-dia">
+      <label class="sound-toggle" style="min-width:104px;"><input type="checkbox" ${on ? 'checked' : ''} onchange="centroToggle(${i}, this.checked)"> ${d}</label>
+      <input class="input" type="time" value="${a}" ${on ? '' : 'disabled'} oninput="centroSet(${i},'a',this.value)">
+      <span class="muted">a</span>
+      <input class="input" type="time" value="${c}" ${on ? '' : 'disabled'} oninput="centroSet(${i},'c',this.value)">
+    </div>`;
+  }).join('');
 }
-function toggleCentroDia(i) { CENTRO_DIAS.has(i) ? CENTRO_DIAS.delete(i) : CENTRO_DIAS.add(i); pintarCentroDias(); }
+function centroToggle(i, on) { if (on) CENTRO_HOR[i] = { a: '08:00', c: '20:00' }; else delete CENTRO_HOR[i]; pintarCentroHor(); }
+function centroSet(i, k, v) { if (CENTRO_HOR[i]) CENTRO_HOR[i][k] = v; }
 
 // Config del servidor (WhatsApp + horario del centro).
 apiGet('/api/config').then(c => {
   document.getElementById('cfg-wa').value = c.wa_kine || '';
-  document.getElementById('centro-apertura').value = c.centro_apertura || '08:00';
-  document.getElementById('centro-cierre').value = c.centro_cierre || '20:00';
-  CENTRO_DIAS = new Set((c.centro_dias || '').split(',').filter(x => x !== '').map(Number));
-  if (!CENTRO_DIAS.size) CENTRO_DIAS = new Set([0, 1, 2, 3, 4, 5]); // Lun-Sáb por defecto
-  pintarCentroDias();
+  try { CENTRO_HOR = JSON.parse(c.centro_horarios || '{}'); } catch (e) { CENTRO_HOR = {}; }
+  if (!Object.keys(CENTRO_HOR).length) {
+    CENTRO_HOR = { 0: { a: '08:00', c: '20:00' }, 1: { a: '08:00', c: '20:00' }, 2: { a: '08:00', c: '20:00' }, 3: { a: '08:00', c: '20:00' }, 4: { a: '08:00', c: '20:00' }, 5: { a: '09:00', c: '13:00' } };
+  }
+  pintarCentroHor();
 });
 async function guardarWa() {
   const wa = document.getElementById('cfg-wa').value.replace(/[^0-9]/g, '');
@@ -99,11 +102,7 @@ async function guardarWa() {
   toast('WhatsApp guardado ✓', 'ok');
 }
 async function guardarCentro() {
-  await api('/api/config', {
-    centro_apertura: document.getElementById('centro-apertura').value || '08:00',
-    centro_cierre: document.getElementById('centro-cierre').value || '20:00',
-    centro_dias: [...CENTRO_DIAS].sort((a, b) => a - b).join(','),
-  });
+  await api('/api/config', { centro_horarios: JSON.stringify(CENTRO_HOR) });
   toast('Horario del centro guardado ✓', 'ok');
 }
 </script>

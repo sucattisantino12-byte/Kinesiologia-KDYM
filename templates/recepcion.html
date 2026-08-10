@@ -133,20 +133,28 @@
 
 <!-- Modal: ejercicios de hoy (al terminar un box) -->
 <div class="modal-bg" id="modal-ejhoy">
-  <div class="modal">
+  <div class="modal" style="max-width:640px;">
     <div class="modal-head">
       <h3 id="ejhoy-titulo">Ejercicios de hoy</h3>
       <button class="x" onclick="cerrarModal('modal-ejhoy')">&times;</button>
     </div>
     <div class="modal-body">
-      <div class="hint" style="margin-bottom:10px;">Tocá los ejercicios para asignárselos. Podés dejarlo para después.</div>
-      <div class="cat-tabs" id="ejhoy-cats"></div>
-      <div class="cat-lista" id="ejhoy-lista"></div>
+      <div class="hint" style="margin-bottom:10px;">Tocá los ejercicios del catálogo: se agregan a la lista. Poné series/reps/peso y apretá Confirmar.</div>
+      <div class="ejhoy-cols">
+        <div class="ejhoy-catalogo">
+          <div class="cat-tabs" id="ejhoy-cats"></div>
+          <div class="cat-lista" id="ejhoy-lista"></div>
+        </div>
+        <div class="ejhoy-sel">
+          <div class="section-title" style="margin:0 0 6px;">Seleccionados</div>
+          <div id="ejhoy-seleccionados"></div>
+        </div>
+      </div>
     </div>
     <div class="modal-foot">
       <button class="btn btn-ghost" onclick="cerrarModal('modal-ejhoy')">Dejar para después</button>
       <a class="btn btn-line" id="ejhoy-ficha" href="#">Ver ficha</a>
-      <button class="btn btn-primary" onclick="cerrarModal('modal-ejhoy')">Listo</button>
+      <button class="btn btn-primary" onclick="confirmarEjHoy()">Confirmar</button>
     </div>
   </div>
 </div>

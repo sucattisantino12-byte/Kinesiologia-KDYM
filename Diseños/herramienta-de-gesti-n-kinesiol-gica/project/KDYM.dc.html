@@ -1,0 +1,1323 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics>
+<meta name="design_doc_mode" content="canvas">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+body{margin:0;background:#E9EDF4;font-family:'Plus Jakarta Sans',system-ui,sans-serif;color:#0B1B33;-webkit-font-smoothing:antialiased}
+*{box-sizing:border-box}
+a{color:#2F5FB0;text-decoration:none}
+a:hover{color:#1E4483}
+button{font-family:inherit}
+input,select,textarea{font-family:inherit}
+@keyframes kdymPulso{0%,100%{box-shadow:0 0 0 0 rgba(229,72,77,.45)}50%{box-shadow:0 0 0 10px rgba(229,72,77,0)}}
+@keyframes kdymPop{from{transform:scale(0);opacity:0}to{transform:scale(1);opacity:1}}
+@keyframes kdymFig{0%{opacity:0;transform:translateY(88px) scale(.35)}55%{opacity:1}100%{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes kdymUp{from{opacity:0;transform:translateY(16px)}to{opacity:1;transform:translateY(0)}}
+@keyframes kdymLine{from{width:0}to{width:132px}}
+@keyframes kdymFade{from{opacity:0}to{opacity:1}}
+@keyframes kdymBell{0%,100%{transform:rotate(0)}20%{transform:rotate(-11deg)}60%{transform:rotate(11deg)}}
+@keyframes kdymSlide{from{opacity:0;transform:translateY(-14px)}to{opacity:1;transform:translateY(0)}}
+@keyframes kdymCintaL{from{transform:translateX(-330px)}to{transform:translateX(0)}}
+@keyframes kdymCintaR{from{transform:translateX(330px)}to{transform:translateX(0)}}
+@keyframes kdymSwooshL{from{opacity:0;transform:translateX(-60%)}to{opacity:1;transform:translateX(0)}}
+@keyframes kdymSwooshR{from{opacity:0;transform:translateX(60%)}to{opacity:.35;transform:translateX(0)}}
+@keyframes kdymFigIn{0%{opacity:0;transform:translateY(64px) scale(.55) rotate(-8deg)}60%{opacity:1}100%{opacity:1;transform:translateY(0) scale(1) rotate(0)}}
+@keyframes kdymCintaA{0%{opacity:0;transform:translate(-150px,-110px) rotate(-30deg)}45%{opacity:1}100%{opacity:1;transform:translate(0,0) rotate(0)}}
+@keyframes kdymCintaB{0%{opacity:0;transform:translate(150px,-110px) rotate(30deg)}45%{opacity:1}100%{opacity:1;transform:translate(0,0) rotate(0)}}
+@keyframes kdymCintaC{0%{opacity:0;transform:translate(0,-165px) scale(.4)}45%{opacity:1}100%{opacity:1;transform:translate(0,0) scale(1)}}
+@keyframes kdymCintaD{0%{opacity:0;transform:translate(0,160px)}45%{opacity:1}100%{opacity:1;transform:translate(0,0)}}
+@keyframes kdymCintaE{0%{opacity:0;transform:translate(-140px,150px) rotate(24deg)}45%{opacity:1}100%{opacity:1;transform:translate(0,0) rotate(0)}}
+@keyframes kdymCintaF{0%{opacity:0;transform:translate(140px,150px) rotate(-24deg)}45%{opacity:1}100%{opacity:1;transform:translate(0,0) rotate(0)}}
+::-webkit-scrollbar{width:8px;height:8px}
+::-webkit-scrollbar-thumb{background:#C9D3E3;border-radius:8px}
+</style>
+</helmet>
+
+<div style="min-height:100vh;padding:28px 24px 56px;display:flex;flex-direction:column;align-items:center;gap:18px">
+
+  <div style="display:flex;align-items:center;gap:14px;flex-wrap:wrap;justify-content:center">
+    <div style="display:flex;align-items:center;gap:10px">
+      <div style="width:34px;height:34px;border-radius:11px;background:linear-gradient(140deg,#4F82D8,#0F2350);display:grid;place-items:center;color:#fff;font-weight:800;font-size:13px;letter-spacing:.02em">K</div>
+      <div style="font-weight:800;font-size:15px;letter-spacing:-.01em">KDYM · gestión de kinesiología</div>
+    </div>
+    <div style="display:flex;gap:4px;padding:4px;background:#DCE3EE;border-radius:12px">
+      <button onClick="{{ verMovil }}" style="border:none;cursor:pointer;padding:8px 16px;border-radius:9px;font-size:13px;font-weight:700;background:{{ tabMovilBg }};color:{{ tabMovilColor }};box-shadow:{{ tabMovilSombra }}">Celular</button>
+      <button onClick="{{ verEscritorio }}" style="border:none;cursor:pointer;padding:8px 16px;border-radius:9px;font-size:13px;font-weight:700;background:{{ tabPcBg }};color:{{ tabPcColor }};box-shadow:{{ tabPcSombra }}">Computadora</button>
+    </div>
+    <button onClick="{{ verIntro }}" style="border:1px solid #CBD5E6;background:#fff;color:#1E4483;cursor:pointer;padding:8px 14px;border-radius:11px;font-size:12.5px;font-weight:700">▶ Ver intro</button>
+  </div>
+
+  <div style="position:relative;width:{{ frameW }};max-width:100%;height:{{ frameH }};background:#F5F7FB;border-radius:{{ frameRadio }};box-shadow:0 30px 70px rgba(11,27,51,.22),0 2px 6px rgba(11,27,51,.08);overflow:hidden;display:flex;border:1px solid rgba(11,27,51,.08)">
+
+    <sc-if value="{{ esEscritorio }}" hint-placeholder-val="{{ true }}">
+      <aside style="width:236px;flex:none;background:#0F2350;color:#fff;display:flex;flex-direction:column;padding:20px 14px">
+        <div style="display:flex;align-items:center;gap:10px;padding:4px 8px 22px">
+          <div style="width:36px;height:36px;border-radius:12px;background:linear-gradient(140deg,#6D9BE0,#2F5FB0);display:grid;place-items:center;font-weight:800;font-size:14px">K</div>
+          <div>
+            <div style="font-weight:800;font-size:16px;letter-spacing:.04em">KDYM</div>
+            <div style="font-size:11px;color:#8FA6CC;font-weight:500">Kinesiología</div>
+          </div>
+        </div>
+        <div style="display:flex;flex-direction:column;gap:2px">
+          <button onClick="{{ irRecepcion }}" style="display:flex;align-items:center;gap:11px;border:none;cursor:pointer;text-align:left;padding:11px 12px;border-radius:11px;font-size:14px;font-weight:600;background:{{ navRecepcionBg }};color:{{ navRecepcionColor }}"><span style="width:18px;height:18px;display:grid;place-items:center"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"></circle><path d="M12 7.5V12l3 2"></path></svg></span>Recepción</button>
+          <button onClick="{{ irAgenda }}" style="display:flex;align-items:center;gap:11px;border:none;cursor:pointer;text-align:left;padding:11px 12px;border-radius:11px;font-size:14px;font-weight:600;background:{{ navAgendaBg }};color:{{ navAgendaColor }}"><span style="width:18px;height:18px;display:grid;place-items:center"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3"></rect><path d="M3.5 10h17M8 3v4M16 3v4"></path></svg></span>Agenda</button>
+          <button onClick="{{ irPacientes }}" style="display:flex;align-items:center;gap:11px;border:none;cursor:pointer;text-align:left;padding:11px 12px;border-radius:11px;font-size:14px;font-weight:600;background:{{ navPacientesBg }};color:{{ navPacientesColor }}"><span style="width:18px;height:18px;display:grid;place-items:center"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="9.5" cy="8" r="3.6"></circle><path d="M3 19.5c.6-3.4 3.3-5.3 6.5-5.3s5.9 1.9 6.5 5.3M17 5.2a3.4 3.4 0 010 6.4M19 19.5c-.2-1.6-.7-2.9-1.6-3.9"></path></svg></span>Pacientes</button>
+          <button onClick="{{ irEjercicios }}" style="display:flex;align-items:center;gap:11px;border:none;cursor:pointer;text-align:left;padding:11px 12px;border-radius:11px;font-size:14px;font-weight:600;background:{{ navEjerciciosBg }};color:{{ navEjerciciosColor }}"><span style="width:18px;height:18px;display:grid;place-items:center"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4 9v6M7 7v10M17 7v10M20 9v6M7 12h10"></path></svg></span>Ejercicios</button>
+          <button onClick="{{ irNotificaciones }}" style="display:flex;align-items:center;gap:11px;border:none;cursor:pointer;text-align:left;padding:11px 12px;border-radius:11px;font-size:14px;font-weight:600;background:{{ navNotifBg }};color:{{ navNotifColor }}"><span style="width:18px;height:18px;display:grid;place-items:center"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M6 10a6 6 0 1112 0c0 4 1.5 5.5 1.5 5.5h-15S6 14 6 10zM10 19a2.2 2.2 0 004 0"></path></svg></span>Notificaciones<span style="margin-left:auto;background:#E5484D;color:#fff;font-size:11px;font-weight:800;border-radius:999px;padding:1px 7px">{{ alertasCount }}</span></button>
+          <button onClick="{{ irConfiguracion }}" style="display:flex;align-items:center;gap:11px;border:none;cursor:pointer;text-align:left;padding:11px 12px;border-radius:11px;font-size:14px;font-weight:600;background:{{ navConfigBg }};color:{{ navConfigColor }}"><span style="width:18px;height:18px;display:grid;place-items:center"><svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="3.2"></circle><path d="M12 3v2.2M12 18.8V21M21 12h-2.2M5.2 12H3M18.4 5.6l-1.6 1.6M7.2 16.8l-1.6 1.6M18.4 18.4l-1.6-1.6M7.2 7.2L5.6 5.6"></path></svg></span>Configuración</button>
+        </div>
+        <div style="margin-top:auto;background:rgba(255,255,255,.07);border-radius:14px;padding:13px">
+          <div style="font-size:11px;color:#8FA6CC;font-weight:700;text-transform:uppercase;letter-spacing:.07em">En sesión ahora</div>
+          <div style="font-size:24px;font-weight:800;margin-top:4px">{{ enCursoCount }}<span style="font-size:13px;color:#8FA6CC;font-weight:600"> / {{ boxesCount }} boxes</span></div>
+        </div>
+      </aside>
+    </sc-if>
+
+    <div style="flex:1;min-width:0;display:flex;flex-direction:column;background:#F5F7FB">
+
+      <sc-if value="{{ esMovil }}" hint-placeholder-val="{{ true }}">
+        <div style="flex:none;background:#0F2350;color:#fff;padding:10px 20px 14px">
+          <div style="display:flex;justify-content:space-between;font-size:12px;font-weight:700;opacity:.85;margin-bottom:12px"><span>{{ relojCorto }}</span><span>KDYM</span></div>
+          <div style="display:flex;align-items:center;justify-content:space-between">
+            <div>
+              <div style="font-size:21px;font-weight:800;letter-spacing:-.02em">{{ tituloPantalla }}</div>
+              <div style="font-size:12px;color:#9DB3D6;font-weight:500;margin-top:2px">{{ fechaLarga }}</div>
+            </div>
+            <button onClick="{{ abrirMas }}" style="border:none;background:rgba(255,255,255,.12);color:#fff;width:38px;height:38px;border-radius:12px;cursor:pointer;display:grid;place-items:center"><svg width="18" height="18" viewBox="0 0 24 24" fill="currentColor"><circle cx="5" cy="12" r="1.9"></circle><circle cx="12" cy="12" r="1.9"></circle><circle cx="19" cy="12" r="1.9"></circle></svg></button>
+          </div>
+        </div>
+      </sc-if>
+
+      <div style="flex:1;overflow-y:auto;padding:{{ contPad }}">
+
+        <sc-if value="{{ enRecepcion }}" hint-placeholder-val="{{ true }}">
+          <div>
+            <sc-if value="{{ esEscritorio }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:20px">
+                <div>
+                  <div style="font-size:27px;font-weight:800;letter-spacing:-.025em">Recepción</div>
+                  <div style="font-size:13.5px;color:#6B7B95;font-weight:500;margin-top:3px">{{ fechaLarga }} · {{ relojCorto }}</div>
+                </div>
+                <button onClick="{{ abrirCheckin }}" style="border:none;cursor:pointer;background:#2F5FB0;color:#fff;padding:12px 20px;border-radius:12px;font-size:14px;font-weight:700;box-shadow:0 6px 16px rgba(47,95,176,.28)">+ Registrar llegada</button>
+              </div>
+            </sc-if>
+
+            <sc-for list="{{ avisos }}" as="a" hint-placeholder-count="0">
+              <div style="background:#fff;border:1.5px solid #E5484D;border-left:6px solid #E5484D;border-radius:16px;padding:14px 15px;margin-bottom:12px;display:flex;align-items:center;gap:13px;flex-wrap:wrap;box-shadow:0 8px 22px rgba(229,72,77,.16);animation:kdymSlide .3s ease-out both">
+                <div style="width:40px;height:40px;flex:none;border-radius:13px;background:#FDECEC;color:#E5484D;display:grid;place-items:center;animation:kdymBell .9s ease-in-out infinite">
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 10a6 6 0 1112 0c0 4 1.5 5.5 1.5 5.5h-15S6 14 6 10zM10 19a2.2 2.2 0 004 0"></path></svg>
+                </div>
+                <div style="flex:1;min-width:150px">
+                  <div style="font-weight:800;font-size:14.5px;color:#E5484D">Terminó la sesión · {{ a.box }}</div>
+                  <div style="font-size:13px;color:#6B7B95;margin-top:2px">{{ a.detalle }}</div>
+                </div>
+                <div style="display:flex;gap:8px">
+                  <button onClick="{{ a.onMas5 }}" style="border:1.5px solid #D7DEEA;background:#fff;color:#6B7B95;cursor:pointer;padding:9px 13px;border-radius:10px;font-size:13px;font-weight:700">+5 min</button>
+                  <button onClick="{{ a.onTerminar }}" style="border:none;background:#12A150;color:#fff;cursor:pointer;padding:9px 15px;border-radius:10px;font-size:13px;font-weight:700">✓ Terminar sesión</button>
+                </div>
+              </div>
+            </sc-for>
+
+            <div style="display:grid;grid-template-columns:{{ statsCols }};gap:10px;margin-bottom:18px">
+              <sc-for list="{{ stats }}" as="s" hint-placeholder-count="6">
+                <div style="background:#fff;border:1px solid #E4E9F2;border-radius:14px;padding:12px 14px">
+                  <div style="font-size:23px;font-weight:800;line-height:1;color:{{ s.color }}">{{ s.n }}</div>
+                  <div style="font-size:11.5px;color:#6B7B95;font-weight:600;margin-top:5px">{{ s.l }}</div>
+                </div>
+              </sc-for>
+            </div>
+
+            <sc-if value="{{ esMovil }}" hint-placeholder-val="{{ true }}">
+              <button onClick="{{ abrirCheckin }}" style="width:100%;border:none;cursor:pointer;background:#2F5FB0;color:#fff;padding:15px;border-radius:14px;font-size:15px;font-weight:700;margin-bottom:20px;box-shadow:0 8px 20px rgba(47,95,176,.26)">+ Registrar llegada</button>
+            </sc-if>
+
+            <div style="display:grid;grid-template-columns:{{ splitCols }};gap:22px;align-items:start">
+              <div>
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+                  <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#6B7B95">Boxes</div>
+                  <button onClick="{{ agregarBox }}" style="border:1px solid #D7DEEA;background:#fff;color:#2F5FB0;cursor:pointer;padding:6px 12px;border-radius:9px;font-size:12.5px;font-weight:700">+ Box</button>
+                </div>
+                <div style="display:grid;grid-template-columns:{{ boxCols }};gap:12px">
+                  <sc-for list="{{ boxes }}" as="b" hint-placeholder-count="3">
+                    <div style="border-radius:16px;border:1.5px {{ b.borde }};background:{{ b.bg }};padding:14px;min-height:158px;display:flex;flex-direction:column;animation:{{ b.anim }}">
+                      <div style="display:flex;align-items:center;justify-content:space-between;gap:6px">
+                        <span style="font-weight:800;font-size:14.5px">{{ b.nombre }}</span>
+                        <span style="font-size:10px;font-weight:800;padding:3px 8px;border-radius:999px;text-transform:uppercase;letter-spacing:.05em;background:{{ b.badgeBg }};color:{{ b.badgeColor }}">{{ b.badge }}</span>
+                      </div>
+                      <sc-if value="{{ b.ocupado }}" hint-placeholder-val="{{ true }}">
+                        <div style="display:flex;flex-direction:column;flex:1">
+                          <div style="font-weight:700;font-size:14.5px;margin-top:10px">{{ b.paciente }}</div>
+                          <div style="font-size:11.5px;color:#6B7B95;margin-top:2px;line-height:1.3">{{ b.diag }}</div>
+                          <div style="font-size:34px;font-weight:800;letter-spacing:-.03em;margin:8px 0 4px;font-variant-numeric:tabular-nums;color:{{ b.timerColor }}">{{ b.tiempo }}</div>
+                          <div style="margin-top:auto;display:flex;gap:6px;padding-top:10px">
+                            <button onClick="{{ b.onTerminar }}" style="flex:1;border:none;cursor:pointer;background:#12A150;color:#fff;padding:9px;border-radius:10px;font-size:13px;font-weight:700">✓ Terminar</button>
+                            <button onClick="{{ b.onMasTiempo }}" style="border:1.5px solid #2F5FB0;background:transparent;color:#2F5FB0;cursor:pointer;padding:9px 11px;border-radius:10px;font-size:13px;font-weight:700">+5</button>
+                          </div>
+                        </div>
+                      </sc-if>
+                      <sc-if value="{{ b.libre }}" hint-placeholder-val="{{ true }}">
+                        <div style="display:flex;flex-direction:column;flex:1">
+                          <div style="margin:auto 0;text-align:center;color:#93A1B8;font-weight:600;font-size:13px">Disponible</div>
+                          <button onClick="{{ b.onPoner }}" style="width:100%;border:none;cursor:pointer;background:#E8EEF9;color:#2F5FB0;padding:10px;border-radius:10px;font-size:13px;font-weight:700">+ Paciente</button>
+                        </div>
+                      </sc-if>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+
+              <div>
+                <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#6B7B95;margin-bottom:10px">Sala del día</div>
+                <sc-for list="{{ sala }}" as="g" hint-placeholder-count="3">
+                  <div style="margin-bottom:14px">
+                    <div style="display:flex;align-items:center;gap:9px;margin-bottom:7px">
+                      <span style="font-size:15px;font-weight:800;color:#1E4483">{{ g.hora }}</span>
+                      <span style="font-size:11px;font-weight:700;background:#E8EEF9;color:#2F5FB0;border-radius:999px;padding:2px 9px">{{ g.etiqueta }}</span>
+                    </div>
+                    <div style="background:#fff;border:1px solid #E4E9F2;border-radius:14px;overflow:hidden">
+                      <sc-for list="{{ g.turnos }}" as="t" hint-placeholder-count="2">
+                        <div style="display:flex;align-items:center;gap:11px;padding:11px 13px;border-bottom:1px solid #EEF1F7">
+                          <div style="width:38px;height:38px;border-radius:50%;flex:none;background:{{ t.avBg }};color:{{ t.avColor }};display:grid;place-items:center;font-weight:800;font-size:13px">{{ t.iniciales }}</div>
+                          <div style="flex:1;min-width:0">
+                            <button onClick="{{ t.onFicha }}" style="border:none;background:none;padding:0;cursor:pointer;font-weight:700;font-size:14px;color:#0B1B33;text-align:left">{{ t.nombre }}</button>
+                            <div style="font-size:11.5px;color:#6B7B95;margin-top:2px;display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+                              <span>{{ t.sub }}</span>
+                              <span style="font-weight:700;padding:1px 8px;border-radius:999px;background:{{ t.pillBg }};color:{{ t.pillColor }}">{{ t.estadoLabel }}</span>
+                            </div>
+                          </div>
+                          <div style="display:flex;gap:6px;flex:none">
+                            <sc-if value="{{ t.esAgendado }}" hint-placeholder-val="{{ true }}">
+                              <div style="display:flex;gap:6px">
+                                <button onClick="{{ t.onVino }}" style="border:none;cursor:pointer;background:#12A150;color:#fff;padding:8px 11px;border-radius:9px;font-size:12.5px;font-weight:700">✓ Vino</button>
+                                <button onClick="{{ t.onNoVino }}" style="border:none;cursor:pointer;background:#FDECEC;color:#E5484D;padding:8px 11px;border-radius:9px;font-size:12.5px;font-weight:700">✗</button>
+                              </div>
+                            </sc-if>
+                            <sc-if value="{{ t.esPresente }}" hint-placeholder-val="{{ true }}">
+                              <button onClick="{{ t.onABox }}" style="border:none;cursor:pointer;background:#2F5FB0;color:#fff;padding:8px 12px;border-radius:9px;font-size:12.5px;font-weight:700">A un box →</button>
+                            </sc-if>
+                          </div>
+                        </div>
+                      </sc-for>
+                    </div>
+                  </div>
+                </sc-for>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ enAgenda }}" hint-placeholder-val="{{ true }}">
+          <div>
+            <sc-if value="{{ esEscritorio }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:20px">
+                <div>
+                  <div style="font-size:27px;font-weight:800;letter-spacing:-.025em">Agenda</div>
+                  <div style="font-size:13.5px;color:#6B7B95;font-weight:500;margin-top:3px">Turnos del mes, por día</div>
+                </div>
+                <button style="border:none;cursor:pointer;background:#2F5FB0;color:#fff;padding:12px 20px;border-radius:12px;font-size:14px;font-weight:700">📅 Días que viene</button>
+              </div>
+            </sc-if>
+            <div style="display:grid;grid-template-columns:{{ splitCols }};gap:22px;align-items:start">
+              <div style="background:#fff;border:1px solid #E4E9F2;border-radius:18px;padding:16px">
+                <div style="display:flex;align-items:center;gap:10px;margin-bottom:14px">
+                  <div style="font-size:16px;font-weight:800;text-transform:capitalize;flex:1">{{ mesLabel }}</div>
+                  <button onClick="{{ mesAnterior }}" style="border:1px solid #E4E9F2;background:#fff;cursor:pointer;width:32px;height:32px;border-radius:9px;font-weight:700;color:#6B7B95">←</button>
+                  <button onClick="{{ mesSiguiente }}" style="border:1px solid #E4E9F2;background:#fff;cursor:pointer;width:32px;height:32px;border-radius:9px;font-weight:700;color:#6B7B95">→</button>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:5px;margin-bottom:5px">
+                  <sc-for list="{{ dow }}" as="d" hint-placeholder-count="7">
+                    <div style="text-align:center;font-size:10.5px;font-weight:800;color:#93A1B8;text-transform:uppercase;letter-spacing:.05em">{{ d }}</div>
+                  </sc-for>
+                </div>
+                <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:5px">
+                  <sc-for list="{{ celdas }}" as="c" hint-placeholder-count="42">
+                    <button onClick="{{ c.onClick }}" style="cursor:pointer;text-align:left;min-height:{{ celdaAlto }};border:1px solid {{ c.borde }};border-radius:10px;background:{{ c.bg }};padding:5px 6px;display:flex;flex-direction:column;gap:3px;overflow:hidden;opacity:{{ c.op }}">
+                      <span style="font-size:12px;font-weight:700;color:{{ c.numColor }}">{{ c.num }}</span>
+                      <sc-if value="{{ c.tiene }}" hint-placeholder-val="{{ true }}">
+                        <span style="font-size:10px;font-weight:800;background:#2F5FB0;color:#fff;border-radius:999px;padding:1px 6px;align-self:flex-start">{{ c.count }}</span>
+                      </sc-if>
+                    </button>
+                  </sc-for>
+                </div>
+              </div>
+              <div>
+                <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#6B7B95;margin-bottom:4px">Día seleccionado</div>
+                <div style="font-weight:700;font-size:15px;margin-bottom:10px;text-transform:capitalize">{{ diaSelLabel }}</div>
+                <div style="background:#fff;border:1px solid #E4E9F2;border-radius:14px;overflow:hidden">
+                  <sc-for list="{{ turnosDiaSel }}" as="t" hint-placeholder-count="3">
+                    <div style="display:flex;align-items:center;gap:11px;padding:11px 13px;border-bottom:1px solid #EEF1F7">
+                      <div style="width:34px;height:34px;border-radius:50%;flex:none;background:#E8EEF9;color:#2F5FB0;display:grid;place-items:center;font-weight:800;font-size:12px">{{ t.iniciales }}</div>
+                      <div style="flex:1;min-width:0">
+                        <div style="font-weight:700;font-size:13.5px">{{ t.nombre }}</div>
+                        <div style="font-size:11.5px;color:#6B7B95">{{ t.sub }}</div>
+                      </div>
+                      <span style="font-size:13px;font-weight:800;color:#1E4483">{{ t.hora }}</span>
+                    </div>
+                  </sc-for>
+                  <sc-if value="{{ diaSelVacio }}" hint-placeholder-val="{{ true }}">
+                    <div style="padding:26px 16px;text-align:center;color:#93A1B8;font-size:13px;font-weight:500">Sin turnos este día.</div>
+                  </sc-if>
+                </div>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ enPacientes }}" hint-placeholder-val="{{ true }}">
+          <div>
+            <sc-if value="{{ esEscritorio }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:20px">
+                <div>
+                  <div style="font-size:27px;font-weight:800;letter-spacing:-.025em">Pacientes</div>
+                  <div style="font-size:13.5px;color:#6B7B95;font-weight:500;margin-top:3px">{{ pacientesSub }}</div>
+                </div>
+                <button style="border:none;cursor:pointer;background:#2F5FB0;color:#fff;padding:12px 20px;border-radius:12px;font-size:14px;font-weight:700">+ Nuevo paciente</button>
+              </div>
+            </sc-if>
+            <input value="{{ busqueda }}" onChange="{{ onBuscar }}" placeholder="Buscar por nombre, DNI u obra social…" style="width:100%;padding:13px 15px;border:1.5px solid #E4E9F2;border-radius:13px;font-size:14.5px;background:#fff;color:#0B1B33;margin-bottom:14px;outline:none">
+            <sc-if value="{{ hayHoy }}" hint-placeholder-val="{{ true }}">
+              <div style="margin-bottom:18px">
+                <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
+                  <span style="font-size:11.5px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:#2F5FB0">Vienen hoy</span>
+                  <span style="font-size:11px;font-weight:800;background:#E8EEF9;color:#2F5FB0;border-radius:999px;padding:2px 8px">{{ hoyCount }}</span>
+                </div>
+                <div style="background:#fff;border:1.5px solid #C7D9F5;border-radius:16px;overflow:hidden">
+                  <sc-for list="{{ pacientesHoy }}" as="p" hint-placeholder-count="4">
+                    <button onClick="{{ p.onClick }}" style="width:100%;cursor:pointer;text-align:left;display:flex;align-items:center;gap:12px;padding:13px 15px;border:none;border-bottom:1px solid #EEF1F7;background:#F7FAFF">
+                      <div style="width:40px;height:40px;border-radius:50%;flex:none;background:#E8EEF9;color:#2F5FB0;display:grid;place-items:center;font-weight:800;font-size:14px">{{ p.iniciales }}</div>
+                      <div style="flex:1;min-width:0">
+                        <div style="font-weight:700;font-size:14.5px">{{ p.nombre }}<span style="margin-left:7px;font-size:10.5px;font-weight:800;background:#E8EEF9;color:#2F5FB0;border-radius:999px;padding:2px 8px">{{ p.horaHoy }}</span></div>
+                        <div style="font-size:12px;color:#6B7B95;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ p.sub }}</div>
+                      </div>
+                      <span style="flex:none;font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:999px;background:{{ p.pillBg }};color:{{ p.pillColor }}">{{ p.sesiones }}</span>
+                    </button>
+                  </sc-for>
+                </div>
+              </div>
+            </sc-if>
+            <sc-if value="{{ hayResto }}" hint-placeholder-val="{{ true }}">
+              <div style="font-size:11.5px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:#93A1B8;margin-bottom:8px">Todos los pacientes</div>
+            </sc-if>
+            <div style="background:#fff;border:1px solid #E4E9F2;border-radius:16px;overflow:hidden">
+              <sc-for list="{{ listaPacientes }}" as="p" hint-placeholder-count="6">
+                <button onClick="{{ p.onClick }}" style="width:100%;cursor:pointer;text-align:left;display:flex;align-items:center;gap:12px;padding:13px 15px;border:none;border-bottom:1px solid #EEF1F7;background:#fff">
+                  <div style="width:40px;height:40px;border-radius:50%;flex:none;background:{{ p.avBg }};color:{{ p.avColor }};display:grid;place-items:center;font-weight:800;font-size:14px">{{ p.iniciales }}</div>
+                  <div style="flex:1;min-width:0">
+                    <div style="font-weight:700;font-size:14.5px">{{ p.nombre }}</div>
+                    <div style="font-size:12px;color:#6B7B95;margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ p.sub }}</div>
+                  </div>
+                  <span style="flex:none;font-size:11.5px;font-weight:700;padding:4px 10px;border-radius:999px;background:{{ p.pillBg }};color:{{ p.pillColor }}">{{ p.sesiones }}</span>
+                </button>
+              </sc-for>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ enFicha }}" hint-placeholder-val="{{ true }}">
+          <div>
+            <button onClick="{{ irPacientes }}" style="border:none;background:none;cursor:pointer;padding:0;color:#6B7B95;font-weight:700;font-size:13px;margin-bottom:12px">← Volver a pacientes</button>
+            <div style="background:#fff;border:1px solid #E4E9F2;border-radius:18px;padding:18px">
+              <div style="display:flex;gap:15px;align-items:center;flex-wrap:wrap">
+                <div style="width:60px;height:60px;border-radius:18px;background:linear-gradient(140deg,#4F82D8,#1E4483);color:#fff;display:grid;place-items:center;font-size:22px;font-weight:800">{{ ficha.iniciales }}</div>
+                <div style="flex:1;min-width:140px">
+                  <div style="font-size:22px;font-weight:800;letter-spacing:-.02em">{{ ficha.nombre }}</div>
+                  <div style="font-size:13px;color:#6B7B95;margin-top:3px;display:flex;gap:7px;align-items:center;flex-wrap:wrap">
+                    <span style="font-weight:700;padding:2px 9px;border-radius:999px;background:#E8EEF9;color:#2F5FB0;font-size:11.5px">{{ ficha.os }}</span>
+                    <span>{{ ficha.diag }}</span>
+                  </div>
+                </div>
+                <div style="text-align:right">
+                  <div style="font-size:28px;font-weight:800;color:#1E4483;line-height:1">{{ ficha.quedan }}</div>
+                  <div style="font-size:11.5px;color:#6B7B95;font-weight:700">sesiones restantes</div>
+                </div>
+              </div>
+              <div style="height:9px;background:#EEF1F7;border-radius:999px;overflow:hidden;margin-top:14px">
+                <div style="height:100%;width:{{ ficha.pct }};background:linear-gradient(90deg,#4F82D8,#1E4483);border-radius:999px"></div>
+              </div>
+              <div style="font-size:12px;color:#6B7B95;margin-top:6px">{{ ficha.progresoTxt }}</div>
+              <div style="display:flex;gap:8px;margin-top:14px;flex-wrap:wrap">
+                <button onClick="{{ abrirEditar }}" style="border:1.5px solid #2F5FB0;background:#fff;color:#2F5FB0;cursor:pointer;padding:9px 15px;border-radius:11px;font-size:13px;font-weight:700">✎ Editar datos</button>
+                <button onClick="{{ abrirNuevoEj }}" style="border:none;background:#2F5FB0;color:#fff;cursor:pointer;padding:9px 15px;border-radius:11px;font-size:13px;font-weight:700">+ Agregar ejercicio</button>
+              </div>
+            </div>
+
+            <div style="display:grid;grid-template-columns:{{ fichaCols }};gap:18px;align-items:start;margin-top:18px">
+              <div style="background:#fff;border:1px solid #E4E9F2;border-radius:16px;padding:6px 16px">
+                <sc-for list="{{ ficha.datos }}" as="d" hint-placeholder-count="6">
+                  <div style="padding:11px 0;border-bottom:1px solid #EEF1F7">
+                    <div style="font-size:10.5px;color:#93A1B8;font-weight:800;text-transform:uppercase;letter-spacing:.06em">{{ d.k }}</div>
+                    <div style="font-size:14px;margin-top:3px">{{ d.v }}</div>
+                  </div>
+                </sc-for>
+              </div>
+              <div>
+                <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#6B7B95;margin-bottom:8px">Ejercicios</div>
+                <div style="background:#fff;border:1px solid #E4E9F2;border-radius:16px;padding:4px 16px;margin-bottom:18px">
+                  <sc-for list="{{ ficha.ejercicios }}" as="e" hint-placeholder-count="3">
+                    <div style="display:flex;align-items:center;gap:12px;padding:12px 0;border-bottom:1px solid #EEF1F7">
+                      <div style="width:28px;height:28px;flex:none;border-radius:9px;background:#E8EEF9;color:#2F5FB0;display:grid;place-items:center;font-weight:800;font-size:12.5px">{{ e.n }}</div>
+                      <div style="flex:1;min-width:0">
+                        <div style="font-weight:700;font-size:14px">{{ e.nombre }}</div>
+                        <div style="font-size:12px;color:#6B7B95;margin-top:2px">{{ e.detalle }}</div>
+                      </div>
+                      <span style="flex:none;font-size:10.5px;font-weight:700;background:#F1F4FA;color:#6B7B95;border-radius:999px;padding:3px 9px">{{ e.cat }}</span>
+                      <button onClick="{{ e.onBorrar }}" style="flex:none;border:none;background:none;cursor:pointer;color:#B9C3D4;font-size:19px;line-height:1;padding:0 2px">×</button>
+                    </div>
+                  </sc-for>
+                  <sc-if value="{{ ficha.sinEjercicios }}" hint-placeholder-val="{{ false }}">
+                    <div style="padding:24px;text-align:center;color:#93A1B8;font-weight:600;font-size:13.5px">Sin ejercicios cargados todavía.</div>
+                  </sc-if>
+                </div>
+                <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#6B7B95;margin-bottom:8px">Evolución</div>
+                <div style="background:#fff;border:1px solid #E4E9F2;border-radius:16px;padding:4px 16px;margin-bottom:18px">
+                  <sc-for list="{{ ficha.evoluciones }}" as="v" hint-placeholder-count="2">
+                    <div style="padding:12px 0;border-bottom:1px solid #EEF1F7">
+                      <div style="font-size:12px;font-weight:800;color:#2F5FB0">{{ v.fecha }}</div>
+                      <div style="font-size:13.5px;margin-top:3px;line-height:1.45;text-wrap:pretty">{{ v.texto }}</div>
+                    </div>
+                  </sc-for>
+                </div>
+                <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#6B7B95;margin-bottom:8px">Historial de turnos</div>
+                <div style="background:#fff;border:1px solid #E4E9F2;border-radius:16px;padding:4px 16px">
+                  <sc-for list="{{ ficha.historial }}" as="h" hint-placeholder-count="4">
+                    <div style="display:flex;align-items:center;justify-content:space-between;padding:11px 0;border-bottom:1px solid #EEF1F7">
+                      <span style="font-size:13.5px;font-weight:600">{{ h.fecha }}</span>
+                      <span style="font-size:11.5px;font-weight:700;border-radius:999px;padding:3px 10px;background:{{ h.bg }};color:{{ h.color }}">{{ h.estado }}</span>
+                    </div>
+                  </sc-for>
+                </div>
+              </div>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ enEjercicios }}" hint-placeholder-val="{{ true }}">
+          <div>
+            <sc-if value="{{ esEscritorio }}" hint-placeholder-val="{{ true }}">
+              <div style="display:flex;align-items:flex-end;justify-content:space-between;margin-bottom:20px">
+                <div>
+                  <div style="font-size:27px;font-weight:800;letter-spacing:-.025em">Biblioteca de ejercicios</div>
+                  <div style="font-size:13.5px;color:#6B7B95;font-weight:500;margin-top:3px">Catálogo por categorías para asignar a los pacientes</div>
+                </div>
+                <button style="border:none;cursor:pointer;background:#2F5FB0;color:#fff;padding:12px 20px;border-radius:12px;font-size:14px;font-weight:700">+ Nuevo ejercicio</button>
+              </div>
+            </sc-if>
+            <div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:16px">
+              <sc-for list="{{ categorias }}" as="c" hint-placeholder-count="7">
+                <button onClick="{{ c.onClick }}" style="border:1.5px solid {{ c.borde }};background:{{ c.bg }};color:{{ c.color }};cursor:pointer;border-radius:999px;padding:7px 14px;font-size:12.5px;font-weight:700">{{ c.nombre }}</button>
+              </sc-for>
+            </div>
+            <div style="background:#fff;border:1px solid #E4E9F2;border-radius:16px;overflow:hidden">
+              <sc-for list="{{ ejerciciosCat }}" as="e" hint-placeholder-count="5">
+                <div style="display:flex;align-items:center;gap:12px;padding:13px 15px;border-bottom:1px solid #EEF1F7">
+                  <div style="width:32px;height:32px;flex:none;border-radius:10px;background:#E8EEF9;color:#2F5FB0;display:grid;place-items:center;font-weight:800;font-size:13px">{{ e.inicial }}</div>
+                  <div style="flex:1;font-weight:600;font-size:14px">{{ e.nombre }}</div>
+                  <span style="font-size:11px;color:#93A1B8;font-weight:600">{{ e.cat }}</span>
+                </div>
+              </sc-for>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ enNotificaciones }}" hint-placeholder-val="{{ true }}">
+          <div>
+            <sc-if value="{{ esEscritorio }}" hint-placeholder-val="{{ true }}">
+              <div style="margin-bottom:20px">
+                <div style="font-size:27px;font-weight:800;letter-spacing:-.025em">Notificaciones</div>
+                <div style="font-size:13.5px;color:#6B7B95;font-weight:500;margin-top:3px">{{ notifSub }}</div>
+              </div>
+            </sc-if>
+            <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#C8891B;margin-bottom:10px">Últimas sesiones — por renovar bono</div>
+            <div style="display:flex;flex-direction:column;gap:10px">
+              <sc-for list="{{ alertas }}" as="a" hint-placeholder-count="2">
+                <div style="background:#FFFBF0;border:1px solid #F2DFB4;border-radius:16px;padding:15px;display:flex;align-items:center;gap:12px">
+                  <div style="width:38px;height:38px;flex:none;border-radius:12px;background:#FDF3DF;color:#C8891B;display:grid;place-items:center;font-weight:800;font-size:13px">{{ a.iniciales }}</div>
+                  <div style="flex:1;min-width:0">
+                    <button onClick="{{ a.onClick }}" style="border:none;background:none;padding:0;cursor:pointer;font-weight:700;font-size:14.5px;color:#0B1B33;text-align:left">{{ a.nombre }}</button>
+                    <div style="font-size:12.5px;color:#8A7448;margin-top:2px">{{ a.detalle }}</div>
+                  </div>
+                  <button onClick="{{ a.onCerrar }}" style="border:none;background:none;cursor:pointer;color:#B9A87F;font-size:20px;line-height:1">×</button>
+                </div>
+              </sc-for>
+              <sc-if value="{{ sinAlertas }}" hint-placeholder-val="{{ true }}">
+                <div style="background:#fff;border:1px solid #E4E9F2;border-radius:16px;padding:34px;text-align:center;color:#93A1B8;font-weight:600;font-size:14px">No hay pacientes por renovar</div>
+              </sc-if>
+            </div>
+          </div>
+        </sc-if>
+
+        <sc-if value="{{ enConfiguracion }}" hint-placeholder-val="{{ true }}">
+          <div style="max-width:640px">
+            <sc-if value="{{ esEscritorio }}" hint-placeholder-val="{{ true }}">
+              <div style="font-size:27px;font-weight:800;letter-spacing:-.025em;margin-bottom:20px">Configuración</div>
+            </sc-if>
+            <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#6B7B95;margin-bottom:10px">Alarma de los boxes</div>
+            <div style="background:#fff;border:1px solid #E4E9F2;border-radius:16px;padding:16px;margin-bottom:20px">
+              <div style="display:flex;align-items:center;justify-content:space-between;padding-bottom:14px;border-bottom:1px solid #EEF1F7">
+                <div>
+                  <div style="font-weight:700;font-size:14.5px">Alarma encendida</div>
+                  <div style="font-size:12px;color:#6B7B95;margin-top:2px">Suena cuando termina un box</div>
+                </div>
+                <button onClick="{{ toggleAlarma }}" style="border:none;cursor:pointer;width:50px;height:29px;border-radius:999px;background:{{ alarmaBg }};position:relative;padding:0">
+                  <span style="position:absolute;top:3px;left:{{ alarmaKnob }};width:23px;height:23px;border-radius:50%;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.25);transition:left .15s"></span>
+                </button>
+              </div>
+              <div style="padding-top:14px">
+                <div style="font-size:12.5px;font-weight:700;margin-bottom:7px">Sonido</div>
+                <div style="display:flex;gap:7px;flex-wrap:wrap">
+                  <sc-for list="{{ sonidos }}" as="s" hint-placeholder-count="4">
+                    <button onClick="{{ s.onClick }}" style="border:1.5px solid {{ s.borde }};background:{{ s.bg }};color:{{ s.color }};cursor:pointer;border-radius:10px;padding:8px 13px;font-size:12.5px;font-weight:700">{{ s.nombre }}</button>
+                  </sc-for>
+                </div>
+              </div>
+            </div>
+            <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#6B7B95;margin-bottom:10px">Aviso por WhatsApp</div>
+            <div style="background:#fff;border:1px solid #E4E9F2;border-radius:16px;padding:16px;margin-bottom:20px">
+              <div style="font-size:12.5px;font-weight:700;margin-bottom:7px">WhatsApp de la kinesióloga</div>
+              <input value="{{ wa }}" onChange="{{ onWa }}" placeholder="5491156789012" style="width:100%;padding:12px 14px;border:1.5px solid #E4E9F2;border-radius:11px;font-size:14.5px;outline:none;color:#0B1B33">
+              <div style="font-size:12px;color:#6B7B95;margin-top:8px;line-height:1.45">País + área + número, sin “+” ni espacios. Cuando termina una sesión aparece el botón de aviso en el box.</div>
+            </div>
+            <div style="font-size:12px;font-weight:800;text-transform:uppercase;letter-spacing:.08em;color:#6B7B95;margin-bottom:10px">Días y horario del centro</div>
+            <div style="background:#fff;border:1px solid #E4E9F2;border-radius:16px;padding:6px 16px;margin-bottom:20px">
+              <sc-for list="{{ horarioCentro }}" as="d" hint-placeholder-count="7">
+                <div style="display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid #EEF1F7">
+                  <button onClick="{{ d.onToggle }}" style="border:none;cursor:pointer;width:20px;height:20px;flex:none;border-radius:6px;background:{{ d.chkBg }};border:1.5px solid {{ d.chkBorde }};color:#fff;font-size:12px;font-weight:800;display:grid;place-items:center;padding:0">{{ d.chk }}</button>
+                  <span style="flex:1;min-width:74px;font-size:14px;font-weight:600;color:{{ d.color }}">{{ d.nombre }}</span>
+                  <sc-if value="{{ d.abierto }}" hint-placeholder-val="{{ true }}">
+                    <div style="display:flex;align-items:center;gap:7px">
+                      <input value="{{ d.apertura }}" onChange="{{ d.onApertura }}" type="time" style="padding:8px 9px;border:1.5px solid #E4E9F2;border-radius:9px;font-size:13.5px;font-weight:600;color:#0B1B33;outline:none;background:#fff">
+                      <span style="font-size:12.5px;color:#93A1B8">a</span>
+                      <input value="{{ d.cierre }}" onChange="{{ d.onCierre }}" type="time" style="padding:8px 9px;border:1.5px solid #E4E9F2;border-radius:9px;font-size:13.5px;font-weight:600;color:#0B1B33;outline:none;background:#fff">
+                    </div>
+                  </sc-if>
+                  <sc-if value="{{ d.cerrado }}" hint-placeholder-val="{{ false }}">
+                    <span style="font-size:13px;font-weight:700;color:#93A1B8">Cerrado</span>
+                  </sc-if>
+                </div>
+              </sc-for>
+            </div>
+            <div style="background:#0F2350;border-radius:16px;padding:18px;color:#fff;display:flex;align-items:center;gap:14px;flex-wrap:wrap">
+              <div style="flex:1;min-width:180px">
+                <div style="font-weight:700;font-size:14.5px">Copia de seguridad</div>
+                <div style="font-size:12.5px;color:#9DB3D6;margin-top:3px;line-height:1.45">Descargá todos los datos: pacientes, turnos, ejercicios y evolución.</div>
+              </div>
+              <button style="border:none;cursor:pointer;background:#fff;color:#0F2350;padding:11px 18px;border-radius:11px;font-size:13.5px;font-weight:700">⬇ Descargar</button>
+            </div>
+          </div>
+        </sc-if>
+
+      </div>
+
+      <sc-if value="{{ esMovil }}" hint-placeholder-val="{{ true }}">
+        <nav style="flex:none;background:#fff;border-top:1px solid #E4E9F2;padding:8px 8px 14px;display:grid;grid-template-columns:repeat(5,1fr);gap:2px">
+          <button onClick="{{ irRecepcion }}" style="border:none;background:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;padding:7px 2px;border-radius:12px;color:{{ tabRecepcion }}"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"></circle><path d="M12 7.5V12l3 2"></path></svg><span style="font-size:10.5px;font-weight:700">Recepción</span></button>
+          <button onClick="{{ irAgenda }}" style="border:none;background:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;padding:7px 2px;border-radius:12px;color:{{ tabAgenda }}"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3"></rect><path d="M3.5 10h17M8 3v4M16 3v4"></path></svg><span style="font-size:10.5px;font-weight:700">Agenda</span></button>
+          <button onClick="{{ irPacientes }}" style="border:none;background:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;padding:7px 2px;border-radius:12px;color:{{ tabPacientes }}"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="9.5" cy="8" r="3.6"></circle><path d="M3 19.5c.6-3.4 3.3-5.3 6.5-5.3s5.9 1.9 6.5 5.3M17 5.2a3.4 3.4 0 010 6.4M19 19.5c-.2-1.6-.7-2.9-1.6-3.9"></path></svg><span style="font-size:10.5px;font-weight:700">Pacientes</span></button>
+          <button onClick="{{ irEjercicios }}" style="border:none;background:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;padding:7px 2px;border-radius:12px;color:{{ tabEjercicios }}"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4 9v6M7 7v10M17 7v10M20 9v6M7 12h10"></path></svg><span style="font-size:10.5px;font-weight:700">Ejercicios</span></button>
+          <button onClick="{{ abrirMas }}" style="border:none;background:none;cursor:pointer;display:flex;flex-direction:column;align-items:center;gap:4px;padding:7px 2px;border-radius:12px;color:{{ tabMas }};position:relative"><svg width="21" height="21" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"></path></svg><span style="font-size:10.5px;font-weight:700">Más</span><span style="position:absolute;top:4px;right:14px;width:8px;height:8px;border-radius:50%;background:#E5484D"></span></button>
+        </nav>
+      </sc-if>
+    </div>
+
+    <sc-if value="{{ splash }}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute;inset:0;z-index:95;background:radial-gradient(120% 120% at 50% 26%,#FFFFFF 0%,#EEF1F7 55%,#DCE3EE 100%);display:grid;place-items:center;overflow:hidden">
+        <div style="position:absolute;left:0;right:0;bottom:0;height:34%;background:linear-gradient(135deg,#0F2350 0%,#1D3F86 60%,#2F5FB0 100%);clip-path:polygon(0 56%,100% 16%,100% 100%,0 100%);opacity:0;animation:kdymSwooshL .8s cubic-bezier(.2,.8,.3,1) 1.75s both"></div>
+        <div style="position:absolute;left:0;right:0;bottom:0;height:38%;background:#9AA3B2;clip-path:polygon(0 46%,100% 6%,100% 22%,0 62%);opacity:0;animation:kdymSwooshR .8s cubic-bezier(.2,.8,.3,1) 1.62s both"></div>
+        <div style="position:relative;text-align:center;padding:0 24px">
+          <svg viewBox="0 0 200 200" style="width:150px;height:150px;display:block;margin:0 auto 20px;filter:drop-shadow(0 16px 32px rgba(15,35,80,.3))">
+            <defs>
+              <clipPath id="kdymSplashClip"><circle cx="100" cy="100" r="84"></circle></clipPath>
+              <radialGradient id="kdymBrillo" cx="32%" cy="24%" r="70%">
+                <stop offset="0%" stop-color="#8FB2EC" stop-opacity=".85"></stop>
+                <stop offset="55%" stop-color="#8FB2EC" stop-opacity="0"></stop>
+              </radialGradient>
+              <radialGradient id="kdymSombra" cx="72%" cy="82%" r="72%">
+                <stop offset="0%" stop-color="#050D1F" stop-opacity=".75"></stop>
+                <stop offset="70%" stop-color="#050D1F" stop-opacity="0"></stop>
+              </radialGradient>
+            </defs>
+            <g clip-path="url(#kdymSplashClip)">
+              <g transform="rotate(-18 100 100)">
+                <rect x="-110" y="4" width="420" height="52" fill="#2C55A8" style="animation:kdymCintaL .55s cubic-bezier(.16,.84,.28,1) 0s both"></rect>
+                <rect x="-110" y="56" width="420" height="52" fill="#1E3F8C" style="animation:kdymCintaR .55s cubic-bezier(.16,.84,.28,1) .08s both"></rect>
+                <rect x="-110" y="108" width="420" height="52" fill="#152C66" style="animation:kdymCintaL .55s cubic-bezier(.16,.84,.28,1) .16s both"></rect>
+                <rect x="-110" y="160" width="420" height="70" fill="#0B1B33" style="animation:kdymCintaR .55s cubic-bezier(.16,.84,.28,1) .24s both"></rect>
+              </g>
+              <circle cx="100" cy="100" r="84" fill="url(#kdymBrillo)" style="opacity:0;animation:kdymFade .55s ease-out .66s both"></circle>
+              <circle cx="100" cy="100" r="84" fill="url(#kdymSombra)" style="opacity:0;animation:kdymFade .55s ease-out .66s both"></circle>
+              <g fill="none" stroke="#fff" stroke-width="15" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M100 88 L100 124" style="transform-box:fill-box;transform-origin:center;animation:kdymCintaD .62s cubic-bezier(.16,.86,.3,1.08) .78s both"></path>
+                <path d="M68 66 L96 92" style="transform-box:fill-box;transform-origin:center;animation:kdymCintaA .62s cubic-bezier(.16,.86,.3,1.08) .9s both"></path>
+                <path d="M132 62 L104 92" style="transform-box:fill-box;transform-origin:center;animation:kdymCintaB .62s cubic-bezier(.16,.86,.3,1.08) 1.02s both"></path>
+                <path d="M100 124 L78 158" style="transform-box:fill-box;transform-origin:center;animation:kdymCintaE .62s cubic-bezier(.16,.86,.3,1.08) 1.14s both"></path>
+                <path d="M100 124 L122 158" style="transform-box:fill-box;transform-origin:center;animation:kdymCintaF .62s cubic-bezier(.16,.86,.3,1.08) 1.24s both"></path>
+              </g>
+              <circle cx="100" cy="60" r="13" fill="#fff" style="transform-box:fill-box;transform-origin:center;animation:kdymCintaC .6s cubic-bezier(.2,.9,.3,1.5) 1.36s both"></circle>
+            </g>
+            <circle cx="100" cy="100" r="84" fill="none" stroke="rgba(11,27,51,.18)" stroke-width="1.5" style="opacity:0;animation:kdymFade .5s ease-out .8s both"></circle>
+          </svg>
+          <div style="color:#6B7B95;font-size:14px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;opacity:0;animation:kdymUp .55s ease-out 2.05s both">Bienvenido</div>
+          <div style="color:#0F2350;font-size:42px;font-weight:800;letter-spacing:.16em;padding-left:.16em;margin-top:6px;opacity:0;animation:kdymUp .55s ease-out 2.22s both">KDYM</div>
+          <div style="height:3px;background:#2F5FB0;border-radius:3px;margin:13px auto 11px;width:0;animation:kdymLine .65s ease-out 2.42s both"></div>
+          <div style="color:#6B7B95;font-size:13.5px;font-weight:600;letter-spacing:.03em;opacity:0;animation:kdymUp .55s ease-out 2.6s both">kinesiología y rehabilitación</div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ hayModal }}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute;inset:0;background:rgba(11,27,51,.5);display:flex;align-items:{{ modalAlign }};justify-content:center;padding:{{ modalPad }};z-index:60">
+        <div style="background:#fff;width:100%;max-width:{{ modalAncho }};border-radius:20px;box-shadow:0 24px 60px rgba(11,27,51,.35);max-height:92%;display:flex;flex-direction:column;overflow:hidden">
+          <div style="display:flex;align-items:center;justify-content:space-between;padding:16px 18px;border-bottom:1px solid #EEF1F7">
+            <div style="font-size:16.5px;font-weight:800">{{ modalTitulo }}</div>
+            <button onClick="{{ cerrarModal }}" style="border:none;background:none;cursor:pointer;font-size:23px;line-height:1;color:#93A1B8">×</button>
+          </div>
+          <div style="padding:18px;overflow-y:auto">
+
+            <sc-if value="{{ modalCheckin }}" hint-placeholder-val="{{ true }}">
+              <div>
+                <div style="font-size:13px;color:#6B7B95;margin-bottom:12px;line-height:1.45">Tocá al paciente que llegó: queda presente y se le cuenta la sesión.</div>
+                <div style="display:flex;flex-direction:column;gap:8px">
+                  <sc-for list="{{ porLlegar }}" as="t" hint-placeholder-count="3">
+                    <button onClick="{{ t.onVino }}" style="width:100%;cursor:pointer;text-align:left;display:flex;align-items:center;gap:12px;padding:12px 13px;border:1.5px solid #E4E9F2;border-radius:13px;background:#fff">
+                      <div style="width:38px;height:38px;flex:none;border-radius:50%;background:#E8EEF9;color:#2F5FB0;display:grid;place-items:center;font-weight:800;font-size:13px">{{ t.iniciales }}</div>
+                      <div style="flex:1;min-width:0">
+                        <div style="font-weight:700;font-size:14.5px">{{ t.nombre }}</div>
+                        <div style="font-size:12px;color:#6B7B95;margin-top:2px">{{ t.sub }}</div>
+                      </div>
+                      <span style="flex:none;font-size:12.5px;font-weight:800;color:#12A150">✓ Vino</span>
+                    </button>
+                  </sc-for>
+                </div>
+                <sc-if value="{{ sinPorLlegar }}" hint-placeholder-val="{{ false }}">
+                  <div style="padding:26px;text-align:center;color:#93A1B8;font-weight:600;font-size:13.5px">Ya llegaron todos los turnos de hoy.</div>
+                </sc-if>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ modalBox }}" hint-placeholder-val="{{ false }}">
+              <div>
+                <div style="font-size:12.5px;font-weight:700;margin-bottom:7px">Duración de la sesión</div>
+                <div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:12px">
+                  <sc-for list="{{ duraciones }}" as="d" hint-placeholder-count="5">
+                    <button onClick="{{ d.onClick }}" style="border:1.5px solid {{ d.borde }};background:{{ d.bg }};color:{{ d.color }};cursor:pointer;border-radius:10px;padding:9px 14px;font-size:13px;font-weight:700">{{ d.label }}</button>
+                  </sc-for>
+                  <button onClick="{{ activarCustom }}" style="border:1.5px solid {{ customBorde }};background:{{ customBg }};color:{{ customColor }};cursor:pointer;border-radius:10px;padding:9px 14px;font-size:13px;font-weight:700">Personalizado…</button>
+                </div>
+                <sc-if value="{{ durCustomOn }}" hint-placeholder-val="{{ false }}">
+                  <div style="display:flex;align-items:center;gap:9px;margin-bottom:16px">
+                    <input value="{{ durCustom }}" onChange="{{ onDurCustom }}" type="number" min="1" placeholder="Minutos" style="flex:1;padding:11px 13px;border:1.5px solid #E4E9F2;border-radius:11px;font-size:14.5px;outline:none;color:#0B1B33">
+                    <span style="font-size:13px;color:#6B7B95;font-weight:600">minutos</span>
+                  </div>
+                </sc-if>
+                <div style="height:4px"></div>
+                <div style="font-size:12.5px;font-weight:700;margin-bottom:7px">Pacientes presentes en la sala</div>
+                <div style="display:flex;flex-direction:column;gap:8px">
+                  <sc-for list="{{ presentes }}" as="t" hint-placeholder-count="2">
+                    <button onClick="{{ t.onIniciar }}" style="width:100%;cursor:pointer;text-align:left;display:flex;align-items:center;gap:12px;padding:12px 13px;border:1.5px solid #E4E9F2;border-radius:13px;background:#fff">
+                      <div style="width:38px;height:38px;flex:none;border-radius:50%;background:#E7F7EE;color:#12A150;display:grid;place-items:center;font-weight:800;font-size:13px">{{ t.iniciales }}</div>
+                      <div style="flex:1;min-width:0">
+                        <div style="font-weight:700;font-size:14.5px">{{ t.nombre }}</div>
+                        <div style="font-size:12px;color:#6B7B95;margin-top:2px">{{ t.sub }}</div>
+                      </div>
+                      <span style="flex:none;font-size:12.5px;font-weight:800;color:#2F5FB0">Iniciar →</span>
+                    </button>
+                  </sc-for>
+                </div>
+                <sc-if value="{{ sinPresentes }}" hint-placeholder-val="{{ false }}">
+                  <div style="padding:22px;text-align:center;color:#93A1B8;font-weight:600;font-size:13.5px;line-height:1.5">No hay nadie presente. Marcá primero “✓ Vino” en la sala del día.</div>
+                </sc-if>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ modalNoVino }}" hint-placeholder-val="{{ false }}">
+              <div>
+                <div style="font-weight:700;font-size:15px;margin-bottom:4px">{{ noVinoNombre }}</div>
+                <div style="font-size:13px;color:#6B7B95;line-height:1.5;margin-bottom:16px">{{ noVinoInfo }}</div>
+                <sc-if value="{{ reproPaso1 }}" hint-placeholder-val="{{ true }}">
+                  <div>
+                    <button onClick="{{ pedirRepro }}" style="width:100%;border:none;cursor:pointer;background:#2F5FB0;color:#fff;padding:14px;border-radius:13px;font-size:14.5px;font-weight:700;margin-bottom:10px">📅 Reprogramar al próximo turno disponible</button>
+                    <button onClick="{{ darPerdido }}" style="width:100%;border:none;cursor:pointer;background:#FDECEC;color:#E5484D;padding:14px;border-radius:13px;font-size:14.5px;font-weight:700;margin-bottom:10px">✕ Dar el turno por perdido</button>
+                    <button onClick="{{ cerrarModal }}" style="width:100%;border:none;cursor:pointer;background:#F1F4FA;color:#6B7B95;padding:14px;border-radius:13px;font-size:14.5px;font-weight:700">Dejar para después</button>
+                  </div>
+                </sc-if>
+                <sc-if value="{{ reproPaso2 }}" hint-placeholder-val="{{ false }}">
+                  <div>
+                    <div style="background:#F3F7FF;border:1.5px solid #C7D9F5;border-radius:14px;padding:16px;margin-bottom:14px">
+                      <div style="font-size:11.5px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:#2F5FB0">Nuevo turno</div>
+                      <div style="font-size:19px;font-weight:800;margin-top:6px;line-height:1.3">{{ reproDestino }}</div>
+                      <div style="font-size:12.5px;color:#6B7B95;margin-top:6px;line-height:1.45">{{ reproNota }}</div>
+                    </div>
+                    <button onClick="{{ confirmarRepro }}" style="width:100%;border:none;cursor:pointer;background:#12A150;color:#fff;padding:14px;border-radius:13px;font-size:14.5px;font-weight:700;margin-bottom:10px">✓ Confirmar</button>
+                    <button onClick="{{ volverRepro }}" style="width:100%;border:none;cursor:pointer;background:#F1F4FA;color:#6B7B95;padding:14px;border-radius:13px;font-size:14.5px;font-weight:700">Volver</button>
+                  </div>
+                </sc-if>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ modalEjHoy }}" hint-placeholder-val="{{ false }}">
+              <div>
+                <div style="display:flex;align-items:center;gap:12px;margin-bottom:14px">
+                  <div style="width:44px;height:44px;flex:none;border-radius:14px;background:#E7F7EE;color:#12A150;display:grid;place-items:center;font-size:20px">✓</div>
+                  <div>
+                    <div style="font-weight:800;font-size:15.5px">{{ ejHoyNombre }}</div>
+                    <div style="font-size:12.5px;color:#6B7B95;margin-top:2px">{{ ejHoyDetalle }}</div>
+                  </div>
+                </div>
+                <div style="font-size:13.5px;color:#6B7B95;line-height:1.5;margin-bottom:16px">¿Querés cargar los ejercicios que hizo hoy en su ficha?</div>
+                <button onClick="{{ irAgregarEjercicios }}" style="width:100%;border:none;cursor:pointer;background:#2F5FB0;color:#fff;padding:14px;border-radius:13px;font-size:14.5px;font-weight:700;margin-bottom:10px">Sí, quiero agregar los ejercicios</button>
+                <button onClick="{{ cerrarModal }}" style="width:100%;border:none;cursor:pointer;background:#F1F4FA;color:#6B7B95;padding:14px;border-radius:13px;font-size:14.5px;font-weight:700">Dejar para más tarde</button>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ modalEditar }}" hint-placeholder-val="{{ false }}">
+              <div>
+                <sc-for list="{{ camposEditar }}" as="c" hint-placeholder-count="8">
+                  <div style="margin-bottom:12px">
+                    <div style="font-size:12.5px;font-weight:700;margin-bottom:6px">{{ c.label }}</div>
+                    <input value="{{ c.valor }}" onChange="{{ c.onChange }}" placeholder="{{ c.ph }}" style="width:100%;padding:11px 13px;border:1.5px solid #E4E9F2;border-radius:11px;font-size:14.5px;outline:none;color:#0B1B33">
+                  </div>
+                </sc-for>
+                <button onClick="{{ guardarPaciente }}" style="width:100%;border:none;cursor:pointer;background:#2F5FB0;color:#fff;padding:14px;border-radius:13px;font-size:14.5px;font-weight:700;margin-top:4px">Guardar cambios</button>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ modalNuevoEj }}" hint-placeholder-val="{{ false }}">
+              <div style="display:grid;grid-template-columns:{{ ejCols }};gap:18px;align-items:start">
+                <div>
+                  <div style="display:flex;gap:10px;margin-bottom:12px">
+                    <div style="flex:1">
+                      <div style="font-size:12.5px;font-weight:700;margin-bottom:6px">Series</div>
+                      <input value="{{ ejSeries }}" onChange="{{ onEjSeries }}" placeholder="3" style="width:100%;padding:11px 13px;border:1.5px solid #E4E9F2;border-radius:11px;font-size:14.5px;outline:none;color:#0B1B33">
+                    </div>
+                    <div style="flex:1">
+                      <div style="font-size:12.5px;font-weight:700;margin-bottom:6px">Reps</div>
+                      <input value="{{ ejReps }}" onChange="{{ onEjReps }}" placeholder="12" style="width:100%;padding:11px 13px;border:1.5px solid #E4E9F2;border-radius:11px;font-size:14.5px;outline:none;color:#0B1B33">
+                    </div>
+                    <div style="flex:1">
+                      <div style="font-size:12.5px;font-weight:700;margin-bottom:6px">Peso</div>
+                      <input value="{{ ejPeso }}" onChange="{{ onEjPeso }}" placeholder="2 kg" style="width:100%;padding:11px 13px;border:1.5px solid #E4E9F2;border-radius:11px;font-size:14.5px;outline:none;color:#0B1B33">
+                    </div>
+                  </div>
+                  <div style="margin-bottom:14px">
+                    <div style="font-size:12.5px;font-weight:700;margin-bottom:6px">Notas</div>
+                    <input value="{{ ejNotas }}" onChange="{{ onEjNotas }}" placeholder="Con banda roja, sin dolor…" style="width:100%;padding:11px 13px;border:1.5px solid #E4E9F2;border-radius:11px;font-size:14.5px;outline:none;color:#0B1B33">
+                  </div>
+                  <div style="font-size:12.5px;font-weight:700;margin-bottom:7px">Tocá un ejercicio del catálogo para agregarlo</div>
+                  <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px">
+                    <sc-for list="{{ categorias }}" as="c" hint-placeholder-count="7">
+                      <button onClick="{{ c.onClick }}" style="border:1.5px solid {{ c.borde }};background:{{ c.bg }};color:{{ c.color }};cursor:pointer;border-radius:999px;padding:6px 12px;font-size:12px;font-weight:700">{{ c.nombre }}</button>
+                    </sc-for>
+                  </div>
+                  <div style="border:1px solid #E4E9F2;border-radius:13px;overflow:hidden">
+                    <sc-for list="{{ ejerciciosCat }}" as="e" hint-placeholder-count="5">
+                      <button onClick="{{ e.onAgregar }}" style="width:100%;text-align:left;cursor:pointer;border:none;border-bottom:1px solid #EEF1F7;background:#fff;padding:12px 14px;font-size:14px;font-weight:600;display:flex;align-items:center;justify-content:space-between">
+                        {{ e.nombre }}<span style="color:#2F5FB0;font-weight:800">+</span>
+                      </button>
+                    </sc-for>
+                  </div>
+                </div>
+
+                <div style="background:#F7F9FD;border:1px solid #E4E9F2;border-radius:14px;padding:13px">
+                  <div style="font-size:11.5px;font-weight:800;text-transform:uppercase;letter-spacing:.07em;color:#6B7B95;margin-bottom:3px">Registro de {{ registroNombre }}</div>
+                  <div style="font-size:11.5px;color:#93A1B8;margin-bottom:11px">Lo que hizo en las sesiones anteriores</div>
+                  <div style="max-height:340px;overflow-y:auto;display:flex;flex-direction:column;gap:10px">
+                    <sc-for list="{{ registroEj }}" as="g" hint-placeholder-count="3">
+                      <div>
+                        <div style="display:flex;align-items:center;gap:7px;margin-bottom:5px">
+                          <span style="font-size:12px;font-weight:800;color:{{ g.fechaColor }}">{{ g.fecha }}</span>
+                          <span style="flex:1;height:1px;background:#E4E9F2"></span>
+                        </div>
+                        <sc-for list="{{ g.items }}" as="r" hint-placeholder-count="2">
+                          <div style="background:{{ r.bg }};border:1px solid {{ r.borde }};border-radius:10px;padding:8px 10px;margin-bottom:6px">
+                            <div style="font-size:13px;font-weight:700;line-height:1.25">{{ r.nombre }}</div>
+                            <div style="font-size:11.5px;color:#6B7B95;margin-top:3px">{{ r.detalle }}</div>
+                          </div>
+                        </sc-for>
+                      </div>
+                    </sc-for>
+                    <sc-if value="{{ sinRegistro }}" hint-placeholder-val="{{ false }}">
+                      <div style="padding:18px 8px;text-align:center;color:#93A1B8;font-size:12.5px;font-weight:600;line-height:1.5">Todavía no hay sesiones anteriores cargadas.</div>
+                    </sc-if>
+                  </div>
+                </div>
+              </div>
+            </sc-if>
+
+            <sc-if value="{{ modalMas }}" hint-placeholder-val="{{ false }}">
+              <div style="display:flex;flex-direction:column;gap:8px">
+                <button onClick="{{ irNotificaciones }}" style="width:100%;cursor:pointer;text-align:left;display:flex;align-items:center;gap:12px;padding:14px;border:1.5px solid #E4E9F2;border-radius:13px;background:#fff;font-size:14.5px;font-weight:700">
+                  <span style="color:#C8891B">🔔</span>Notificaciones
+                  <span style="margin-left:auto;background:#E5484D;color:#fff;font-size:11.5px;font-weight:800;border-radius:999px;padding:2px 8px">{{ alertasCount }}</span>
+                </button>
+                <button onClick="{{ irConfiguracion }}" style="width:100%;cursor:pointer;text-align:left;display:flex;align-items:center;gap:12px;padding:14px;border:1.5px solid #E4E9F2;border-radius:13px;background:#fff;font-size:14.5px;font-weight:700">
+                  <span style="color:#6B7B95">⚙</span>Configuración
+                </button>
+              </div>
+            </sc-if>
+
+          </div>
+        </div>
+      </div>
+    </sc-if>
+
+    <sc-if value="{{ hayToast }}" hint-placeholder-val="{{ false }}">
+      <div style="position:absolute;left:0;right:0;top:14px;display:flex;justify-content:center;z-index:80;pointer-events:none">
+        <div style="background:{{ toastBg }};color:#fff;padding:11px 18px;border-radius:12px;font-size:13.5px;font-weight:700;box-shadow:0 10px 28px rgba(11,27,51,.3);max-width:86%">{{ toast }}</div>
+      </div>
+    </sc-if>
+  </div>
+
+  <div style="font-size:12px;color:#6B7B95;max-width:560px;text-align:center;line-height:1.5">Prototipo clickeable con datos de ejemplo: marcá “Vino”, poné un paciente en un box y mirá correr el temporizador. Mismo estado en celular y computadora.</div>
+</div>
+
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;acento&quot;:{&quot;editor&quot;:&quot;color&quot;,&quot;default&quot;:&quot;#2F5FB0&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;options&quot;:[&quot;#2F5FB0&quot;,&quot;#1E7A6F&quot;,&quot;#5B4BC4&quot;,&quot;#0F2350&quot;],&quot;section&quot;:&quot;Marca&quot;},&quot;duracionDefault&quot;:{&quot;editor&quot;:&quot;int&quot;,&quot;default&quot;:30,&quot;min&quot;:10,&quot;max&quot;:90,&quot;step&quot;:5,&quot;unit&quot;:&quot;min&quot;,&quot;tsType&quot;:&quot;number&quot;,&quot;section&quot;:&quot;Recepción&quot;}}">
+const DIAS_ABBR = ['Lun','Mar','Mié','Jue','Vie','Sáb','Dom'];
+const MESES = ['enero','febrero','marzo','abril','mayo','junio','julio','agosto','septiembre','octubre','noviembre','diciembre'];
+const CATALOGO = {
+  'Miembro inferior': ['Sentadilla asistida','Extensión de rodilla','Puente de glúteos','Elevación de talones','Estocada / desplante'],
+  'Miembro superior': ['Elevación de hombro con banda','Rotación externa de hombro','Flexión de codo','Press de hombro'],
+  'Columna / Core': ['Plancha abdominal','Bird-dog','Puente lumbar','Gato-camello'],
+  'Cervical': ['Retracción cervical','Isométrico cervical','Estiramiento de trapecio'],
+  'Propiocepción / Equilibrio': ['Apoyo unipodal','Bosu','Tabla de equilibrio'],
+  'Estiramientos': ['Isquiotibiales','Cuádriceps','Gemelos','Pectoral'],
+  'Cardio / Aeróbico': ['Bicicleta fija','Cinta','Elíptico'],
+};
+const SONIDOS = ['Campana','Triple beep','Suave','Sirena','Fuerte'];
+const DIAS7 = ['Lunes','Martes','Miércoles','Jueves','Viernes','Sábado','Domingo'];
+
+function inic(n){ const p = (n||'').trim().split(/\s+/); return ((p[0]||'')[0]||'') + ((p[1]||'')[0]||''); }
+function fmt(seg){ const neg = seg < 0; const s = Math.abs(seg); return (neg?'+':'') + Math.floor(s/60) + ':' + String(s%60).padStart(2,'0'); }
+
+class Component extends DCLogic {
+  state = {
+    splash: true,
+    durCustomOn: false,
+    durCustom: '',
+    reproPaso: 1,
+    ejHoy: null,
+    edit: null,
+    ejSeries: '3',
+    ejReps: '12',
+    ejPeso: '',
+    ejNotas: '',
+    registro: {
+      1:[{fecha:'12 ago',nombre:'Apoyo unipodal',series:'3',reps:'30 seg',peso:'—'},{fecha:'12 ago',nombre:'Elevación de talones',series:'3',reps:'15',peso:'peso corporal'},{fecha:'09 ago',nombre:'Elevación de talones',series:'3',reps:'12',peso:'peso corporal'},{fecha:'05 ago',nombre:'Bicicleta fija',series:'1',reps:'10 min',peso:'—'}],
+      2:[{fecha:'10 ago',nombre:'Retracción cervical',series:'3',reps:'12',peso:'—'},{fecha:'08 ago',nombre:'Estiramiento de trapecio',series:'3',reps:'20 seg',peso:'—'}],
+      3:[{fecha:'11 ago',nombre:'Extensión de rodilla',series:'4',reps:'12',peso:'banda verde'},{fecha:'11 ago',nombre:'Sentadilla asistida',series:'3',reps:'10',peso:'4 kg'},{fecha:'08 ago',nombre:'Sentadilla asistida',series:'3',reps:'10',peso:'2 kg'},{fecha:'04 ago',nombre:'Puente de glúteos',series:'3',reps:'12',peso:'—'}],
+      4:[{fecha:'09 ago',nombre:'Puente lumbar',series:'3',reps:'12',peso:'—'},{fecha:'05 ago',nombre:'Gato-camello',series:'2',reps:'10',peso:'—'}],
+      5:[{fecha:'08 ago',nombre:'Rotación externa de hombro',series:'3',reps:'15',peso:'banda roja'}],
+      6:[{fecha:'07 ago',nombre:'Press de hombro',series:'3',reps:'10',peso:'2 kg'}],
+    },
+    horasCentro: [
+      {a:'08:00',c:'20:00'},{a:'08:00',c:'20:00'},{a:'08:00',c:'20:00'},
+      {a:'08:00',c:'20:00'},{a:'08:00',c:'18:00'},{a:'09:00',c:'13:00'},{a:'09:00',c:'13:00'},
+    ],
+    modo: 'movil',
+    pantalla: 'recepcion',
+    pacienteSel: 3,
+    busqueda: '',
+    catSel: 'Miembro inferior',
+    mesOffset: 0,
+    diaSel: new Date().getDate(),
+    ahora: Date.now(),
+    modal: null,
+    boxDestino: null,
+    duracion: 30,
+    noVinoId: null,
+    toast: null,
+    toastTipo: 'ok',
+    alarmaOn: true,
+    sonido: 'Campana',
+    wa: '5491156789012',
+    diasCentro: [true,true,true,true,true,false,false],
+    alertasCerradas: [],
+    pacientes: [
+      {id:1,nombre:'Juan Pérez',dni:'30.111.222',tel:'11 4567-8901',os:'OSDE',diag:'Esguince de tobillo grado II',tot:10,usadas:3,dias:'Lun, Mié, Vie',horarios:'Lun 09:00 · Mié 09:00 · Vie 09:00',notas:'Corredor amateur. Evitar impacto por ahora.'},
+      {id:2,nombre:'María Gómez',dni:'28.999.888',tel:'11 5678-9012',os:'Swiss Medical',diag:'Cervicalgia crónica',tot:12,usadas:7,dias:'Mar, Jue',horarios:'Mar 09:00 · Jue 09:00',notas:'Trabaja muchas horas frente a la computadora.'},
+      {id:3,nombre:'Lucía Fernández',dni:'35.222.333',tel:'11 6789-0123',os:'IOMA',diag:'Post-operatorio LCA',tot:20,usadas:5,dias:'Lun, Mar, Mié, Jue, Vie',horarios:'Todos los días 10:00',notas:'Cirugía hace 6 semanas. Progresión de carga controlada.'},
+      {id:4,nombre:'Carlos Ramírez',dni:'27.333.444',tel:'11 7890-1234',os:'PAMI',diag:'Lumbalgia mecánica',tot:8,usadas:6,dias:'Lun, Jue',horarios:'Lun 10:00 · Jue 10:00',notas:''},
+      {id:5,nombre:'Sofía Ledesma',dni:'33.555.777',tel:'11 3344-5566',os:'Galeno',diag:'Tendinopatía de manguito rotador',tot:12,usadas:11,dias:'Mié, Vie',horarios:'Mié 11:00 · Vie 11:00',notas:'Renovar autorización con la obra social.'},
+      {id:6,nombre:'Martín Ávalos',dni:'31.777.999',tel:'11 2233-4455',os:'Particular',diag:'Hombro congelado',tot:15,usadas:14,dias:'Mar, Vie',horarios:'Mar 11:00 · Vie 11:00',notas:''},
+    ],
+    turnos: [
+      {id:101,pid:1,hora:'09:00',estado:'terminado'},
+      {id:102,pid:2,hora:'09:00',estado:'presente'},
+      {id:103,pid:3,hora:'10:00',estado:'en_curso'},
+      {id:104,pid:4,hora:'10:00',estado:'en_curso'},
+      {id:105,pid:5,hora:'11:00',estado:'agendado'},
+      {id:106,pid:6,hora:'11:00',estado:'agendado'},
+      {id:107,pid:1,hora:'12:00',estado:'agendado'},
+    ],
+    boxes: [
+      {id:1,nombre:'Box 1',turnoId:103,inicio:Date.now()-23*60000,dur:30},
+      {id:2,nombre:'Box 2',turnoId:null,inicio:null,dur:30},
+      {id:3,nombre:'Box 3',turnoId:104,inicio:Date.now()-32*60000,dur:30},
+    ],
+    ejercicios: {
+      1:[{nombre:'Apoyo unipodal',cat:'Propiocepción',detalle:'3 series × 30 seg · ojos abiertos'},{nombre:'Elevación de talones',cat:'M. inferior',detalle:'3 series × 15 · sin dolor'}],
+      2:[{nombre:'Estiramiento de trapecio',cat:'Cervical',detalle:'3 series × 20 seg'},{nombre:'Retracción cervical',cat:'Cervical',detalle:'3 series × 12 · suave'}],
+      3:[{nombre:'Extensión de rodilla',cat:'M. inferior',detalle:'4 series × 12 · con banda'},{nombre:'Sentadilla asistida',cat:'M. inferior',detalle:'3 series × 10 · rango parcial'},{nombre:'Bicicleta fija',cat:'Cardio',detalle:'10 min · resistencia baja'}],
+      4:[{nombre:'Puente lumbar',cat:'Core',detalle:'3 series × 12'},{nombre:'Gato-camello',cat:'Core',detalle:'2 series × 10'}],
+      5:[{nombre:'Rotación externa de hombro',cat:'M. superior',detalle:'3 series × 15 · banda roja'}],
+      6:[{nombre:'Press de hombro',cat:'M. superior',detalle:'3 series × 10 · 2 kg'}],
+    },
+    evoluciones: {
+      1:[{fecha:'12 ago',texto:'Camina sin dolor. Se suma trabajo propioceptivo en superficie inestable.'},{fecha:'05 ago',texto:'Persiste edema leve al final del día.'}],
+      2:[{fecha:'10 ago',texto:'Mejor movilidad cervical, menos cefaleas.'}],
+      3:[{fecha:'11 ago',texto:'Rango de flexión 115°. Se avanza a sentadilla con carga liviana.'},{fecha:'04 ago',texto:'Buena respuesta al trabajo isométrico de cuádriceps.'}],
+      4:[{fecha:'09 ago',texto:'Dolor 3/10 al levantarse. Continúa con core.'}],
+      5:[{fecha:'08 ago',texto:'Elevación activa casi completa, sin dolor nocturno.'}],
+      6:[{fecha:'07 ago',texto:'Gana rango en rotación externa.'}],
+    },
+  };
+
+  componentDidMount(){
+    this._t = setInterval(() => this.setState({ ahora: Date.now() }), 1000);
+    this._sp = setTimeout(() => this.setState({ splash: false }), 4300);
+  }
+  componentWillUnmount(){ clearInterval(this._t); if (this._tt) clearTimeout(this._tt); if (this._sp) clearTimeout(this._sp); }
+  verIntro(){
+    if (this._sp) clearTimeout(this._sp);
+    this.setState({ splash: true });
+    this._sp = setTimeout(() => this.setState({ splash: false }), 4300);
+  }
+  // Próxima fecha que le toca al paciente según sus días.
+  proximaFecha(p){
+    const HORAS = { 1:'09:00', 2:'09:00', 3:'10:00', 4:'10:00', 5:'11:00', 6:'11:00' };
+    const d = new Date();
+    for (let i = 1; i <= 21; i++) {
+      const t = new Date(d); t.setDate(d.getDate() + i);
+      if ((p.dias || '').includes(DIAS_ABBR[(t.getDay() + 6) % 7])) {
+        const dia = DIAS7[(t.getDay() + 6) % 7];
+        return { fecha: dia.charAt(0).toUpperCase() + dia.slice(1) + ' ' + t.getDate() + ' de ' + MESES[t.getMonth()], hora: HORAS[p.id] || '10:00' };
+      }
+    }
+    return { fecha: 'próximo día disponible', hora: '10:00' };
+  }
+
+  aviso(txt, tipo){
+    this.setState({ toast: txt, toastTipo: tipo || 'ok' });
+    if (this._tt) clearTimeout(this._tt);
+    this._tt = setTimeout(() => this.setState({ toast: null }), 2400);
+  }
+  pac(id){ return this.state.pacientes.find(p => p.id === id) || {}; }
+  quedan(p){ return (p.tot || 0) - (p.usadas || 0); }
+  setEstado(tid, estado){
+    this.setState(s => ({ turnos: s.turnos.map(t => t.id === tid ? Object.assign({}, t, { estado }) : t) }));
+  }
+
+  marcarVino(tid){
+    const t = this.state.turnos.find(x => x.id === tid); if (!t) return;
+    const p = this.pac(t.pid);
+    this.setState(s => ({
+      turnos: s.turnos.map(x => x.id === tid ? Object.assign({}, x, { estado: 'presente' }) : x),
+      pacientes: s.pacientes.map(x => x.id === t.pid ? Object.assign({}, x, { usadas: Math.min(x.tot, x.usadas + 1) }) : x),
+      modal: null,
+    }));
+    this.aviso('Vino ✓ ' + p.nombre.split(' ')[0] + ' — sesión contada', 'ok');
+  }
+  abrirNoVino(tid){ this.setState({ modal: 'novino', noVinoId: tid, reproPaso: 1 }); }
+  confirmarRepro(){
+    const t = this.state.turnos.find(x => x.id === this.state.noVinoId);
+    const p = t ? this.pac(t.pid) : {};
+    const dest = this.proximaFecha(p);
+    this.setEstado(this.state.noVinoId, 'ausente');
+    this.setState({ modal: null, reproPaso: 1 });
+    this.aviso('Reprogramado: ' + dest.fecha + ' · ' + dest.hora + ' ✓', 'ok');
+  }
+  darPerdido(){
+    this.setEstado(this.state.noVinoId, 'ausente');
+    this.setState({ modal: null, reproPaso: 1 });
+    this.aviso('Turno dado por perdido', 'alert');
+  }
+  abrirBox(boxId){ this.setState({ modal: 'box', boxDestino: boxId, duracion: this.props.duracionDefault ?? 30, durCustomOn: false, durCustom: '' }); }
+  durEfectiva(){
+    const s = this.state;
+    if (s.durCustomOn) { const n = parseInt(s.durCustom, 10); if (n > 0) return n; }
+    return s.duracion;
+  }
+  iniciarSesion(tid){
+    const boxId = this.state.boxDestino;
+    const dur = this.durEfectiva();
+    this.setState(s => ({
+      boxes: s.boxes.map(b => b.id === boxId ? Object.assign({}, b, { turnoId: tid, inicio: Date.now(), dur: dur }) : b),
+      turnos: s.turnos.map(t => t.id === tid ? Object.assign({}, t, { estado: 'en_curso' }) : t),
+      modal: null,
+    }));
+    this.aviso('Sesión iniciada · ' + dur + ' min ✓', 'ok');
+  }
+  terminarBox(boxId){
+    const b = this.state.boxes.find(x => x.id === boxId);
+    const t = b ? this.state.turnos.find(x => x.id === b.turnoId) : null;
+    const p = t ? this.pac(t.pid) : null;
+    this.setState(s => ({
+      boxes: s.boxes.map(x => x.id === boxId ? Object.assign({}, x, { turnoId: null, inicio: null }) : x),
+      turnos: s.turnos.map(x => x.id === (b && b.turnoId) ? Object.assign({}, x, { estado: 'terminado' }) : x),
+      modal: p ? 'ejhoy' : null,
+      ejHoy: p ? { pid: p.id, box: b.nombre, dur: b.dur } : null,
+    }));
+  }
+  // --- ficha: editar datos y ejercicios ---
+  abrirEditar(){ this.setState(s => ({ modal: 'editar', edit: Object.assign({}, this.pac(s.pacienteSel)) })); }
+  setEdit(k, v){ this.setState(s => ({ edit: Object.assign({}, s.edit, { [k]: v }) })); }
+  guardarPaciente(){
+    const e = this.state.edit; if (!e) return;
+    const tot = parseInt(e.tot, 10); const usadas = parseInt(e.usadas, 10);
+    const limpio = Object.assign({}, e, { tot: isNaN(tot) ? 0 : tot, usadas: isNaN(usadas) ? 0 : usadas });
+    this.setState(s => ({ pacientes: s.pacientes.map(p => p.id === e.id ? limpio : p), modal: null, edit: null }));
+    this.aviso('Datos guardados ✓', 'ok');
+  }
+  agregarEjercicio(nombre, cat){
+    const s = this.state;
+    const partes = [];
+    if (s.ejSeries) partes.push(s.ejSeries + ' series');
+    if (s.ejReps) partes.push('× ' + s.ejReps);
+    if (s.ejPeso) partes.push(s.ejPeso);
+    if (s.ejNotas) partes.push(s.ejNotas);
+    const item = { nombre, cat, detalle: partes.join(' · ') };
+    const pid = s.pacienteSel;
+    const reg = { fecha: 'Hoy', nombre, series: s.ejSeries || '—', reps: s.ejReps || '—', peso: s.ejPeso || '—', nuevo: true };
+    this.setState(st => ({
+      ejercicios: Object.assign({}, st.ejercicios, { [pid]: (st.ejercicios[pid] || []).concat([item]) }),
+      registro: Object.assign({}, st.registro, { [pid]: [reg].concat(st.registro[pid] || []) }),
+    }));
+    this.aviso('Agregado: ' + nombre + ' ✓', 'ok');
+  }
+  borrarEjercicio(i){
+    const pid = this.state.pacienteSel;
+    this.setState(st => ({ ejercicios: Object.assign({}, st.ejercicios, { [pid]: (st.ejercicios[pid] || []).filter((x, j) => j !== i) }) }));
+  }
+  masTiempo(boxId){
+    this.setState(s => ({ boxes: s.boxes.map(x => x.id === boxId ? Object.assign({}, x, { dur: x.dur + 5 }) : x) }));
+    this.aviso('+5 minutos', 'ok');
+  }
+  agregarBox(){
+    this.setState(s => ({ boxes: s.boxes.concat([{ id: Date.now(), nombre: 'Box ' + (s.boxes.length + 1), turnoId: null, inicio: null, dur: 30 }]) }));
+  }
+
+  // Turnos de una fecha cualquiera: hoy sale del estado real; los demás días se
+  // derivan de los "días que viene" de cada paciente (como el plan de app.py).
+  turnosDeFecha(d, hoy){
+    const s = this.state;
+    if (d.toDateString() === hoy.toDateString()) {
+      return s.turnos.map(t => { const p = this.pac(t.pid); return { id: t.id, nombre: p.nombre, diag: p.diag, hora: t.hora }; });
+    }
+    const abbr = DIAS_ABBR[(d.getDay() + 6) % 7];
+    const HORAS = { 1: '09:00', 2: '09:00', 3: '10:00', 4: '10:00', 5: '11:00', 6: '11:00' };
+    return s.pacientes
+      .filter(p => (p.dias || '').includes(abbr))
+      .map(p => ({ id: p.id + '-' + d.getDate(), nombre: p.nombre, diag: p.diag, hora: HORAS[p.id] || '10:00' }))
+      .sort((a, b) => a.hora.localeCompare(b.hora));
+  }
+
+  renderVals(){
+    const s = this.state;
+    const acento = this.props.acento ?? '#2F5FB0';
+    const esMovil = s.modo === 'movil';
+    const hoy = new Date();
+    const fechaLarga = DIAS7[(hoy.getDay() + 6) % 7] + ' ' + hoy.getDate() + ' de ' + MESES[hoy.getMonth()];
+    const reloj = String(hoy.getHours()).padStart(2, '0') + ':' + String(hoy.getMinutes()).padStart(2, '0');
+
+    // ---- boxes ----
+    const boxes = s.boxes.map(b => {
+      if (!b.turnoId) {
+        return { key: b.id, nombre: b.nombre, libre: true, ocupado: false, badge: 'Libre', badgeBg: '#F1F4FA', badgeColor: '#6B7B95',
+          borde: 'dashed #D7DEEA', bg: '#FBFCFE', anim: 'none', paciente: '', diag: '', tiempo: '', timerColor: '#0B1B33',
+          onPoner: () => this.abrirBox(b.id), onTerminar: () => {}, onMasTiempo: () => {} };
+      }
+      const t = s.turnos.find(x => x.id === b.turnoId) || {};
+      const p = this.pac(t.pid);
+      const rest = Math.round((b.inicio + b.dur * 60000 - s.ahora) / 1000);
+      const venc = rest <= 0;
+      return { key: b.id, nombre: b.nombre, libre: false, ocupado: true,
+        badge: venc ? '¡Terminó!' : 'En sesión', badgeBg: venc ? '#E5484D' : '#E8EEF9', badgeColor: venc ? '#fff' : acento,
+        borde: venc ? 'solid #E5484D' : 'solid ' + acento, bg: venc ? '#FDECEC' : '#fff',
+        anim: venc ? 'kdymPulso 1.2s ease-in-out infinite' : 'none',
+        paciente: p.nombre || '', diag: p.diag || '', tiempo: fmt(rest), timerColor: venc ? '#E5484D' : '#1E4483',
+        onTerminar: () => this.terminarBox(b.id), onMasTiempo: () => this.masTiempo(b.id), onPoner: () => {} };
+    });
+
+    // ---- sala del día ----
+    const meta = {
+      agendado: ['Por venir', '#F1F4FA', '#6B7B95'], presente: ['Presente', '#E7F7EE', '#12A150'],
+      en_curso: ['En box', '#E8EEF9', acento], terminado: ['Terminó', '#E7F7EE', '#12A150'],
+      ausente: ['No vino', '#FDECEC', '#E5484D'],
+    };
+    const horas = [];
+    s.turnos.slice().sort((a, b) => a.hora.localeCompare(b.hora)).forEach(t => {
+      let g = horas.find(x => x.hora === t.hora);
+      if (!g) { g = { key: t.hora, hora: t.hora, turnos: [] }; horas.push(g); }
+      const p = this.pac(t.pid);
+      const m = meta[t.estado] || meta.agendado;
+      g.turnos.push({
+        key: t.id, nombre: p.nombre, iniciales: inic(p.nombre),
+        sub: p.os + ' · ' + this.quedan(p) + ' ses.',
+        estadoLabel: m[0], pillBg: m[1], pillColor: m[2],
+        avBg: t.estado === 'presente' ? '#E7F7EE' : '#E8EEF9', avColor: t.estado === 'presente' ? '#12A150' : acento,
+        esAgendado: t.estado === 'agendado', esPresente: t.estado === 'presente',
+        onVino: () => this.marcarVino(t.id), onNoVino: () => this.abrirNoVino(t.id),
+        onABox: () => { const libre = s.boxes.find(b => !b.turnoId); if (!libre) { this.aviso('No hay boxes libres', 'alert'); return; } this.setState({ modal: 'box', boxDestino: libre.id, duracion: 30 }); },
+        onFicha: () => this.setState({ pantalla: 'ficha', pacienteSel: p.id }),
+      });
+    });
+    horas.forEach(g => { g.etiqueta = g.turnos.length + (g.turnos.length === 1 ? ' persona' : ' personas'); });
+
+    const cuenta = e => s.turnos.filter(t => t.estado === e).length;
+    const stats = [
+      { key: 1, n: s.turnos.length, l: 'Turnos hoy', color: '#1E4483' },
+      { key: 2, n: cuenta('terminado') + cuenta('en_curso') + cuenta('presente'), l: 'Vinieron', color: '#12A150' },
+      { key: 3, n: cuenta('en_curso'), l: 'En box', color: acento },
+      { key: 4, n: cuenta('presente'), l: 'Presentes', color: acento },
+      { key: 5, n: cuenta('agendado'), l: 'Por venir', color: '#6B7B95' },
+      { key: 6, n: cuenta('ausente'), l: 'No vinieron', color: '#E5484D' },
+    ];
+
+    // ---- pacientes ----
+    const q = s.busqueda.trim().toLowerCase();
+    const conTurnoHoy = s.turnos.map(t => t.pid);
+    const filtrados = s.pacientes.filter(p => !q || (p.nombre + ' ' + p.dni + ' ' + p.os).toLowerCase().includes(q));
+    const pacientesHoy = filtrados.filter(p => conTurnoHoy.includes(p.id)).map(p => {
+      const q3 = this.quedan(p);
+      const t = s.turnos.find(x => x.pid === p.id) || {};
+      return { key: 'h' + p.id, nombre: p.nombre, iniciales: inic(p.nombre), horaHoy: t.hora || '',
+        sub: p.os + ' · ' + p.diag, sesiones: q3 + ' / ' + p.tot,
+        pillBg: q3 <= 1 ? '#FDF3DF' : '#E8EEF9', pillColor: q3 <= 1 ? '#C8891B' : '#2F5FB0',
+        onClick: () => this.setState({ pantalla: 'ficha', pacienteSel: p.id }) };
+    });
+    const listaPacientes = filtrados
+      .filter(p => !conTurnoHoy.includes(p.id))
+      .map(p => {
+        const q2 = this.quedan(p);
+        const hoyP = conTurnoHoy.includes(p.id);
+        return { key: p.id, nombre: p.nombre, iniciales: inic(p.nombre),
+          sub: p.os + ' · ' + p.diag, sesiones: q2 + ' / ' + p.tot,
+          pillBg: q2 <= 1 ? '#FDF3DF' : '#F1F4FA', pillColor: q2 <= 1 ? '#C8891B' : '#6B7B95',
+          filaBg: hoyP ? '#F7FAFF' : '#fff', avBg: hoyP ? '#E8EEF9' : '#F1F4FA', avColor: hoyP ? acento : '#6B7B95',
+          onClick: () => this.setState({ pantalla: 'ficha', pacienteSel: p.id }) };
+      });
+
+    // ---- ficha ----
+    const p = this.pac(s.pacienteSel);
+    const quedanF = this.quedan(p);
+    const ficha = {
+      nombre: p.nombre, iniciales: inic(p.nombre), os: p.os, diag: p.diag, quedan: quedanF,
+      pct: (p.tot ? Math.round(p.usadas / p.tot * 100) : 0) + '%',
+      progresoTxt: p.usadas + ' de ' + p.tot + ' sesiones realizadas',
+      datos: [
+        { key: 1, k: 'DNI', v: p.dni }, { key: 2, k: 'Teléfono', v: p.tel },
+        { key: 3, k: 'Obra social', v: p.os }, { key: 4, k: 'Días que viene', v: p.dias },
+        { key: 5, k: 'Horarios', v: p.horarios }, { key: 6, k: 'Notas', v: p.notas || '—' },
+      ],
+      ejercicios: (s.ejercicios[p.id] || []).map((e, i) => ({ key: i, n: i + 1, nombre: e.nombre, detalle: e.detalle, cat: e.cat, onBorrar: () => this.borrarEjercicio(i) })),
+      sinEjercicios: (s.ejercicios[p.id] || []).length === 0,
+      evoluciones: (s.evoluciones[p.id] || []).map((e, i) => ({ key: i, fecha: e.fecha, texto: e.texto })),
+      historial: [
+        { key: 1, fecha: 'Hoy · ' + (s.turnos.find(t => t.pid === p.id) || {}).hora, estado: 'hoy', bg: '#E8EEF9', color: acento },
+        { key: 2, fecha: '12 ago · 10:00', estado: 'terminado', bg: '#E7F7EE', color: '#12A150' },
+        { key: 3, fecha: '09 ago · 10:00', estado: 'terminado', bg: '#E7F7EE', color: '#12A150' },
+        { key: 4, fecha: '05 ago · 10:00', estado: 'no vino', bg: '#FDECEC', color: '#E5484D' },
+      ],
+    };
+
+    // ---- agenda ----
+    const base = new Date(hoy.getFullYear(), hoy.getMonth() + s.mesOffset, 1);
+    const primerDow = (base.getDay() + 6) % 7;
+    const ini = new Date(base); ini.setDate(1 - primerDow);
+    const celdas = [];
+    for (let i = 0; i < 42; i++) {
+      const d = new Date(ini); d.setDate(ini.getDate() + i);
+      const otro = d.getMonth() !== base.getMonth();
+      const dow = (d.getDay() + 6) % 7;
+      const count = otro ? 0 : this.turnosDeFecha(d, hoy).length;
+      const esHoy = d.toDateString() === hoy.toDateString();
+      const sel = !otro && d.getDate() === s.diaSel;
+      celdas.push({ key: i, num: d.getDate(), tiene: count > 0, count,
+        bg: sel ? '#E8EEF9' : '#fff', borde: sel ? acento : (esHoy ? '#9DB9E6' : '#EEF1F7'),
+        numColor: esHoy ? acento : '#0B1B33', op: otro ? '.4' : '1',
+        onClick: () => this.setState({ diaSel: d.getDate() }) });
+    }
+    const diaSelDate = new Date(base.getFullYear(), base.getMonth(), s.diaSel);
+    const turnosDiaSel = this.turnosDeFecha(diaSelDate, hoy)
+      .map(t => ({ key: t.id, nombre: t.nombre, iniciales: inic(t.nombre), sub: t.diag, hora: t.hora }));
+
+    // ---- ejercicios ----
+    const categorias = Object.keys(CATALOGO).map(c => ({ key: c, nombre: c,
+      bg: c === s.catSel ? '#E8EEF9' : '#fff', color: c === s.catSel ? acento : '#6B7B95', borde: c === s.catSel ? acento : '#E4E9F2',
+      onClick: () => this.setState({ catSel: c }) }));
+    const ejerciciosCat = (CATALOGO[s.catSel] || []).map((n, i) => ({ key: i, nombre: n, inicial: n[0], cat: s.catSel, onAgregar: () => this.agregarEjercicio(n, s.catSel) }));
+
+    // avisos de sesión terminada (boxes vencidos)
+    const avisos = s.boxes.filter(b => b.turnoId && (b.inicio + b.dur * 60000 - s.ahora) <= 0).map(b => {
+      const t = s.turnos.find(x => x.id === b.turnoId) || {};
+      const pp = this.pac(t.pid);
+      const excedido = Math.round((s.ahora - (b.inicio + b.dur * 60000)) / 1000);
+      return { key: b.id, box: b.nombre,
+        detalle: pp.nombre + ' terminó sus ' + b.dur + ' min · lleva ' + fmt(excedido) + ' de más',
+        onTerminar: () => this.terminarBox(b.id), onMas5: () => this.masTiempo(b.id) };
+    });
+
+    // registro de sesiones anteriores del paciente abierto, agrupado por fecha
+    const registroEj = [];
+    (s.registro[s.pacienteSel] || []).forEach(r => {
+      let g = registroEj.find(x => x.fecha === r.fecha);
+      if (!g) { g = { key: r.fecha, fecha: r.fecha, esHoy: r.fecha === 'Hoy', fechaColor: r.fecha === 'Hoy' ? acento : '#6B7B95', items: [] }; registroEj.push(g); }
+      g.items.push({ key: g.fecha + '-' + g.items.length + '-' + r.nombre, nombre: r.nombre,
+        detalle: r.series + ' series × ' + r.reps + ' · ' + r.peso,
+        bg: r.nuevo ? '#EAF3EC' : '#fff', borde: r.nuevo ? '#B7E0C4' : '#E4E9F2' });
+    });
+
+    const ejHoyP = s.ejHoy ? this.pac(s.ejHoy.pid) : {};
+    const reproT = s.turnos.find(t => t.id === s.noVinoId);
+    const reproP = reproT ? this.pac(reproT.pid) : {};
+    const reproD = this.proximaFecha(reproP);
+    const E = s.edit || {};
+    const campo = (k, label, ph) => ({ key: k, label, ph: ph || '', valor: (E[k] === undefined || E[k] === null) ? '' : String(E[k]), onChange: e => this.setEdit(k, e.target.value) });
+    const camposEditar = [
+      campo('nombre', 'Nombre y apellido'), campo('dni', 'DNI'), campo('tel', 'Teléfono'),
+      campo('os', 'Obra social'), campo('diag', 'Diagnóstico / lesión'),
+      campo('tot', 'Sesiones totales'), campo('usadas', 'Sesiones hechas'),
+      campo('dias', 'Días que viene', 'Lun, Mié, Vie'), campo('horarios', 'Horarios', 'Lun 09:00 · Mié 09:00'),
+      campo('notas', 'Notas'),
+    ];
+
+    // ---- notificaciones ----
+    const alertas = s.pacientes.filter(x => this.quedan(x) <= 1 && !s.alertasCerradas.includes(x.id)).map(x => ({
+      key: x.id, nombre: x.nombre, iniciales: inic(x.nombre),
+      detalle: x.os + ' · ' + (this.quedan(x) > 0 ? this.quedan(x) + ' sesión restante' : 'sin sesiones'),
+      onClick: () => this.setState({ pantalla: 'ficha', pacienteSel: x.id }),
+      onCerrar: () => this.setState(st => ({ alertasCerradas: st.alertasCerradas.concat([x.id]) })),
+    }));
+
+    const nav = (p2) => s.pantalla === p2;
+    const navBg = p2 => nav(p2) ? 'rgba(255,255,255,.14)' : 'transparent';
+    const navCol = p2 => nav(p2) ? '#fff' : '#9DB3D6';
+    const tabCol = p2 => nav(p2) ? acento : '#93A1B8';
+    const titulos = { recepcion: 'Recepción', agenda: 'Agenda', pacientes: 'Pacientes', ficha: 'Ficha', ejercicios: 'Ejercicios', notificaciones: 'Notificaciones', configuracion: 'Configuración' };
+
+    const noVinoT = s.turnos.find(t => t.id === s.noVinoId);
+    const noVinoP = noVinoT ? this.pac(noVinoT.pid) : {};
+    const porLlegar = s.turnos.filter(t => t.estado === 'agendado').map(t => { const pp = this.pac(t.pid); return { key: t.id, nombre: pp.nombre, iniciales: inic(pp.nombre), sub: t.hora + ' · ' + pp.diag, onVino: () => this.marcarVino(t.id) }; });
+    const presentes = s.turnos.filter(t => t.estado === 'presente').map(t => { const pp = this.pac(t.pid); return { key: t.id, nombre: pp.nombre, iniciales: inic(pp.nombre), sub: t.hora + ' · ' + pp.diag, onIniciar: () => this.iniciarSesion(t.id) }; });
+    const duraciones = [20, 30, 40, 45, 60].map(d => ({ key: d, label: d + ' min',
+      bg: d === s.duracion ? '#E8EEF9' : '#fff', color: d === s.duracion ? acento : '#6B7B95', borde: d === s.duracion ? acento : '#E4E9F2',
+      onClick: () => this.setState({ duracion: d }) }));
+
+    const titModal = { checkin: 'Registrar llegada', box: 'Poner paciente en el box', novino: 'No vino', mas: 'Más', ejhoy: 'Sesión terminada', editar: 'Editar paciente', nuevoEj: 'Agregar ejercicio' }[s.modal] || '';
+
+    return {
+      // chrome
+      esMovil, esEscritorio: !esMovil,
+      verMovil: () => this.setState({ modo: 'movil' }), verEscritorio: () => this.setState({ modo: 'escritorio', modal: null }),
+      tabMovilBg: esMovil ? '#fff' : 'transparent', tabMovilColor: esMovil ? '#0B1B33' : '#6B7B95', tabMovilSombra: esMovil ? '0 1px 3px rgba(11,27,51,.14)' : 'none',
+      tabPcBg: esMovil ? 'transparent' : '#fff', tabPcColor: esMovil ? '#6B7B95' : '#0B1B33', tabPcSombra: esMovil ? 'none' : '0 1px 3px rgba(11,27,51,.14)',
+      frameW: esMovil ? '392px' : '1240px', frameH: esMovil ? '812px' : '820px', frameRadio: esMovil ? '38px' : '18px',
+      contPad: esMovil ? '16px 16px 24px' : '28px 32px 40px',
+      statsCols: esMovil ? 'repeat(3,1fr)' : 'repeat(6,1fr)',
+      boxCols: esMovil ? '1fr 1fr' : 'repeat(2,1fr)',
+      splitCols: esMovil ? '1fr' : '1.35fr 1fr',
+      fichaCols: esMovil ? '1fr' : '.85fr 1.15fr',
+      celdaAlto: esMovil ? '44px' : '68px',
+      relojCorto: reloj, fechaLarga, tituloPantalla: titulos[s.pantalla],
+
+      irRecepcion: () => this.setState({ pantalla: 'recepcion', modal: null }),
+      irAgenda: () => this.setState({ pantalla: 'agenda', modal: null }),
+      irPacientes: () => this.setState({ pantalla: 'pacientes', modal: null }),
+      irEjercicios: () => this.setState({ pantalla: 'ejercicios', modal: null }),
+      irNotificaciones: () => this.setState({ pantalla: 'notificaciones', modal: null }),
+      irConfiguracion: () => this.setState({ pantalla: 'configuracion', modal: null }),
+      navRecepcionBg: navBg('recepcion'), navRecepcionColor: navCol('recepcion'),
+      navAgendaBg: navBg('agenda'), navAgendaColor: navCol('agenda'),
+      navPacientesBg: navBg('pacientes'), navPacientesColor: navCol('pacientes'),
+      navEjerciciosBg: navBg('ejercicios'), navEjerciciosColor: navCol('ejercicios'),
+      navNotifBg: navBg('notificaciones'), navNotifColor: navCol('notificaciones'),
+      navConfigBg: navBg('configuracion'), navConfigColor: navCol('configuracion'),
+      tabRecepcion: tabCol('recepcion'), tabAgenda: tabCol('agenda'), tabPacientes: tabCol('pacientes'),
+      tabEjercicios: tabCol('ejercicios'), tabMas: (nav('notificaciones') || nav('configuracion')) ? acento : '#93A1B8',
+
+      enRecepcion: s.pantalla === 'recepcion', enAgenda: s.pantalla === 'agenda', enPacientes: s.pantalla === 'pacientes',
+      enFicha: s.pantalla === 'ficha', enEjercicios: s.pantalla === 'ejercicios',
+      enNotificaciones: s.pantalla === 'notificaciones', enConfiguracion: s.pantalla === 'configuracion',
+
+      stats, boxes, sala: horas, agregarBox: () => this.agregarBox(), abrirCheckin: () => this.setState({ modal: 'checkin' }),
+      enCursoCount: cuenta('en_curso'), boxesCount: s.boxes.length,
+
+      dow: DIAS_ABBR.map(d => d), celdas,
+      mesLabel: MESES[base.getMonth()] + ' ' + base.getFullYear(),
+      mesAnterior: () => this.setState(st => ({ mesOffset: st.mesOffset - 1 })),
+      mesSiguiente: () => this.setState(st => ({ mesOffset: st.mesOffset + 1 })),
+      diaSelLabel: DIAS7[(diaSelDate.getDay() + 6) % 7] + ' ' + s.diaSel + ' de ' + MESES[base.getMonth()],
+      turnosDiaSel, diaSelVacio: turnosDiaSel.length === 0,
+
+      busqueda: s.busqueda, onBuscar: e => this.setState({ busqueda: e.target.value }),
+      listaPacientes, pacientesSub: s.pacientes.length + ' pacientes cargados',
+      ficha,
+      categorias, ejerciciosCat,
+      alertas, alertasCount: alertas.length, sinAlertas: alertas.length === 0,
+      notifSub: alertas.length ? alertas.length + ' paciente(s) por renovar' : 'Todo al día',
+
+      alarmaBg: s.alarmaOn ? '#12A150' : '#D7DEEA', alarmaKnob: s.alarmaOn ? '24px' : '3px',
+      toggleAlarma: () => this.setState(st => ({ alarmaOn: !st.alarmaOn })),
+      sonidos: SONIDOS.map(n => ({ key: n, nombre: n, bg: n === s.sonido ? '#E8EEF9' : '#fff', color: n === s.sonido ? acento : '#6B7B95', borde: n === s.sonido ? acento : '#E4E9F2', onClick: () => { this.setState({ sonido: n }); this.aviso('Sonido: ' + n, 'ok'); } })),
+      wa: s.wa, onWa: e => this.setState({ wa: e.target.value }),
+      horarioCentro: DIAS7.map((d, i) => ({ key: i, nombre: d,
+        abierto: s.diasCentro[i], cerrado: !s.diasCentro[i],
+        apertura: s.horasCentro[i].a, cierre: s.horasCentro[i].c,
+        chk: s.diasCentro[i] ? '✓' : '', chkBg: s.diasCentro[i] ? acento : '#fff', chkBorde: s.diasCentro[i] ? acento : '#D7DEEA',
+        color: s.diasCentro[i] ? '#0B1B33' : '#93A1B8',
+        onApertura: e => { const v = e.target.value; this.setState(st => ({ horasCentro: st.horasCentro.map((h, j) => j === i ? { a: v, c: h.c } : h) })); },
+        onCierre: e => { const v = e.target.value; this.setState(st => ({ horasCentro: st.horasCentro.map((h, j) => j === i ? { a: h.a, c: v } : h) })); },
+        onToggle: () => this.setState(st => ({ diasCentro: st.diasCentro.map((v, j) => j === i ? !v : v) })) })),
+
+      splash: s.splash, verIntro: () => this.verIntro(),
+      avisos,
+      hayHoy: pacientesHoy.length > 0, hoyCount: pacientesHoy.length, pacientesHoy, hayResto: listaPacientes.length > 0,
+      abrirEditar: () => this.abrirEditar(), guardarPaciente: () => this.guardarPaciente(), camposEditar,
+      abrirNuevoEj: () => this.setState({ modal: 'nuevoEj' }),
+      ejSeries: s.ejSeries, onEjSeries: e => this.setState({ ejSeries: e.target.value }),
+      ejReps: s.ejReps, onEjReps: e => this.setState({ ejReps: e.target.value }),
+      ejNotas: s.ejNotas, onEjNotas: e => this.setState({ ejNotas: e.target.value }),
+      ejPeso: s.ejPeso, onEjPeso: e => this.setState({ ejPeso: e.target.value }),
+      ejCols: esMovil ? '1fr' : '1.15fr .85fr',
+      registroNombre: (p.nombre || '').split(' ')[0], registroEj, sinRegistro: registroEj.length === 0,
+      modalEditar: s.modal === 'editar', modalNuevoEj: s.modal === 'nuevoEj', modalEjHoy: s.modal === 'ejhoy',
+      ejHoyNombre: ejHoyP.nombre || '', ejHoyDetalle: s.ejHoy ? (s.ejHoy.box + ' · ' + s.ejHoy.dur + ' min') : '',
+      irAgregarEjercicios: () => this.setState(st => ({ pantalla: 'ficha', pacienteSel: st.ejHoy ? st.ejHoy.pid : st.pacienteSel, modal: 'nuevoEj' })),
+      durCustomOn: s.durCustomOn, durCustom: s.durCustom,
+      activarCustom: () => this.setState({ durCustomOn: true, duracion: 0 }),
+      onDurCustom: e => this.setState({ durCustom: e.target.value, durCustomOn: true }),
+      customBg: s.durCustomOn ? '#E8EEF9' : '#fff', customColor: s.durCustomOn ? acento : '#6B7B95', customBorde: s.durCustomOn ? acento : '#E4E9F2',
+      reproPaso1: s.reproPaso === 1, reproPaso2: s.reproPaso === 2,
+      pedirRepro: () => this.setState({ reproPaso: 2 }), volverRepro: () => this.setState({ reproPaso: 1 }),
+      confirmarRepro: () => this.confirmarRepro(),
+      reproDestino: reproD.fecha + ' · ' + reproD.hora,
+      reproNota: 'Se respeta sus días (' + (reproP.dias || '—') + '). El turno de hoy queda como no asistido.',
+
+      hayModal: !!s.modal, modalTitulo: titModal, cerrarModal: () => this.setState({ modal: null, reproPaso: 1 }),
+      modalCheckin: s.modal === 'checkin', modalBox: s.modal === 'box', modalNoVino: s.modal === 'novino', modalMas: s.modal === 'mas',
+      modalAncho: esMovil ? '360px' : (s.modal === 'nuevoEj' ? '760px' : '520px'), modalAlign: esMovil ? 'flex-end' : 'center', modalPad: esMovil ? '0 12px 12px' : '24px',
+      abrirMas: () => this.setState({ modal: 'mas' }),
+      porLlegar, sinPorLlegar: porLlegar.length === 0,
+      presentes, sinPresentes: presentes.length === 0, duraciones,
+      noVinoNombre: (noVinoP.nombre || '') + ' no vino. ¿Qué hacemos?',
+      noVinoInfo: 'Sus días: ' + (noVinoP.dias || '—') + ' · ' + (noVinoP.horarios || ''),
+      darPerdido: () => this.darPerdido(),
+
+      hayToast: !!s.toast, toast: s.toast, toastBg: s.toastTipo === 'alert' ? '#E5484D' : '#0B1B33',
+    };
+  }
+}
+
+</script>
+</body>
+</html>

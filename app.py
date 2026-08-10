@@ -183,6 +183,8 @@ def init_db():
         db.execute("ALTER TABLE pacientes ADD COLUMN horarios TEXT")
     if "categoria" not in _cols(db, "ejercicios"):
         db.execute("ALTER TABLE ejercicios ADD COLUMN categoria TEXT")
+    if "peso" not in _cols(db, "ejercicios"):
+        db.execute("ALTER TABLE ejercicios ADD COLUMN peso TEXT")
     if "cerrada" not in _cols(db, "eventos"):
         db.execute("ALTER TABLE eventos ADD COLUMN cerrada INTEGER DEFAULT 0")
     db.commit()
@@ -981,15 +983,28 @@ def api_huecos():
             return hh * 60 + mm
         except Exception:
             return defecto
-    m0 = tomin(cfg.get("centro_apertura", "08:00"), 8 * 60)
-    m1 = tomin(cfg.get("centro_cierre", "20:00"), 20 * 60)
-    dias_centro = (cfg.get("centro_dias", "") or "").split(",") if cfg.get("centro_dias") else []
     try:
         wd = date.fromisoformat(fecha).weekday()
     except Exception:
         wd = 0
-    abierto = (not dias_centro) or (str(wd) in dias_centro)
 
+    # Horario por día (centro_horarios JSON: {"0":{"a":"09:00","c":"13:00"}, ...})
+    hor = parse_horarios(cfg.get("centro_horarios", ""))
+    apertura, cierre, abierto = "08:00", "20:00", True
+    if hor:
+        dd = hor.get(str(wd))
+        if dd:
+            apertura, cierre = dd.get("a", "08:00"), dd.get("c", "20:00")
+        else:
+            abierto = False
+    else:  # compatibilidad con la config vieja (un solo horario)
+        apertura = cfg.get("centro_apertura", "08:00")
+        cierre = cfg.get("centro_cierre", "20:00")
+        dias_c = (cfg.get("centro_dias", "") or "").split(",") if cfg.get("centro_dias") else []
+        abierto = (not dias_c) or (str(wd) in dias_c)
+
+    m0 = tomin(apertura, 8 * 60)
+    m1 = tomin(cierre, 20 * 60)
     slots = []
     for m in range(m0, m1, 30):
         fin = m + dur
@@ -997,8 +1012,7 @@ def api_huecos():
         slots.append({"hora": f"{m // 60:02d}:{m % 60:02d}",
                       "libres": max(0, n_boxes - solap)})
     return jsonify({"boxes": n_boxes, "slots": slots, "abierto": abierto,
-                    "apertura": cfg.get("centro_apertura", "08:00"),
-                    "cierre": cfg.get("centro_cierre", "20:00")})
+                    "apertura": apertura, "cierre": cierre})
 
 
 # --------------------------------------------------------------------------
@@ -1078,12 +1092,12 @@ def api_nuevo_ejercicio(pid):
     if not nombre:
         return jsonify(ok=False, error="Falta el nombre del ejercicio"), 400
     eid = run(
-        """INSERT INTO ejercicios (paciente_id, nombre, categoria, series, reps, notas)
-           VALUES (?,?,?,?,?,?)""",
+        """INSERT INTO ejercicios (paciente_id, nombre, categoria, series, reps, peso, notas)
+           VALUES (?,?,?,?,?,?,?)""",
         (
             pid, nombre, (d.get("categoria") or "").strip(),
             (d.get("series") or "").strip(), (d.get("reps") or "").strip(),
-            (d.get("notas") or "").strip(),
+            (d.get("peso") or "").strip(), (d.get("notas") or "").strip(),
         ),
     )
     return jsonify(ok=True, id=eid)

@@ -279,14 +279,14 @@ async function terminar(tid) {
 }
 
 // ---- Menú de ejercicios al terminar un box ----
-let EJHOY_PID = null, EJHOY_CAT = null, CATALOGO_R = {};
+let EJHOY_PID = null, EJHOY_CAT = null, CATALOGO_R = {}, EJHOY_SEL = [];
 async function abrirEjHoy(pid, nombre) {
-  EJHOY_PID = pid;
+  EJHOY_PID = pid; EJHOY_SEL = [];
   document.getElementById('ejhoy-titulo').textContent = 'Ejercicios de hoy — ' + nombre;
   document.getElementById('ejhoy-ficha').href = '/paciente/' + pid;
   if (!Object.keys(CATALOGO_R).length) { try { CATALOGO_R = await apiGet('/api/catalogo'); } catch (e) {} }
   EJHOY_CAT = Object.keys(CATALOGO_R)[0] || null;
-  pintarEjHoy();
+  pintarEjHoy(); pintarEjHoySel();
   abrirModal('modal-ejhoy');
 }
 function pintarEjHoy() {
@@ -295,13 +295,37 @@ function pintarEjHoy() {
     `<button class="cat-tab ${c === EJHOY_CAT ? 'on' : ''}" onclick="ejHoyCat('${escapeJs(c)}')">${escapeHtml(c)}</button>`).join('');
   document.getElementById('ejhoy-lista').innerHTML = (CATALOGO_R[EJHOY_CAT] || []).map(o =>
     `<div class="cat-op" onclick="ejHoyAdd('${escapeJs(o.nombre)}','${escapeJs(EJHOY_CAT)}')">
-       <span>${escapeHtml(o.nombre)}</span><span class="c">+ agregar</span></div>`).join('')
+       <span>${escapeHtml(o.nombre)}</span><span class="c">+</span></div>`).join('')
     || '<div class="empty">Sin ejercicios en esta categoría</div>';
 }
 function ejHoyCat(c) { EJHOY_CAT = c; pintarEjHoy(); }
-async function ejHoyAdd(nombre, cat) {
-  await api('/api/paciente/' + EJHOY_PID + '/ejercicio', { nombre, categoria: cat });
-  toast('Agregado: ' + nombre + ' ✓', 'ok');
+function ejHoyAdd(nombre, cat) {
+  EJHOY_SEL.push({ nombre, categoria: cat, series: '', reps: '', peso: '' });
+  pintarEjHoySel();
+}
+function ejHoyDel(i) { EJHOY_SEL.splice(i, 1); pintarEjHoySel(); }
+function ejHoySet(i, campo, v) { if (EJHOY_SEL[i]) EJHOY_SEL[i][campo] = v; }
+function pintarEjHoySel() {
+  const c = document.getElementById('ejhoy-seleccionados');
+  if (!EJHOY_SEL.length) { c.innerHTML = '<div class="empty" style="font-size:12px;">Tocá ejercicios del catálogo…</div>'; return; }
+  c.innerHTML = EJHOY_SEL.map((e, i) => `
+    <div class="ejhoy-row">
+      <div class="ejhoy-row-top"><b>${escapeHtml(e.nombre)}</b><button class="x" onclick="ejHoyDel(${i})" title="Quitar">&times;</button></div>
+      <div class="ejhoy-inputs">
+        <input class="input" placeholder="series" value="${escapeHtml(e.series)}" oninput="ejHoySet(${i},'series',this.value)">
+        <input class="input" placeholder="reps" value="${escapeHtml(e.reps)}" oninput="ejHoySet(${i},'reps',this.value)">
+        <input class="input" placeholder="peso" value="${escapeHtml(e.peso)}" oninput="ejHoySet(${i},'peso',this.value)">
+      </div>
+    </div>`).join('');
+}
+async function confirmarEjHoy() {
+  if (!EJHOY_SEL.length) { cerrarModal('modal-ejhoy'); toast('Box liberado ✓', 'ok'); return; }
+  for (const e of EJHOY_SEL) {
+    await api('/api/paciente/' + EJHOY_PID + '/ejercicio',
+      { nombre: e.nombre, categoria: e.categoria, series: e.series, reps: e.reps, peso: e.peso });
+  }
+  cerrarModal('modal-ejhoy');
+  toast(EJHOY_SEL.length + ' ejercicio(s) asignados ✓', 'ok');
 }
 
 async function agregarTiempo(tid) {
