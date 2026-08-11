@@ -45,6 +45,12 @@
   <button class="btn btn-primary" style="margin-top:10px;" onclick="guardarCentro()">Guardar horario</button>
 </div>
 
+<div class="section-title">🧪 Datos de prueba</div>
+<div class="card card-pad" style="margin-bottom:8px;">
+  <div class="hint" style="margin-bottom:10px;">Carga pacientes de ejemplo con turnos repartidos en todo el día de hoy, para probar la sala del día, los boxes y la agenda. No borra tus datos: se suman a los que ya tenés.</div>
+  <button class="btn btn-primary" onclick="cargarPrueba()">➕ Cargar pacientes de prueba (hoy)</button>
+</div>
+
 <div class="section-title">💾 Copia de seguridad</div>
 <div class="card card-pad">
   <div class="hint" style="margin-bottom:10px;">Descargá una copia de todos los datos (pacientes, turnos, ejercicios, evolución). Guardala en un lugar seguro (pendrive, Drive) cada tanto.</div>
@@ -104,6 +110,12 @@ async function guardarWa() {
 async function guardarCentro() {
   await api('/api/config', { centro_horarios: JSON.stringify(CENTRO_HOR) });
   toast('Horario del centro guardado ✓', 'ok');
+}
+async function cargarPrueba() {
+  if (!confirm('¿Cargar pacientes de prueba con turnos para hoy?')) return;
+  const r = await api('/api/seed_prueba', {});
+  toast('Se cargaron ' + (r.creados || 0) + ' pacientes de prueba ✓', 'ok');
+  setTimeout(() => location.href = '/', 700);
 }
 </script>
 {% endblock %}

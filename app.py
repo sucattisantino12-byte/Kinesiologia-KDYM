@@ -303,6 +303,12 @@ def nombre_completo(row):
 def paciente_dict(p):
     quedan = (p["sesiones_totales"] or 0) - (p["sesiones_usadas"] or 0)
     keys = p.keys()
+    _hor = parse_horarios(p["horarios"] if "horarios" in keys else "")
+    _idx = str_to_dias(p["dias"])
+    _dias_horarios = [
+        {"dia": DIAS_ABBR[i], "hora": _hor.get(str(i)) or _hor.get(i) or ""}
+        for i in _idx
+    ]
     return {
         "id": p["id"],
         "nombre": p["nombre"],
@@ -316,8 +322,9 @@ def paciente_dict(p):
         "sesiones_usadas": p["sesiones_usadas"] or 0,
         "sesiones_quedan": quedan,
         "dias": p["dias"] or "",
-        "dias_idx": str_to_dias(p["dias"]),
-        "horarios": parse_horarios(p["horarios"] if "horarios" in keys else ""),
+        "dias_idx": _idx,
+        "horarios": _hor,
+        "dias_horarios": _dias_horarios,
         "notas": p["notas"] or "",
     }
 
@@ -1174,6 +1181,48 @@ def api_config_set():
             "ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor",
             (k, str(v)))
     return jsonify(ok=True)
+
+
+@app.route("/api/seed_prueba", methods=["POST"])
+def api_seed_prueba():
+    """Carga pacientes de prueba con turnos repartidos en todo el día de hoy.
+    Sirve para probar la app (sala del día, boxes, agenda) sin cargar datos reales."""
+    hoy = date.today().isoformat()
+    wd = date.today().weekday()
+    horas = ["08:00", "09:00", "10:00", "11:00", "12:00",
+             "14:00", "15:00", "16:00", "17:00", "18:00", "19:00"]
+    nombres = [
+        ("Sofía", "Álvarez", "OSDE", "Tendinitis de hombro"),
+        ("Mateo", "Ríos", "Swiss Medical", "Lumbalgia mecánica"),
+        ("Valentina", "Torres", "IOMA", "Esguince de rodilla"),
+        ("Benjamín", "Sosa", "PAMI", "Cervicalgia"),
+        ("Camila", "Díaz", "Galeno", "Post-operatorio de menisco"),
+        ("Thiago", "Molina", "OSDE", "Fascitis plantar"),
+        ("Martina", "Castro", "Medifé", "Bursitis de cadera"),
+        ("Joaquín", "Herrera", "OSPE", "Epicondilitis"),
+        ("Renata", "Vega", "OSDE", "Contractura cervical"),
+        ("Bautista", "Núñez", "IOMA", "Distensión isquiotibial"),
+        ("Delfina", "Aguirre", "Swiss Medical", "Rehabilitación de tobillo"),
+    ]
+    # días de la semana en los que viene (siempre incluye hoy), sólo Lun-Vie
+    dias_idx = sorted(set([wd] + [(wd + 2) % 5, (wd + 4) % 5]))
+    creados = 0
+    for i, (nom, ape, os_, diag) in enumerate(nombres):
+        hora = horas[i % len(horas)]
+        horarios = {str(dx): hora for dx in dias_idx}
+        pid = run(
+            """INSERT INTO pacientes
+               (nombre, apellido, dni, telefono, obra_social, diagnostico,
+                sesiones_totales, sesiones_usadas, dias, horarios, creado)
+               VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+            (nom, ape, "", "", os_, diag, 12, i % 8,
+             dias_to_str(dias_idx), json.dumps(horarios), hoy),
+        )
+        run("""INSERT INTO turnos (paciente_id, fecha, hora, estado, duracion_min)
+               VALUES (?,?,?, 'agendado', ?)""",
+            (pid, hoy, hora, DURACION_DEFAULT))
+        creados += 1
+    return jsonify(ok=True, creados=creados)
 
 
 @app.route("/api/backup")

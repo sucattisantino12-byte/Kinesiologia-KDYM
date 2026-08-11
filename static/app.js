@@ -268,3 +268,61 @@ function alarmAudio() {
 function sonarContinuo() { const a = alarmAudio(); if (a.paused) a.play().catch(() => {}); }
 function pararSonido() { if (_ALARM_AUDIO && !_ALARM_AUDIO.paused) { _ALARM_AUDIO.pause(); _ALARM_AUDIO.currentTime = 0; } }
 function probarAlarma() { sonarContinuo(); setTimeout(pararSonido, 3000); toast('🔊 Así suena la alarma elegida', 'ok'); }
+
+// ---- Navegación más fluida entre pestañas ----
+// La app es multipágina (cada pestaña recarga). Para que el cambio se sienta
+// instantáneo: barra de progreso al tocar, resaltado inmediato del ítem tocado
+// y prefetch del destino al pasar/tocar (así el navegador ya lo tiene listo).
+(function () {
+  const bar = document.createElement('div');
+  bar.id = 'nav-progress';
+  document.addEventListener('DOMContentLoaded', () => document.body.appendChild(bar));
+  if (document.body) document.body.appendChild(bar);
+
+  function esInterno(a) {
+    const href = a.getAttribute('href') || '';
+    if (!href || href.startsWith('#') || href.startsWith('http') ||
+        href.startsWith('/api/') || href.startsWith('mailto:') ||
+        href.startsWith('tel:') || a.target === '_blank' ||
+        a.hasAttribute('download')) return false;
+    return true;
+  }
+
+  // Click en un link interno: barra + resaltado inmediato en la nav.
+  document.addEventListener('click', (e) => {
+    const a = e.target.closest && e.target.closest('a[href]');
+    if (!a || !esInterno(a)) return;
+    bar.classList.remove('done');
+    // reinicia la animación
+    void bar.offsetWidth;
+    bar.classList.add('go');
+    const grupo = a.closest('.side-nav') ? '.side-nav a' : (a.closest('.mbot') ? '.mbot a' : null);
+    if (grupo) {
+      document.querySelectorAll(grupo).forEach(x => x.classList.remove('on'));
+      a.classList.add('on');
+    }
+  }, true);
+
+  // Prefetch al pasar el mouse o tocar los ítems de navegación.
+  const yaVisto = {};
+  function prefetch(href) {
+    if (!href || yaVisto[href]) return;
+    yaVisto[href] = 1;
+    const l = document.createElement('link');
+    l.rel = 'prefetch'; l.href = href;
+    document.head.appendChild(l);
+  }
+  function armarPrefetch() {
+    document.querySelectorAll('.side-nav a, .mbot a').forEach(a => {
+      if (!esInterno(a)) return;
+      const href = a.getAttribute('href');
+      a.addEventListener('mouseenter', () => prefetch(href));
+      a.addEventListener('touchstart', () => prefetch(href), { passive: true });
+    });
+  }
+  if (document.readyState !== 'loading') armarPrefetch();
+  else document.addEventListener('DOMContentLoaded', armarPrefetch);
+
+  // Al terminar de cargar la página nueva, completa la barra.
+  window.addEventListener('pageshow', () => { bar.classList.add('done'); bar.classList.remove('go'); });
+})();

@@ -37,7 +37,11 @@
       <div class="dato"><div class="k">DNI</div><div class="v">{{ p.dni or '—' }}</div></div>
       <div class="dato"><div class="k">Teléfono</div><div class="v">{{ p.telefono or '—' }}</div></div>
       <div class="dato"><div class="k">Obra social</div><div class="v">{{ p.obra_social or '—' }}</div></div>
-      <div class="dato"><div class="k">Días que viene</div><div class="v">{{ p.dias or '—' }}</div></div>
+      <div class="dato"><div class="k">Días y horarios</div><div class="v">
+        {% if p.dias_horarios %}
+          {% for dh in p.dias_horarios %}<span class="chip-dia">{{ dh.dia }}{% if dh.hora %} · {{ dh.hora }}{% endif %}</span>{% endfor %}
+        {% else %}—{% endif %}
+      </div></div>
       <div class="dato"><div class="k">Diagnóstico</div><div class="v">{{ p.diagnostico or '—' }}</div></div>
       <div class="dato"><div class="k">Notas</div><div class="v">{{ p.notas or '—' }}</div></div>
     </div>
