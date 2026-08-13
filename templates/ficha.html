@@ -91,10 +91,13 @@
       {% endfor %}
     </div>
 
-    <div class="section-title">Historial de turnos</div>
+    <div class="row" style="align-items:center; justify-content:space-between;">
+      <div class="section-title">Historial de turnos</div>
+      <button class="btn btn-primary btn-sm" onclick="abrirAgregarTurnos(PID, PNOMBRE, () => location.reload())">+ Agregar turnos</button>
+    </div>
     <div class="card">
       {% for h in historial %}
-      {% set num = historial|length - loop.index0 %}
+      {% set num = loop.index %}
       <div class="turno-item {% if h.ejercicios %}tiene-ej{% endif %}"
            {% if h.ejercicios %}onclick="toggleTurnoEj({{ h.id }})"{% endif %}>
         <div class="turno-row">
@@ -124,6 +127,8 @@
     </div>
   </div>
 </div>
+
+{% include "_agregar_turnos_modal.html" %}
 
 <!-- Modal editar -->
 <div class="modal-bg" id="modal-editar">
@@ -219,6 +224,7 @@
 {% block scripts %}
 <script>
 const PID = {{ p.id }};
+const PNOMBRE = {{ p.nombre_completo|tojson }};
 const TOT = {{ p.sesiones_totales }};
 const USADAS = {{ p.sesiones_usadas }};
 document.getElementById('barra-ses').style.width =

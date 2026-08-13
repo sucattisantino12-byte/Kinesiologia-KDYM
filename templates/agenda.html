@@ -9,7 +9,7 @@
   </div>
   <button class="btn btn-ghost btn-sm" onclick="abrirNuevoPaciente(elegirDesdeNuevo)">+ Paciente</button>
   <button class="btn btn-ghost btn-sm" onclick="abrirHuecos()">🔍 Buscar hueco</button>
-  <button class="btn btn-primary btn-sm" onclick="abrirPlan()">📅 Días que viene</button>
+  <button class="btn btn-primary btn-sm" onclick="abrirAgregarTurnos(null, '', recargar)">📅 Agregar turnos</button>
 </div>
 
 <div class="stats" id="stats"></div>
@@ -41,52 +41,6 @@
     <div class="section-title" style="margin-top:6px;">Día seleccionado</div>
     <div class="muted" id="dia-titulo" style="font-weight:700; margin-bottom:8px;"></div>
     <div id="dia-detalle"></div>
-  </div>
-</div>
-
-<!-- Modal plan de sesiones -->
-<div class="modal-bg" id="modal-plan">
-  <div class="modal">
-    <div class="modal-head">
-      <h3>Días que viene</h3>
-      <button class="x" onclick="cerrarModal('modal-plan')">&times;</button>
-    </div>
-    <div class="modal-body">
-      <div class="field">
-        <label>Paciente *</label>
-        <input class="input" id="p-buscar" placeholder="Buscar paciente…" autocomplete="off">
-        <div id="p-resultados"></div>
-        <div id="p-elegido" class="hint"></div>
-      </div>
-
-      <div class="field">
-        <label>¿Qué días viene? <span class="muted" style="font-weight:500;">(horario de cada día)</span></label>
-        <div class="dias-picker" id="p-dias-picker"></div>
-        <div class="dias-horas" id="p-dias-rows"></div>
-      </div>
-
-      <div class="field"><label>Empezar desde</label><input class="input" id="p-desde" type="date"></div>
-      <div class="grid2">
-        <div class="field">
-          <label>Cantidad de sesiones</label>
-          <input class="input" id="p-cantidad" type="number" min="1" placeholder="sesiones restantes">
-        </div>
-        <div class="field">
-          <label>Duración</label>
-          <select class="input" id="p-dur">
-            <option value="20">20 min</option>
-            <option value="30" selected>30 min</option>
-            <option value="45">45 min</option>
-            <option value="60">60 min</option>
-          </select>
-        </div>
-      </div>
-      <div class="hint" id="p-preview"></div>
-    </div>
-    <div class="modal-foot">
-      <button class="btn btn-ghost" onclick="cerrarModal('modal-plan')">Cancelar</button>
-      <button class="btn btn-primary" onclick="guardarPlan()">Generar turnos</button>
-    </div>
   </div>
 </div>
 
@@ -164,6 +118,7 @@
 </div>
 
 {% include "_paciente_modal.html" %}
+{% include "_agregar_turnos_modal.html" %}
 {% endblock %}
 
 {% block scripts %}
@@ -486,77 +441,9 @@ async function borrarTurno(tid) {
 
 async function recargar() { await cargarDatos(); cargarStats(); }
 
-// ---- Plan de sesiones ----
-function abrirPlan() {
-  PLAN_PAC = null;
-  document.getElementById('p-buscar').value = '';
-  document.getElementById('p-resultados').innerHTML = '';
-  document.getElementById('p-elegido').textContent = '';
-  document.getElementById('p-cantidad').value = '';
-  document.getElementById('p-preview').textContent = '';
-  document.getElementById('p-desde').value = SEL;
-  PLAN_PICKER = crearDiasPicker('p-dias-picker', 'p-dias-rows');
-  abrirModal('modal-plan');
-}
-
-let pbt = null;
-document.getElementById('p-buscar').addEventListener('input', e => {
-  clearTimeout(pbt);
-  const term = e.target.value.trim();
-  pbt = setTimeout(async () => {
-    if (!term) { document.getElementById('p-resultados').innerHTML = ''; return; }
-    const rows = await apiGet('/api/pacientes?q=' + encodeURIComponent(term));
-    document.getElementById('p-resultados').innerHTML = rows.map(p => `
-      <div class="list-item" style="cursor:pointer;" onclick='elegirPac(${JSON.stringify(p)})'>
-        <div class="avatar">${iniciales(p.nombre_completo)}</div>
-        <div class="li-main"><div class="li-name">${escapeHtml(p.nombre_completo)}</div>
-        <div class="li-sub">${p.sesiones_quedan} sesiones restantes${p.dias ? ' · ' + escapeHtml(p.dias) : ''}</div></div>
-      </div>`).join('');
-  }, 220);
-});
-
-function elegirPac(p) {
-  PLAN_PAC = p.id;
-  document.getElementById('p-resultados').innerHTML = '';
-  document.getElementById('p-buscar').value = p.nombre_completo;
-  document.getElementById('p-elegido').innerHTML = '✓ ' + escapeHtml(p.nombre_completo) + ' seleccionado';
-  document.getElementById('p-cantidad').value = p.sesiones_quedan > 0 ? p.sesiones_quedan : '';
-  if (PLAN_PICKER) PLAN_PICKER.setData(p.dias_idx || [], p.horarios || {});
-  actualizarPreview();
-}
-
 // Al crear un paciente nuevo desde la agenda, ya se agendaron sus turnos en el modal:
 // solo refrescamos el calendario.
 function elegirDesdeNuevo(id, nombre) { recargar(); }
-
-['p-cantidad', 'p-desde'].forEach(id =>
-  document.getElementById(id).addEventListener('input', actualizarPreview));
-
-function actualizarPreview() {
-  const cant = parseInt(document.getElementById('p-cantidad').value, 10);
-  const el = document.getElementById('p-preview');
-  const data = PLAN_PICKER ? PLAN_PICKER.getData() : { dias: [] };
-  if (!data.dias.length || !cant) { el.textContent = ''; return; }
-  const dias = data.dias.map(i => DIAS_ABBR[i]).join(', ');
-  el.textContent = `Se generarán ${cant} turno(s) los días ${dias}.`;
-}
-
-async function guardarPlan() {
-  if (!PLAN_PAC) { toast('Elegí un paciente', 'alert'); return; }
-  const data = PLAN_PICKER ? PLAN_PICKER.getData() : { dias: [], horarios: {} };
-  if (!data.dias.length) { toast('Elegí al menos un día', 'alert'); return; }
-  const r = await api('/api/plan', {
-    paciente_id: PLAN_PAC,
-    dias: data.dias,
-    horarios: data.horarios,
-    desde: document.getElementById('p-desde').value,
-    cantidad: document.getElementById('p-cantidad').value,
-    duracion: document.getElementById('p-dur').value,
-  });
-  cerrarModal('modal-plan');
-  toast(`${r.creados} turno(s) generados ✓`, 'ok');
-  recargar();
-}
 
 pintarFecha();
 cargarDatos();

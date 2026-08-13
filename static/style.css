@@ -317,6 +317,11 @@ a { color: inherit; text-decoration: none; }
 .turno-ej-row .dot { color: var(--azul); font-weight: 800; }
 .turno-ej-row .nom { font-weight: 600; }
 .turno-ej-row .meta { color: var(--gris); font-size: 12.5px; }
+
+/* Filas del modo manual de "Agregar turnos". */
+.at-manual-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
+.at-manual-row .input { flex: 1; }
+.at-manual-row .x { flex: none; }
 .st.agendado { background: var(--gris); }
 .st.en_espera { background: var(--amarillo); }
 .st.en_curso { background: var(--azul); }

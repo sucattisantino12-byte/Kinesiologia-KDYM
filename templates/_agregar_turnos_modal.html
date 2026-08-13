@@ -1,0 +1,60 @@
+<!-- Modal compartido: Agregar turnos (automático o manual). Usado en ficha y agenda. -->
+<div class="modal-bg" id="modal-agturnos">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="at-titulo">Agregar turnos</h3>
+      <button class="x" onclick="cerrarModal('modal-agturnos')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <!-- Buscador de paciente (sólo cuando no viene preseleccionado, ej: agenda) -->
+      <div class="field" id="at-buscar-wrap">
+        <label>Paciente *</label>
+        <input class="input" id="at-buscar" placeholder="Buscar paciente…" autocomplete="off">
+        <div id="at-resultados"></div>
+        <div id="at-elegido" class="hint"></div>
+      </div>
+
+      <div class="seg" style="margin-bottom:14px;">
+        <button id="at-tab-auto" class="on" onclick="atModo('auto')">Automático</button>
+        <button id="at-tab-manual" onclick="atModo('manual')">Manual</button>
+      </div>
+
+      <!-- AUTOMÁTICO: usa los días/horarios que ya tiene (editables) -->
+      <div id="at-modo-auto">
+        <div class="field">
+          <label>¿Qué días viene? <span class="muted" style="font-weight:500;">(podés cambiar el horario de cada día)</span></label>
+          <div class="dias-picker" id="at-dias-picker"></div>
+          <div class="dias-horas" id="at-dias-rows"></div>
+        </div>
+        <div class="grid2">
+          <div class="field">
+            <label>Cantidad de sesiones</label>
+            <input class="input" id="at-cantidad" type="number" min="1" placeholder="cuántas">
+          </div>
+          <div class="field">
+            <label>Duración</label>
+            <select class="input" id="at-dur">
+              <option value="20">20 min</option>
+              <option value="30" selected>30 min</option>
+              <option value="45">45 min</option>
+              <option value="60">60 min</option>
+            </select>
+          </div>
+        </div>
+        <div class="field"><label>Empezar desde</label><input class="input" id="at-desde" type="date"></div>
+        <div class="hint" id="at-preview"></div>
+      </div>
+
+      <!-- MANUAL: turnos sueltos eligiendo fecha y hora -->
+      <div id="at-modo-manual" style="display:none;">
+        <div class="hint" style="margin-bottom:10px;">Agregá turnos uno por uno eligiendo fecha y hora.</div>
+        <div id="at-manual-rows"></div>
+        <button class="btn btn-line btn-sm" onclick="atAgregarFila()">+ Agregar otra fecha</button>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="cerrarModal('modal-agturnos')">Cancelar</button>
+      <button class="btn btn-primary" onclick="atGenerar()">Agregar turnos</button>
+    </div>
+  </div>
+</div>

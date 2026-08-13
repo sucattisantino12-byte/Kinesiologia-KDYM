@@ -390,7 +390,7 @@ def ficha(pid):
     exs = q("SELECT * FROM ejercicios WHERE paciente_id=? ORDER BY id", (pid,))
     hist_rows = q(
         """SELECT * FROM turnos WHERE paciente_id=?
-           ORDER BY fecha DESC, hora DESC LIMIT 40""",
+           ORDER BY fecha ASC, hora ASC LIMIT 200""",
         (pid,),
     )
     # Ejercicios hechos en cada sesión (los que quedaron ligados a un turno).
@@ -1083,7 +1083,13 @@ def api_paciente_resumen(pid):
            ORDER BY fecha, hora LIMIT 1""",
         (pid, date.today().isoformat()),
     )
+    ult = q1(
+        """SELECT MAX(fecha) AS f FROM turnos
+           WHERE paciente_id=? AND estado IN ('agendado','en_espera','presente')""",
+        (pid,),
+    )
     d = paciente_dict(p)
+    d["ultimo_turno"] = ult["f"] if ult and ult["f"] else None
     d["ejercicios"] = [
         {"nombre": e["nombre"], "categoria": e["categoria"] or "",
          "series": e["series"] or "", "reps": e["reps"] or "",

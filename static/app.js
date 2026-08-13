@@ -326,3 +326,150 @@ function probarAlarma() { sonarContinuo(); setTimeout(pararSonido, 3000); toast(
   // Al terminar de cargar la página nueva, completa la barra.
   window.addEventListener('pageshow', () => { bar.classList.add('done'); bar.classList.remove('go'); });
 })();
+
+// ---- Agregar turnos (modal compartido: ficha + agenda) ----
+// abrirAgregarTurnos(pid, nombre, onDone):
+//  - con pid: modo ficha (paciente ya elegido, precarga sus días/horarios)
+//  - sin pid: modo agenda (aparece buscador de paciente)
+let AT_PID = null, AT_PICKER = null, AT_MODO = 'auto', AT_ONDONE = null;
+
+function abrirAgregarTurnos(pid, nombre, onDone) {
+  if (!document.getElementById('modal-agturnos')) return;
+  AT_PID = pid || null; AT_ONDONE = onDone || null;
+  const buscarWrap = document.getElementById('at-buscar-wrap');
+  if (AT_PID) {
+    buscarWrap.style.display = 'none';
+    document.getElementById('at-titulo').textContent = 'Agregar turnos' + (nombre ? ' — ' + nombre : '');
+  } else {
+    buscarWrap.style.display = '';
+    document.getElementById('at-titulo').textContent = 'Agregar turnos';
+    document.getElementById('at-buscar').value = '';
+    document.getElementById('at-resultados').innerHTML = '';
+    document.getElementById('at-elegido').textContent = '';
+  }
+  document.getElementById('at-cantidad').value = '';
+  document.getElementById('at-desde').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('at-preview').textContent = '';
+  document.getElementById('at-manual-rows').innerHTML = '';
+  AT_PICKER = crearDiasPicker('at-dias-picker', 'at-dias-rows');
+  atModo('auto');
+  atAgregarFila();
+  abrirModal('modal-agturnos');
+  if (AT_PID) atCargarPlanPaciente(AT_PID);
+}
+
+async function atCargarPlanPaciente(pid) {
+  try {
+    const p = await apiGet('/api/paciente/' + pid + '/resumen');
+    if (AT_PICKER) AT_PICKER.setData(p.dias_idx || [], p.horarios || {});
+    if (!document.getElementById('at-cantidad').value)
+      document.getElementById('at-cantidad').value = p.sesiones_quedan > 0 ? p.sesiones_quedan : '';
+    atSetDesde(p.ultimo_turno);
+    atPreview();
+  } catch (e) {}
+}
+
+// Si el paciente ya tiene turnos futuros, arranca el día siguiente al último.
+function atSetDesde(ultimo) {
+  const hoy = new Date().toISOString().slice(0, 10);
+  let desde = hoy;
+  if (ultimo && ultimo >= hoy) {
+    const d = new Date(ultimo + 'T12:00:00'); d.setDate(d.getDate() + 1);
+    desde = d.toISOString().slice(0, 10);
+  }
+  document.getElementById('at-desde').value = desde;
+}
+
+function atModo(m) {
+  AT_MODO = m;
+  document.getElementById('at-modo-auto').style.display = m === 'auto' ? '' : 'none';
+  document.getElementById('at-modo-manual').style.display = m === 'manual' ? '' : 'none';
+  document.getElementById('at-tab-auto').classList.toggle('on', m === 'auto');
+  document.getElementById('at-tab-manual').classList.toggle('on', m === 'manual');
+}
+
+function atAgregarFila(fecha, hora) {
+  const cont = document.getElementById('at-manual-rows');
+  if (!cont) return;
+  const div = document.createElement('div');
+  div.className = 'at-manual-row';
+  div.innerHTML =
+    `<input class="input" type="date" value="${fecha || ''}">` +
+    `<input class="input" type="time" value="${hora || ''}">` +
+    `<button class="x" onclick="this.parentNode.remove()" title="Quitar">&times;</button>`;
+  cont.appendChild(div);
+}
+
+function atPreview() {
+  const el = document.getElementById('at-preview');
+  if (!el) return;
+  const cant = parseInt(document.getElementById('at-cantidad').value, 10);
+  const data = AT_PICKER ? AT_PICKER.getData() : { dias: [] };
+  if (!data.dias.length || !cant) { el.textContent = ''; return; }
+  const dias = data.dias.map(i => DIAS_ABBR[i]).join(', ');
+  el.textContent = `Se generarán ${cant} turno(s) los días ${dias}, desde el ${document.getElementById('at-desde').value}.`;
+}
+
+// Búsqueda de paciente y preview (delegado, porque el modal se incluye en varias páginas).
+document.addEventListener('input', function (e) {
+  if (!e.target) return;
+  if (e.target.id === 'at-cantidad' || e.target.id === 'at-desde') atPreview();
+  if (e.target.id === 'at-buscar') {
+    clearTimeout(window._atbt);
+    const term = e.target.value.trim();
+    window._atbt = setTimeout(async () => {
+      const cont = document.getElementById('at-resultados');
+      if (!term) { cont.innerHTML = ''; return; }
+      const rows = await apiGet('/api/pacientes?q=' + encodeURIComponent(term));
+      cont.innerHTML = rows.map(p => `
+        <div class="list-item" style="cursor:pointer;" onclick='atElegirPac(${JSON.stringify(p)})'>
+          <div class="avatar">${iniciales(p.nombre_completo)}</div>
+          <div class="li-main"><div class="li-name">${escapeHtml(p.nombre_completo)}</div>
+          <div class="li-sub">${p.sesiones_quedan} sesiones restantes${p.dias ? ' · ' + escapeHtml(p.dias) : ''}</div></div>
+        </div>`).join('') || '<div class="empty">Sin resultados</div>';
+    }, 220);
+  }
+});
+
+function atElegirPac(p) {
+  AT_PID = p.id;
+  document.getElementById('at-resultados').innerHTML = '';
+  document.getElementById('at-buscar').value = p.nombre_completo;
+  document.getElementById('at-elegido').innerHTML = '✓ ' + escapeHtml(p.nombre_completo) + ' seleccionado';
+  document.getElementById('at-cantidad').value = p.sesiones_quedan > 0 ? p.sesiones_quedan : '';
+  if (AT_PICKER) AT_PICKER.setData(p.dias_idx || [], p.horarios || {});
+  atSetDesde(p.ultimo_turno);
+  atPreview();
+}
+
+async function atGenerar() {
+  if (!AT_PID) { toast('Elegí un paciente', 'alert'); return; }
+  const dur = document.getElementById('at-dur').value;
+  if (AT_MODO === 'auto') {
+    const data = AT_PICKER ? AT_PICKER.getData() : { dias: [], horarios: {} };
+    if (!data.dias.length) { toast('Elegí al menos un día', 'alert'); return; }
+    const cant = document.getElementById('at-cantidad').value;
+    if (!cant || +cant <= 0) { toast('Poné cuántas sesiones agregar', 'alert'); return; }
+    const r = await api('/api/plan', {
+      paciente_id: AT_PID, dias: data.dias, horarios: data.horarios,
+      desde: document.getElementById('at-desde').value, cantidad: cant, duracion: dur,
+    });
+    cerrarModal('modal-agturnos');
+    toast(`${r.creados} turno(s) agregados ✓`, 'ok');
+  } else {
+    const filas = [].slice.call(document.querySelectorAll('#at-manual-rows .at-manual-row'));
+    const turnos = filas.map(f => {
+      const ins = f.querySelectorAll('input');
+      return { fecha: ins[0].value, hora: ins[1].value };
+    }).filter(t => t.fecha);
+    if (!turnos.length) { toast('Agregá al menos una fecha', 'alert'); return; }
+    let n = 0;
+    for (const t of turnos) {
+      await api('/api/turno', { paciente_id: AT_PID, fecha: t.fecha, hora: t.hora, duracion: dur });
+      n++;
+    }
+    cerrarModal('modal-agturnos');
+    toast(`${n} turno(s) agregados ✓`, 'ok');
+  }
+  if (AT_ONDONE) AT_ONDONE();
+}
