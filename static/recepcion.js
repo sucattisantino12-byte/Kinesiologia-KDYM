@@ -121,7 +121,7 @@ function pintarBoxes() {
         <span class="box-badge ${venc ? 'badge-vencido' : 'badge-ocupado'}">
           ${venc ? '¡Terminó!' : 'En sesión'}</span>
       </div>
-      <a href="/paciente/${b.paciente_id}" class="box-pac">${escapeHtml(b.paciente)}</a>
+      <span class="box-pac clicky" onclick="verPerfil(${b.paciente_id})">${escapeHtml(b.paciente)}</span>
       <div class="box-diag">${escapeHtml(b.diagnostico || '')}</div>
       <div class="timer" data-restante="${b.restante_seg}">${fmt(b.restante_seg)}</div>
       <div class="box-actions">
@@ -173,13 +173,55 @@ function filaSala(t) {
     badge = `<span class="pill danger">Perdido</span>`;
   }
   return `<div class="espera-item">
-    <div class="avatar">${iniciales(t.paciente)}</div>
-    <div class="li-main">
-      <a href="/paciente/${t.paciente_id}" class="li-name">${escapeHtml(t.paciente)}</a>
+    <div class="avatar clicky" onclick="verPerfil(${t.paciente_id})">${iniciales(t.paciente)}</div>
+    <div class="li-main clicky" onclick="verPerfil(${t.paciente_id})">
+      <span class="li-name">${escapeHtml(t.paciente)}</span>
       <div class="li-sub">${os}<span class="pill ${ses}">${t.sesiones_quedan} ses.</span> ${badge}</div>
     </div>
     <div class="li-actions">${acciones}</div>
   </div>`;
+}
+
+// ---- Perfil rápido (panel al tocar un paciente) ----
+async function verPerfil(pid) {
+  abrirModal('modal-perfil');
+  document.getElementById('perfil-nombre').textContent = 'Perfil';
+  document.getElementById('perfil-ficha').href = '/paciente/' + pid;
+  document.getElementById('perfil-body').innerHTML = '<div class="empty">Cargando…</div>';
+  let p;
+  try { p = await apiGet('/api/paciente/' + pid + '/resumen'); } catch (e) { return; }
+  if (!p || p.ok === false) { document.getElementById('perfil-body').innerHTML = '<div class="empty">No se pudo cargar</div>'; return; }
+  document.getElementById('perfil-nombre').textContent = p.nombre_completo;
+
+  const dh = (p.dias_horarios || []).map(x =>
+    `<span class="chip-dia">${escapeHtml(x.dia)}${x.hora ? ' · ' + escapeHtml(x.hora) : ''}</span>`).join('') || '—';
+  const sesClass = p.sesiones_quedan <= 1 ? 'warn' : '';
+  const prox = p.proximo_turno
+    ? `${escapeHtml(p.proximo_turno.fecha)}${p.proximo_turno.hora ? ' · ' + escapeHtml(p.proximo_turno.hora) : ''}`
+    : 'sin turno agendado';
+  const ejs = (p.ejercicios || []).length
+    ? p.ejercicios.map(e => {
+        const meta = [e.series && ('S' + e.series), e.reps && ('R' + e.reps), e.peso && (e.peso + 'kg')]
+          .filter(Boolean).join(' · ');
+        return `<div class="perfil-ej"><span>${escapeHtml(e.nombre)}</span>${meta ? `<span class="muted">${escapeHtml(meta)}</span>` : ''}</div>`;
+      }).join('')
+    : '<div class="empty" style="font-size:12px;">Sin ejercicios cargados</div>';
+  const evo = (p.evoluciones || []).length
+    ? p.evoluciones.map(e => `<div class="perfil-evo"><b>${escapeHtml(e.fecha)}</b> ${escapeHtml(e.texto)}</div>`).join('')
+    : '<div class="empty" style="font-size:12px;">Sin notas de evolución</div>';
+
+  document.getElementById('perfil-body').innerHTML = `
+    <div class="perfil-stats">
+      <div class="perfil-stat"><div class="n ${sesClass}">${p.sesiones_quedan}</div><div class="l">sesiones restantes</div></div>
+      <div class="perfil-stat"><div class="n">${p.sesiones_usadas}/${p.sesiones_totales}</div><div class="l">usadas</div></div>
+    </div>
+    ${p.obra_social ? `<div class="perfil-fila"><span class="k">Obra social</span><span class="v">${escapeHtml(p.obra_social)}</span></div>` : ''}
+    ${p.diagnostico ? `<div class="perfil-fila"><span class="k">Diagnóstico</span><span class="v">${escapeHtml(p.diagnostico)}</span></div>` : ''}
+    ${p.telefono ? `<div class="perfil-fila"><span class="k">Teléfono</span><span class="v">${escapeHtml(p.telefono)}</span></div>` : ''}
+    <div class="perfil-fila"><span class="k">Próximo turno</span><span class="v">${prox}</span></div>
+    <div class="perfil-fila col"><span class="k">Días y horarios</span><div class="v">${dh}</div></div>
+    <div class="perfil-sec">Ejercicios</div>${ejs}
+    <div class="perfil-sec">Últimas evoluciones</div>${evo}`;
 }
 
 // ---- Vino / No vino ----
@@ -274,14 +316,14 @@ async function terminar(tid) {
   pararSonido(); pararVibracion(); cerrarTodasNotifs();
   const r = await api(`/api/turno/${tid}/terminar`);
   refrescar();
-  if (r.paciente_id) abrirEjHoy(r.paciente_id, r.paciente);
+  if (r.paciente_id) abrirEjHoy(r.paciente_id, r.paciente, r.turno_id);
   else toast('Box liberado ✓', 'ok');
 }
 
 // ---- Menú de ejercicios al terminar un box ----
-let EJHOY_PID = null, EJHOY_CAT = null, CATALOGO_R = {}, EJHOY_SEL = [];
-async function abrirEjHoy(pid, nombre) {
-  EJHOY_PID = pid; EJHOY_SEL = [];
+let EJHOY_PID = null, EJHOY_CAT = null, CATALOGO_R = {}, EJHOY_SEL = [], EJHOY_TID = null;
+async function abrirEjHoy(pid, nombre, turnoId) {
+  EJHOY_PID = pid; EJHOY_SEL = []; EJHOY_TID = turnoId || null;
   document.getElementById('ejhoy-titulo').textContent = 'Ejercicios de hoy — ' + nombre;
   document.getElementById('ejhoy-ficha').href = '/paciente/' + pid;
   if (!Object.keys(CATALOGO_R).length) { try { CATALOGO_R = await apiGet('/api/catalogo'); } catch (e) {} }
@@ -322,7 +364,7 @@ async function confirmarEjHoy() {
   if (!EJHOY_SEL.length) { cerrarModal('modal-ejhoy'); toast('Box liberado ✓', 'ok'); return; }
   for (const e of EJHOY_SEL) {
     await api('/api/paciente/' + EJHOY_PID + '/ejercicio',
-      { nombre: e.nombre, categoria: e.categoria, series: e.series, reps: e.reps, peso: e.peso });
+      { nombre: e.nombre, categoria: e.categoria, series: e.series, reps: e.reps, peso: e.peso, turno_id: EJHOY_TID });
   }
   cerrarModal('modal-ejhoy');
   toast(EJHOY_SEL.length + ' ejercicio(s) asignados ✓', 'ok');

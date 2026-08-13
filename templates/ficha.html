@@ -94,12 +94,29 @@
     <div class="section-title">Historial de turnos</div>
     <div class="card">
       {% for h in historial %}
-      <div class="list-item">
-        <div class="li-main">
-          <div class="li-name">{{ h.fecha }}{% if h.hora %} · {{ h.hora }}{% endif %}</div>
+      {% set num = historial|length - loop.index0 %}
+      <div class="turno-item {% if h.ejercicios %}tiene-ej{% endif %}"
+           {% if h.ejercicios %}onclick="toggleTurnoEj({{ h.id }})"{% endif %}>
+        <div class="turno-row">
+          <div class="turno-num">{{ num }}</div>
+          <div class="li-main">
+            <div class="li-name">{% if h.dia %}{{ h.dia }} {% endif %}{{ h.fecha }}{% if h.hora %} · {{ h.hora }}{% endif %}</div>
+            {% if h.ejercicios %}<div class="li-sub">{{ h.ejercicios|length }} ejercicio{{ 's' if h.ejercicios|length != 1 else '' }} · tocá para ver</div>{% endif %}
+          </div>
+          <span class="pill {{ 'ok' if h.estado=='terminado' else ('danger' if h.estado in ['ausente','perdido'] else '') }}">
+            {{ h.estado|replace('_',' ') }}</span>
         </div>
-        <span class="pill {{ 'ok' if h.estado=='terminado' else ('danger' if h.estado in ['ausente','perdido'] else '') }}">
-          {{ h.estado|replace('_',' ') }}</span>
+        {% if h.ejercicios %}
+        <div class="turno-ej" id="turno-ej-{{ h.id }}" style="display:none;">
+          {% for e in h.ejercicios %}
+          <div class="turno-ej-row">
+            <span class="dot">•</span>
+            <span class="nom">{{ e.nombre }}</span>
+            <span class="meta">{% if e.series %}{{ e.series }} series{% endif %}{% if e.reps %} × {{ e.reps }}{% endif %}{% if e.peso %} · {{ e.peso }}{% endif %}</span>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
       </div>
       {% else %}
       <div class="empty">Sin turnos registrados.</div>
@@ -332,5 +349,15 @@ async function borrarPaciente() {
 }
 
 function val(id) { return document.getElementById(id).value; }
+
+// Desplegar/plegar los ejercicios hechos en una sesión del historial.
+function toggleTurnoEj(tid) {
+  const box = document.getElementById('turno-ej-' + tid);
+  if (!box) return;
+  const abierto = box.style.display !== 'none';
+  box.style.display = abierto ? 'none' : '';
+  const item = box.closest('.turno-item');
+  if (item) item.classList.toggle('abierto', !abierto);
+}
 </script>
 {% endblock %}

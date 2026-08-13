@@ -131,6 +131,22 @@
   </div>
 </div>
 
+<!-- Panel de perfil rápido (al tocar un paciente en recepción) -->
+<div class="modal-bg" id="modal-perfil">
+  <div class="modal drawer" style="max-width:460px;">
+    <div class="modal-head">
+      <h3 id="perfil-nombre">Perfil</h3>
+      <button class="x" onclick="cerrarModal('modal-perfil')">&times;</button>
+    </div>
+    <div class="modal-body" id="perfil-body">
+      <div class="empty">Cargando…</div>
+    </div>
+    <div class="modal-foot">
+      <a class="btn btn-primary btn-block" id="perfil-ficha" href="#">Ver ficha completa →</a>
+    </div>
+  </div>
+</div>
+
 <!-- Modal: ejercicios de hoy (al terminar un box) -->
 <div class="modal-bg" id="modal-ejhoy">
   <div class="modal" style="max-width:640px;">

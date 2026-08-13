@@ -37,6 +37,15 @@ app.config["TEMPLATES_AUTO_RELOAD"] = True
 
 DURACION_DEFAULT = 30
 DIAS_ABBR = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]  # weekday() 0..6
+DIAS_FULL = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
+
+
+def dia_semana(fecha_str):
+    """Devuelve el día de la semana ('Lunes'...) de una fecha 'YYYY-MM-DD'."""
+    try:
+        return DIAS_FULL[date.fromisoformat(fecha_str).weekday()]
+    except Exception:
+        return ""
 
 
 def dias_to_str(idxs):
@@ -185,6 +194,10 @@ def init_db():
         db.execute("ALTER TABLE ejercicios ADD COLUMN categoria TEXT")
     if "peso" not in _cols(db, "ejercicios"):
         db.execute("ALTER TABLE ejercicios ADD COLUMN peso TEXT")
+    if "turno_id" not in _cols(db, "ejercicios"):
+        db.execute("ALTER TABLE ejercicios ADD COLUMN turno_id INTEGER")
+    if "fecha" not in _cols(db, "ejercicios"):
+        db.execute("ALTER TABLE ejercicios ADD COLUMN fecha TEXT")
     if "cerrada" not in _cols(db, "eventos"):
         db.execute("ALTER TABLE eventos ADD COLUMN cerrada INTEGER DEFAULT 0")
     db.commit()
@@ -375,18 +388,32 @@ def ficha(pid):
     if not p:
         abort(404)
     exs = q("SELECT * FROM ejercicios WHERE paciente_id=? ORDER BY id", (pid,))
-    hist = q(
+    hist_rows = q(
         """SELECT * FROM turnos WHERE paciente_id=?
            ORDER BY fecha DESC, hora DESC LIMIT 40""",
         (pid,),
     )
+    # Ejercicios hechos en cada sesión (los que quedaron ligados a un turno).
+    ej_por_turno = {}
+    for e in q("SELECT * FROM ejercicios WHERE paciente_id=? AND turno_id IS NOT NULL", (pid,)):
+        ej_por_turno.setdefault(e["turno_id"], []).append(e)
+    historial = []
+    for h in hist_rows:
+        historial.append({
+            "id": h["id"],
+            "fecha": h["fecha"],
+            "hora": h["hora"] or "",
+            "dia": dia_semana(h["fecha"]),
+            "estado": h["estado"],
+            "ejercicios": ej_por_turno.get(h["id"], []),
+        })
     evo = q(
         "SELECT * FROM evoluciones WHERE paciente_id=? ORDER BY fecha DESC, id DESC",
         (pid,),
     )
     return render_template(
         "ficha.html", activo="pacientes", p=paciente_dict(p),
-        ejercicios=exs, historial=hist, evoluciones=evo,
+        ejercicios=exs, historial=historial, evoluciones=evo,
     )
 
 
@@ -774,7 +801,8 @@ def api_terminar(tid):
     p = q1("SELECT * FROM pacientes WHERE id=?", (t["paciente_id"],))
     quedan = (p["sesiones_totales"] or 0) - (p["sesiones_usadas"] or 0)
     return jsonify(ok=True, paciente=f"{t['nombre']} {t['apellido']}",
-                   paciente_id=t["paciente_id"], box=box, sesiones_quedan=quedan)
+                   paciente_id=t["paciente_id"], turno_id=tid, box=box,
+                   sesiones_quedan=quedan)
 
 
 @app.route("/api/turno/<int:tid>/agregar_tiempo", methods=["POST"])
@@ -1041,6 +1069,32 @@ def api_pacientes():
     return jsonify([paciente_dict(p) for p in filas])
 
 
+@app.route("/api/paciente/<int:pid>/resumen")
+def api_paciente_resumen(pid):
+    """Datos clave del paciente para el panel rápido de recepción."""
+    p = q1("SELECT * FROM pacientes WHERE id=?", (pid,))
+    if not p:
+        return jsonify(ok=False, error="No existe"), 404
+    exs = q("SELECT * FROM ejercicios WHERE paciente_id=? ORDER BY id DESC LIMIT 6", (pid,))
+    evo = q("SELECT * FROM evoluciones WHERE paciente_id=? ORDER BY fecha DESC, id DESC LIMIT 3", (pid,))
+    prox = q1(
+        """SELECT fecha, hora FROM turnos
+           WHERE paciente_id=? AND fecha >= ? AND estado IN ('agendado','en_espera','presente')
+           ORDER BY fecha, hora LIMIT 1""",
+        (pid, date.today().isoformat()),
+    )
+    d = paciente_dict(p)
+    d["ejercicios"] = [
+        {"nombre": e["nombre"], "categoria": e["categoria"] or "",
+         "series": e["series"] or "", "reps": e["reps"] or "",
+         "peso": (e["peso"] if "peso" in e.keys() else "") or ""}
+        for e in exs
+    ]
+    d["evoluciones"] = [{"fecha": e["fecha"] or "", "texto": e["texto"] or ""} for e in evo]
+    d["proximo_turno"] = ({"fecha": prox["fecha"], "hora": prox["hora"] or ""} if prox else None)
+    return jsonify(ok=True, **d)
+
+
 @app.route("/api/paciente", methods=["POST"])
 def api_nuevo_paciente():
     d = request.get_json(force=True, silent=True) or {}
@@ -1098,13 +1152,16 @@ def api_nuevo_ejercicio(pid):
     nombre = (d.get("nombre") or "").strip()
     if not nombre:
         return jsonify(ok=False, error="Falta el nombre del ejercicio"), 400
+    turno_id = d.get("turno_id")
     eid = run(
-        """INSERT INTO ejercicios (paciente_id, nombre, categoria, series, reps, peso, notas)
-           VALUES (?,?,?,?,?,?,?)""",
+        """INSERT INTO ejercicios
+           (paciente_id, nombre, categoria, series, reps, peso, notas, turno_id, fecha)
+           VALUES (?,?,?,?,?,?,?,?,?)""",
         (
             pid, nombre, (d.get("categoria") or "").strip(),
             (d.get("series") or "").strip(), (d.get("reps") or "").strip(),
             (d.get("peso") or "").strip(), (d.get("notas") or "").strip(),
+            int(turno_id) if turno_id else None, date.today().isoformat(),
         ),
     )
     return jsonify(ok=True, id=eid)

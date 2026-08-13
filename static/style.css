@@ -277,6 +277,46 @@ a { color: inherit; text-decoration: none; }
   border-radius: 999px; padding: 3px 10px; font-size: 12.5px; font-weight: 700;
   margin: 2px 4px 2px 0; white-space: nowrap;
 }
+
+/* Clickeable: nombre/avatar de paciente que abren el perfil rápido. */
+.clicky { cursor: pointer; }
+.li-main.clicky .li-name { text-decoration: underline; text-decoration-color: transparent; transition: text-decoration-color .12s; }
+.li-main.clicky:hover .li-name { text-decoration-color: currentColor; }
+.box-pac.clicky:hover { text-decoration: underline; }
+
+/* Panel de perfil rápido. */
+.perfil-stats { display: flex; gap: 10px; margin-bottom: 12px; }
+.perfil-stat { flex: 1; background: var(--gris-claro, #F5F7FB); border: 1px solid var(--borde, #E4E9F2); border-radius: 12px; padding: 10px 12px; text-align: center; }
+.perfil-stat .n { font-size: 22px; font-weight: 800; color: var(--azul); }
+.perfil-stat .n.warn { color: var(--amarillo, #C8891B); }
+.perfil-stat .l { font-size: 11px; color: var(--gris); font-weight: 600; }
+.perfil-fila { display: flex; justify-content: space-between; gap: 12px; padding: 7px 0; border-bottom: 1px solid var(--borde, #EEF1F7); }
+.perfil-fila.col { flex-direction: column; gap: 6px; }
+.perfil-fila .k { color: var(--gris); font-size: 13px; font-weight: 600; flex: none; }
+.perfil-fila .v { font-weight: 600; text-align: right; }
+.perfil-fila.col .v { text-align: left; }
+.perfil-sec { font-size: 12px; font-weight: 800; text-transform: uppercase; letter-spacing: .04em; color: var(--gris); margin: 14px 0 6px; }
+.perfil-ej { display: flex; justify-content: space-between; gap: 10px; padding: 5px 0; font-size: 14px; border-bottom: 1px dashed var(--borde, #EEF1F7); }
+.perfil-evo { font-size: 13px; padding: 5px 0; line-height: 1.4; }
+.perfil-evo b { color: var(--azul-osc, #1E4483); }
+
+/* Historial de turnos: numerado, con día de la semana y ejercicios desplegables. */
+.turno-item { border-bottom: 1px solid var(--borde, #EEF1F7); padding: 4px 0; }
+.turno-item:last-child { border-bottom: none; }
+.turno-item.tiene-ej { cursor: pointer; }
+.turno-item.tiene-ej:hover { background: var(--gris-claro, #F5F7FB); border-radius: 10px; }
+.turno-row { display: flex; align-items: center; gap: 10px; padding: 8px 6px; }
+.turno-num {
+  flex: none; width: 24px; height: 24px; border-radius: 50%;
+  background: var(--azul-claro, #E8EEF9); color: var(--azul-osc, #1E4483);
+  font-size: 12px; font-weight: 800; display: flex; align-items: center; justify-content: center;
+}
+.turno-item.abierto .turno-num { background: var(--azul); color: #fff; }
+.turno-ej { padding: 2px 6px 10px 40px; }
+.turno-ej-row { display: flex; align-items: baseline; gap: 6px; font-size: 13.5px; padding: 3px 0; }
+.turno-ej-row .dot { color: var(--azul); font-weight: 800; }
+.turno-ej-row .nom { font-weight: 600; }
+.turno-ej-row .meta { color: var(--gris); font-size: 12.5px; }
 .st.agendado { background: var(--gris); }
 .st.en_espera { background: var(--amarillo); }
 .st.en_curso { background: var(--azul); }
