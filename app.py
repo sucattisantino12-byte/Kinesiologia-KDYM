@@ -100,6 +100,20 @@ def close_db(exc):
         db.close()
 
 
+@app.after_request
+def no_cache_html(resp):
+    """Las páginas HTML NO se cachean: así, apenas se sube una versión nueva,
+    el navegador la muestra sí o sí (los estáticos se versionan con ?v=)."""
+    try:
+        if resp.mimetype == "text/html":
+            resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+            resp.headers["Pragma"] = "no-cache"
+            resp.headers["Expires"] = "0"
+    except Exception:
+        pass
+    return resp
+
+
 def q(sql, args=()):
     return get_db().execute(sql, args).fetchall()
 
