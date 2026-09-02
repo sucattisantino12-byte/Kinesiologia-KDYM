@@ -108,6 +108,7 @@ function pintarBoxes() {
         <div class="box-libre-txt">Disponible</div>
         <div class="box-actions">
           <button class="btn btn-primary btn-sm grow" onclick="ponerEnBox(${b.id}, '${escapeJs(b.nombre)}')">+ Paciente</button>
+          <button class="btn btn-line btn-sm" onclick="probarBox(${b.id})" title="Probar alarma (10 segundos)">🧪 Prueba</button>
           <button class="btn btn-danger-soft btn-sm" onclick="borrarBox(${b.id})" title="Quitar box">✕</button>
         </div>
       </div>`;
@@ -124,31 +125,115 @@ function pintarBoxes() {
       <span class="box-pac clicky" onclick="verPerfil(${b.paciente_id})">${escapeHtml(b.paciente)}</span>
       <div class="box-diag">${escapeHtml(b.diagnostico || '')}</div>
       <div class="timer" data-restante="${b.restante_seg}">${fmt(b.restante_seg)}</div>
-      <div class="box-actions">
+      <div class="box-actions ${venc ? 'box-actions-venc' : ''}">
         <button class="btn btn-ok btn-sm grow" onclick="terminar(${b.turno_id})">✓ Terminar</button>
-        <button class="btn btn-line btn-sm" onclick="agregarTiempo(${b.turno_id})">+ tiempo</button>
+        <button class="btn ${venc ? 'btn-primary' : 'btn-line'} btn-sm grow" onclick="agregarTiempo(${b.turno_id})">+ Agregar tiempo</button>
         ${wa}
       </div>
     </div>`;
   }).join('');
 }
 
-// ---- Sala del día (agrupada por hora, con vino/no vino) ----
+// ---- Sala del día: PRÓXIMOS primero, y en listas aparte "No vinieron" y
+// "Ya pasaron" (los terminados se colapsan). ----
+let _SALA_HTML = '';   // último HTML renderizado (para animar sólo si cambió)
 function pintarSala() {
   const cont = document.getElementById('sala-list');
-  const sala = ESTADO.sala || [];
-  if (!sala.length) {
-    cont.innerHTML = '<div class="card"><div class="empty">No hay turnos cargados para hoy</div></div>';
-    return;
+  const todos = (ESTADO.sala || []).flatMap(g => g.turnos);
+  let html;
+  if (!todos.length) {
+    html = '<div class="card"><div class="empty">No hay turnos cargados para hoy</div></div>';
+  } else {
+    const proximos = todos.filter(t => ['agendado', 'en_espera', 'presente'].includes(t.estado));
+    const enBox = todos.filter(t => t.estado === 'en_curso');
+    const noVin = todos.filter(t => ['ausente', 'perdido'].includes(t.estado));
+    const term = todos.filter(t => t.estado === 'terminado');
+    html = seccionProximos(proximos);
+    if (enBox.length) html += seccionEnBox(enBox);
+    if (noVin.length) html += seccionNoVinieron(noVin);
+    if (term.length) html += seccionTerminados(term);
   }
-  cont.innerHTML = sala.map(g => `
+  // Sólo re-renderiza y anima si el contenido cambió (evita parpadeo en el
+  // refresco automático cada 5s, pero anima cuando aparece/cambia algo).
+  if (html === _SALA_HTML) return;
+  _SALA_HTML = html;
+  cont.innerHTML = html;
+  cont.classList.remove('stagger-in'); void cont.offsetWidth; cont.classList.add('stagger-in');
+}
+
+// Próximos: agrupados por hora (lo más importante, va primero).
+function seccionProximos(turnos) {
+  if (!turnos.length) {
+    return `<div class="sala-sec"><div class="sala-sec-h">🔜 Próximos</div>
+      <div class="card"><div class="empty">Nadie por venir por ahora</div></div></div>`;
+  }
+  const grupos = {};
+  turnos.forEach(t => { const h = t.hora || 'Sin hora'; (grupos[h] = grupos[h] || []).push(t); });
+  const bloques = Object.keys(grupos).sort().map(h => `
     <div class="hora-block">
       <div class="hora-head">
-        <span class="h">${escapeHtml(g.hora)}</span>
-        <span class="hora-count">${g.cantidad} ${g.cantidad === 1 ? 'persona' : 'personas'}</span>
+        <span class="h">${escapeHtml(h)}</span>
+        <span class="hora-count">${grupos[h].length} ${grupos[h].length === 1 ? 'persona' : 'personas'}</span>
       </div>
-      <div class="card">${g.turnos.map(filaSala).join('')}</div>
+      <div class="card">${grupos[h].map(filaSala).join('')}</div>
     </div>`).join('');
+  return `<div class="sala-sec"><div class="sala-sec-h">🔜 Próximos</div>${bloques}</div>`;
+}
+
+function seccionEnBox(turnos) {
+  const filas = turnos.map(t => `
+    <div class="espera-item">
+      <div class="avatar clicky" onclick="verPerfil(${t.paciente_id})">${iniciales(t.paciente)}</div>
+      <div class="li-main"><span class="li-name">${escapeHtml(t.paciente)}</span>
+        <div class="li-sub"><span class="pill">En ${escapeHtml(t.box || 'box')}</span></div></div>
+    </div>`).join('');
+  return `<div class="sala-sec"><div class="sala-sec-h">🏥 En box ahora</div><div class="card">${filas}</div></div>`;
+}
+
+// No vinieron (incluye los marcados automáticamente por pasar la tolerancia).
+function seccionNoVinieron(turnos) {
+  const filas = turnos.map(t => {
+    const perdido = t.estado === 'perdido';
+    const acc = perdido ? '' : `
+      <button class="btn btn-ok btn-sm" onclick="cancelarNoVino(${t.turno_id})" title="Cancelar: en realidad está / sigue esperando">↩ Cancelar</button>
+      <button class="btn btn-line btn-sm" onclick="reprogramarAusente(${t.turno_id}, '${escapeJs(t.paciente)}')">📅 Reprogramar</button>`;
+    return `<div class="espera-item">
+      <div class="avatar clicky" onclick="verPerfil(${t.paciente_id})">${iniciales(t.paciente)}</div>
+      <div class="li-main clicky" onclick="verPerfil(${t.paciente_id})">
+        <span class="li-name">${escapeHtml(t.paciente)}</span>
+        <div class="li-sub"><span class="pill">${escapeHtml(t.hora || '--:--')}</span>
+          <span class="pill danger">${perdido ? 'Perdido' : 'No vino'}</span></div>
+      </div>
+      <div class="li-actions">${acc}</div>
+    </div>`;
+  }).join('');
+  return `<div class="sala-sec"><div class="sala-sec-h danger">🚫 No vinieron (${turnos.length})</div>
+    <div class="card">${filas}</div></div>`;
+}
+
+// Ya pasaron / terminaron: colapsado para no estorbar.
+function seccionTerminados(turnos) {
+  const filas = turnos.map(t => `
+    <div class="espera-item">
+      <div class="avatar clicky" onclick="verPerfil(${t.paciente_id})">${iniciales(t.paciente)}</div>
+      <div class="li-main"><span class="li-name">${escapeHtml(t.paciente)}</span>
+        <div class="li-sub"><span class="pill">${escapeHtml(t.hora || '')}</span>
+          <span class="pill ok">Terminó</span></div></div>
+    </div>`).join('');
+  return `<details class="sala-sec"><summary class="sala-sec-h ok">✅ Ya pasaron (${turnos.length})</summary>
+    <div class="card">${filas}</div></details>`;
+}
+
+async function cancelarNoVino(tid) {
+  await api(`/api/turno/${tid}/deshacer_ausente`);
+  toast('Cancelado — vuelve a Próximos', 'ok');
+  refrescar();
+}
+async function reprogramarAusente(tid, nombre) {
+  if (!confirm('¿Reprogramar el turno de ' + nombre + ' a su próxima fecha disponible?')) return;
+  const r = await api(`/api/turno/${tid}/reprogramar`);
+  toast('Reprogramado al ' + r.fecha + ' ✓', 'ok');
+  refrescar();
 }
 
 function filaSala(t) {
@@ -547,9 +632,12 @@ async function pedirWakeLock() {
   try { WAKE = await navigator.wakeLock.request('screen'); WAKE.addEventListener('release', () => { WAKE = null; }); } catch (e) {}
 }
 
-// Primer toque: desbloquea audio, pide permiso de notificaciones y wake lock.
+// Primer toque: desbloquea el audio y lo deja "vivo" (reproduciéndose en
+// silencio) para que la alarma pueda sonar aunque el celular esté en segundo
+// plano o con la pantalla apagada. También pide permiso de notificaciones y
+// mantiene la pantalla encendida.
 function primerToque() {
-  try { const a = alarmAudio(); a.play().then(() => { a.pause(); a.currentTime = 0; }).catch(() => {}); } catch (e) {}
+  try { mantenerAudioVivo(); } catch (e) {}
   pedirPermisoNotif();
   pedirWakeLock();
 }
@@ -577,11 +665,12 @@ function hayVencido() { return !!document.querySelector('.box.vencido'); }
 function alarmaLoop() {
   if (hayVencido()) {
     vibrar([800, 250]);
-    if (alarmaEncendida()) sonarContinuo();
+    if (alarmaEncendida()) sonarContinuo();   // sube volumen (suena sin parar)
     pedirWakeLock();
   } else {
-    pararSonido();
+    pararSonido();                             // vuelve a silencio, sigue vivo
     pararVibracion();
+    if (alarmaEncendida()) mantenerAudioVivo();  // deja el audio listo para la próxima
   }
 }
 

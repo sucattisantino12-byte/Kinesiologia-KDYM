@@ -7,6 +7,10 @@
     <div class="page-title" style="margin-bottom:2px;">Pacientes</div>
     <div class="muted">{{ pacientes|length }} paciente(s) cargado(s)</div>
   </div>
+  <div class="seg" id="pac-view">
+    <button data-v="grid" onclick="cambiarVistaPac('grid')" title="Ver en tarjetas">▦ Tarjetas</button>
+    <button data-v="list" onclick="cambiarVistaPac('list')" title="Ver en lista">☰ Lista</button>
+  </div>
   <button class="btn btn-primary" onclick="abrirNuevoPaciente(irAFicha)">+ Nuevo paciente</button>
 </div>
 
@@ -14,22 +18,21 @@
   <input class="input" id="buscar" placeholder="🔍  Buscar por nombre, apellido o DNI…" autocomplete="off">
 </div>
 
-<div class="card" id="lista">
+<div class="pac-grid stagger-in" id="lista">
   {% for p in pacientes %}
-  {% if loop.first and p.hoy %}<div class="lista-sep">📌 Con turno hoy</div>{% endif %}
-  {% if pacientes[0].hoy and not p.hoy and pacientes[loop.index0 - 1].hoy %}<div class="lista-sep">Todos los pacientes</div>{% endif %}
-  <a href="{{ url_for('ficha', pid=p.id) }}" class="list-item {{ 'row-hoy' if p.hoy }}" data-nombre="{{ (p.nombre_completo ~ ' ' ~ p.dni ~ ' ' ~ p.obra_social)|lower }}">
+  {% if loop.first and p.hoy %}<div class="pac-sep">📌 Con turno hoy</div>{% endif %}
+  {% if pacientes[0].hoy and not p.hoy and pacientes[loop.index0 - 1].hoy %}<div class="pac-sep">Todos los pacientes</div>{% endif %}
+  <a href="{{ url_for('ficha', pid=p.id) }}" class="pac-card {{ 'row-hoy' if p.hoy }}" data-nombre="{{ (p.nombre_completo ~ ' ' ~ p.dni ~ ' ' ~ p.obra_social)|lower }}">
     <div class="avatar">{{ (p.nombre[:1] ~ p.apellido[:1])|upper }}</div>
-    <div class="li-main">
+    <div class="li-main grow">
       <div class="li-name">{{ p.nombre_completo }}{% if p.hoy %} <span class="pill ok" style="margin-left:4px;">Hoy</span>{% endif %}</div>
-      <div class="li-sub">
-        {% if p.obra_social %}<span class="pill">{{ p.obra_social }}</span> {% endif %}
-        {{ p.diagnostico or 'Sin diagnóstico' }}
+      <div class="pac-diag">{% if p.obra_social %}<span class="pill">{{ p.obra_social }}</span> {% endif %}{{ p.diagnostico or 'Sin diagnóstico' }}</div>
+      <div class="pac-card-foot">
+        <span class="pill {{ 'danger' if p.sesiones_quedan <= 0 else ('warn' if p.sesiones_quedan <= 1 else '') }}">
+          {{ p.sesiones_quedan }} / {{ p.sesiones_totales }} sesiones
+        </span>
       </div>
     </div>
-    <span class="pill {{ 'danger' if p.sesiones_quedan <= 0 else ('warn' if p.sesiones_quedan <= 1 else '') }}">
-      {{ p.sesiones_quedan }} / {{ p.sesiones_totales }} sesiones
-    </span>
   </a>
   {% else %}
   <div class="empty">Todavía no hay pacientes. Cargá el primero con “+ Nuevo paciente”.</div>
@@ -43,10 +46,20 @@
 <script>
 document.getElementById('buscar').addEventListener('input', e => {
   const t = e.target.value.trim().toLowerCase();
-  document.querySelectorAll('#lista .list-item').forEach(it => {
+  document.querySelectorAll('#lista .pac-card').forEach(it => {
     it.style.display = it.dataset.nombre.includes(t) ? '' : 'none';
   });
 });
 function irAFicha(id) { setTimeout(() => location.href = '/paciente/' + id, 400); }
+
+// ---- Alternar vista tarjetas / lista ----
+function cambiarVistaPac(v) {
+  const cont = document.getElementById('lista');
+  cont.classList.toggle('pac-grid', v === 'grid');
+  cont.classList.toggle('pac-list', v === 'list');
+  document.querySelectorAll('#pac-view button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
+  localStorage.setItem('kdym_pac_view', v);
+}
+cambiarVistaPac(localStorage.getItem('kdym_pac_view') || 'grid');
 </script>
 {% endblock %}

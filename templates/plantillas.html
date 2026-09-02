@@ -1,0 +1,261 @@
+{% extends "base.html" %}
+{% block title %}Plantillas — KDYM{% endblock %}
+
+{% block content %}
+<div class="row" style="align-items:center; margin-bottom:6px;">
+  <div class="grow">
+    <div class="page-title" style="margin-bottom:2px;">Plantillas ortopédicas</div>
+    <div class="muted">Pedidos de plantillas RPG — de todas las sedes</div>
+  </div>
+  <button class="btn btn-primary" onclick="abrirNuevaPlantilla()">+ Nueva plantilla</button>
+</div>
+
+<div class="field" style="margin-top:12px;">
+  <input class="input" id="pl-buscar" placeholder="🔍  Buscar por paciente…" autocomplete="off">
+</div>
+
+<div class="seg" id="pl-filtros" style="margin-bottom:14px;">
+  <button class="on" data-f="todas" onclick="filtrarPlantillas('todas')">Todas</button>
+  <button data-f="pedida" onclick="filtrarPlantillas('pedida')">Pedidas</button>
+  <button data-f="fabricacion" onclick="filtrarPlantillas('fabricacion')">En fabricación</button>
+  <button data-f="lista" onclick="filtrarPlantillas('lista')">Listas</button>
+  <button data-f="entregada" onclick="filtrarPlantillas('entregada')">Entregadas</button>
+</div>
+
+<div id="pl-lista" class="pl-grid"><div class="empty">Cargando…</div></div>
+
+<!-- Modal: nueva / editar plantilla -->
+<div class="modal-bg" id="modal-plantilla">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="pl-modal-tit">Nueva plantilla</h3>
+      <button class="x" onclick="cerrarModal('modal-plantilla')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <!-- Buscador de paciente (sólo al crear) -->
+      <div class="field" id="pl-buscar-wrap">
+        <label>Paciente *</label>
+        <input class="input" id="pl-pac-buscar" placeholder="Buscar paciente…" autocomplete="off">
+        <div id="pl-pac-res"></div>
+        <div id="pl-pac-elegido" class="hint"></div>
+      </div>
+
+      <div class="grid2">
+        <div class="field">
+          <label>Sede</label>
+          <select class="input" id="pl-sede"></select>
+        </div>
+        <div class="field">
+          <label>Estado</label>
+          <select class="input" id="pl-estado">
+            <option value="pedida">Pedida</option>
+            <option value="fabricacion">En fabricación</option>
+            <option value="lista">Lista</option>
+            <option value="entregada">Entregada</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="grid2">
+        <div class="field"><label>Fecha de toma de molde</label><input class="input" id="pl-molde" type="date"></div>
+        <div class="field"><label>Entrega estimada</label><input class="input" id="pl-entrega" type="date"></div>
+      </div>
+
+      <div class="grid2">
+        <div class="field"><label>Precio</label><input class="input" id="pl-precio" inputmode="decimal" placeholder="$"></div>
+        <div class="field"><label>Seña</label><input class="input" id="pl-senia" inputmode="decimal" placeholder="$"></div>
+      </div>
+
+      <div class="field">
+        <label>Notas / diagnóstico del pie</label>
+        <textarea class="input" id="pl-notas" rows="3" placeholder="Tipo de pisada, patología, medidas…"></textarea>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="cerrarModal('modal-plantilla')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarPlantilla()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+{% include "_paciente_modal.html" %}
+{% include "_agregar_turnos_modal.html" %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+let PLANTILLAS = [];
+let PL_FILTRO = 'todas';
+let PL_EDIT = null;      // id de la plantilla en edición (o null = nueva)
+let PL_PAC = null;       // {id, nombre} paciente elegido para nueva plantilla
+
+const PL_EST = {
+  pedida:     { txt: 'Pedida',        cls: '' },
+  fabricacion:{ txt: 'En fabricación', cls: 'warn' },
+  lista:      { txt: 'Lista',         cls: 'ok' },
+  entregada:  { txt: 'Entregada',     cls: 'muted-pill' },
+};
+
+function fMoneda(v) { return v ? ('$' + v) : ''; }
+function fFecha(s) {
+  if (!s) return '';
+  const d = new Date(s + 'T12:00:00');
+  return d.toLocaleDateString('es-AR', { day: 'numeric', month: 'short' });
+}
+
+async function cargarPlantillas() {
+  const cont = document.getElementById('pl-lista');
+  let d;
+  try { d = await apiGet('/api/plantillas'); } catch (e) { cont.innerHTML = '<div class="empty">No se pudo cargar</div>'; return; }
+  PLANTILLAS = d.plantillas || [];
+  pintarPlantillas();
+}
+
+function filtrarPlantillas(f) {
+  PL_FILTRO = f;
+  document.querySelectorAll('#pl-filtros button').forEach(b => b.classList.toggle('on', b.dataset.f === f));
+  pintarPlantillas();
+}
+
+function pintarPlantillas() {
+  const cont = document.getElementById('pl-lista');
+  const term = (document.getElementById('pl-buscar').value || '').trim().toLowerCase();
+  let items = PLANTILLAS;
+  if (PL_FILTRO !== 'todas') items = items.filter(p => p.estado === PL_FILTRO);
+  if (term) items = items.filter(p => p.paciente.toLowerCase().includes(term));
+  if (!items.length) { cont.innerHTML = '<div class="empty">No hay plantillas en esta vista.</div>'; return; }
+
+  cont.innerHTML = items.map(p => {
+    const est = PL_EST[p.estado] || PL_EST.pedida;
+    const pago = (p.precio || p.senia)
+      ? `<span class="pl-pago">${fMoneda(p.precio)}${p.senia ? ' · seña ' + fMoneda(p.senia) : ''}</span>` : '';
+    const fechas = [
+      p.fecha_molde ? 'Molde ' + fFecha(p.fecha_molde) : '',
+      p.fecha_entrega ? 'Entrega ' + fFecha(p.fecha_entrega) : '',
+    ].filter(Boolean).join(' · ');
+    return `<div class="card pl-card">
+      <div class="pl-top">
+        <div class="avatar">${iniciales(p.paciente)}</div>
+        <div class="li-main">
+          <a href="/paciente/${p.paciente_id}" class="li-name">${escapeHtml(p.paciente)}</a>
+          <div class="li-sub">
+            <span class="pill">${escapeHtml(p.sede_nombre)}</span>
+            <span class="pill ${est.cls}">${est.txt}</span>
+            ${fechas ? `<span class="muted" style="font-size:12px;">${escapeHtml(fechas)}</span>` : ''}
+          </div>
+        </div>
+        ${pago}
+      </div>
+      ${p.notas ? `<div class="pl-notas">${escapeHtml(p.notas)}</div>` : ''}
+      <div class="pl-actions">
+        <select class="input pl-estado-sel" onchange="cambiarEstado(${p.id}, this.value)">
+          ${Object.keys(PL_EST).map(k => `<option value="${k}" ${k === p.estado ? 'selected' : ''}>${PL_EST[k].txt}</option>`).join('')}
+        </select>
+        <button class="btn btn-line btn-sm" onclick="agTurnosPlantilla(${p.paciente_id}, '${escapeJs(p.paciente)}')">📅 Agregar turnos</button>
+        <button class="btn btn-ghost btn-sm" onclick="editarPlantilla(${p.id})">✎ Editar</button>
+        <button class="btn btn-danger-soft btn-sm" onclick="borrarPlantilla(${p.id})">✕</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function cambiarEstado(id, estado) {
+  await api('/api/plantilla/' + id, { estado });
+  toast('Estado actualizado ✓', 'ok');
+  cargarPlantillas();
+}
+
+function agTurnosPlantilla(pid, nombre) {
+  const p = PLANTILLAS.find(x => x.paciente_id === pid);
+  abrirAgregarTurnos(pid, nombre, () => toast('Turnos agregados ✓', 'ok'));
+  // El modal por defecto usa la sede activa; si la plantilla es de otra sede,
+  // dejamos preseleccionada la sede de la plantilla (se puede cambiar igual).
+  if (p && p.sede_id) poblarSelectSede('at-sede', p.sede_id);
+}
+
+// ---- Alta / edición ----
+function abrirNuevaPlantilla() {
+  PL_EDIT = null; PL_PAC = null;
+  document.getElementById('pl-modal-tit').textContent = 'Nueva plantilla';
+  document.getElementById('pl-buscar-wrap').style.display = '';
+  document.getElementById('pl-pac-buscar').value = '';
+  document.getElementById('pl-pac-res').innerHTML = '';
+  document.getElementById('pl-pac-elegido').textContent = '';
+  poblarSelectSede('pl-sede');
+  document.getElementById('pl-estado').value = 'pedida';
+  ['pl-molde', 'pl-entrega', 'pl-precio', 'pl-senia', 'pl-notas'].forEach(id => document.getElementById(id).value = '');
+  abrirModal('modal-plantilla');
+}
+
+function editarPlantilla(id) {
+  const p = PLANTILLAS.find(x => x.id === id);
+  if (!p) return;
+  PL_EDIT = id; PL_PAC = { id: p.paciente_id, nombre: p.paciente };
+  document.getElementById('pl-modal-tit').textContent = 'Editar — ' + p.paciente;
+  document.getElementById('pl-buscar-wrap').style.display = 'none';
+  poblarSelectSede('pl-sede', p.sede_id);
+  document.getElementById('pl-estado').value = p.estado;
+  document.getElementById('pl-molde').value = p.fecha_molde || '';
+  document.getElementById('pl-entrega').value = p.fecha_entrega || '';
+  document.getElementById('pl-precio').value = p.precio || '';
+  document.getElementById('pl-senia').value = p.senia || '';
+  document.getElementById('pl-notas').value = p.notas || '';
+  abrirModal('modal-plantilla');
+}
+
+async function guardarPlantilla() {
+  const body = {
+    sede_id: document.getElementById('pl-sede').value,
+    estado: document.getElementById('pl-estado').value,
+    fecha_molde: document.getElementById('pl-molde').value,
+    fecha_entrega: document.getElementById('pl-entrega').value,
+    precio: document.getElementById('pl-precio').value.trim(),
+    senia: document.getElementById('pl-senia').value.trim(),
+    notas: document.getElementById('pl-notas').value.trim(),
+  };
+  if (PL_EDIT) {
+    await api('/api/plantilla/' + PL_EDIT, body);
+  } else {
+    if (!PL_PAC) { toast('Elegí un paciente', 'alert'); return; }
+    body.paciente_id = PL_PAC.id;
+    await api('/api/plantilla', body);
+  }
+  cerrarModal('modal-plantilla');
+  toast('Plantilla guardada ✓', 'ok');
+  cargarPlantillas();
+}
+
+async function borrarPlantilla(id) {
+  if (!confirm('¿Borrar este pedido de plantilla?')) return;
+  await api('/api/plantilla/' + id + '/borrar');
+  toast('Plantilla borrada', 'ok');
+  cargarPlantillas();
+}
+
+// Buscador de paciente dentro del modal de nueva plantilla.
+document.getElementById('pl-pac-buscar').addEventListener('input', e => {
+  clearTimeout(window._plbt);
+  const term = e.target.value.trim();
+  window._plbt = setTimeout(async () => {
+    const cont = document.getElementById('pl-pac-res');
+    if (!term) { cont.innerHTML = ''; return; }
+    const rows = await apiGet('/api/pacientes?q=' + encodeURIComponent(term));
+    cont.innerHTML = rows.map(p => `
+      <div class="list-item" style="cursor:pointer;" onclick="elegirPacPlantilla(${p.id}, '${escapeJs(p.nombre_completo)}')">
+        <div class="avatar">${iniciales(p.nombre_completo)}</div>
+        <div class="li-main"><div class="li-name">${escapeHtml(p.nombre_completo)}</div>
+        <div class="li-sub">${p.sesiones_quedan} sesiones restantes</div></div>
+      </div>`).join('') || '<div class="empty">Sin resultados</div>';
+  }, 220);
+});
+function elegirPacPlantilla(id, nombre) {
+  PL_PAC = { id, nombre };
+  document.getElementById('pl-pac-res').innerHTML = '';
+  document.getElementById('pl-pac-buscar').value = nombre;
+  document.getElementById('pl-pac-elegido').innerHTML = '✓ ' + escapeHtml(nombre) + ' seleccionado';
+}
+
+document.getElementById('pl-buscar').addEventListener('input', pintarPlantillas);
+cargarPlantillas();
+</script>
+{% endblock %}

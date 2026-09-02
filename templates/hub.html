@@ -1,0 +1,36 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <title>Elegí la sede — KDYM</title>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ asset_v('style.css') }}">
+</head>
+<body class="hub-body">
+  <div class="hub-wrap">
+    <div class="hub-brand">
+      <span class="hub-mark">{% include "_logo_svg.html" %}</span>
+      <div class="hub-nom">KDYM</div>
+      <div class="hub-sub">Kinesiología y rehabilitación</div>
+    </div>
+
+    <div class="hub-title">¿En qué sede estás?</div>
+    <div class="hub-hint">Elegí la sede. Vas a ver sus boxes, turnos y agenda por separado.</div>
+
+    <div class="hub-cards">
+      {% for s in sedes %}
+      <a class="hub-card" href="{{ url_for('elegir_sede', sid=s.id) }}">
+        <span class="hub-pin">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6.5-5.2-6.5-10A6.5 6.5 0 0112 4.5 6.5 6.5 0 0118.5 11c0 4.8-6.5 10-6.5 10z"/><circle cx="12" cy="11" r="2.4"/></svg>
+        </span>
+        <span class="hub-card-nom">{{ s.nombre }}</span>
+        <span class="hub-card-go">Entrar →</span>
+      </a>
+      {% else %}
+      <div class="empty">No hay sedes cargadas.</div>
+      {% endfor %}
+    </div>
+  </div>
+</body>
+</html>

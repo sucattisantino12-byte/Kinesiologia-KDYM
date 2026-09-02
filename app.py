@@ -13,6 +13,7 @@ Stack: Flask + SQLite (kinesio.db). Corre en el puerto 8090.
 import os
 import json
 import sqlite3
+import unicodedata
 from datetime import datetime, date, timedelta
 
 from flask import (
@@ -36,6 +37,7 @@ app = Flask(__name__)
 app.config["TEMPLATES_AUTO_RELOAD"] = True
 
 DURACION_DEFAULT = 30
+TOLERANCIA_DEFAULT = 30   # minutos de tolerancia antes de marcar "no vino" automático
 DIAS_ABBR = ["Lun", "Mar", "Mié", "Jue", "Vie", "Sáb", "Dom"]  # weekday() 0..6
 DIAS_FULL = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado", "Domingo"]
 
@@ -66,11 +68,28 @@ def parse_horarios(s):
 # --------------------------------------------------------------------------
 # Base de datos
 # --------------------------------------------------------------------------
+def _sin_acentos(s):
+    """Pasa a minúsculas y saca acentos/tildes, para buscar sin importar cómo
+    se escriba (ej: 'maria' encuentra 'María')."""
+    if s is None:
+        return ""
+    s = unicodedata.normalize("NFD", str(s))
+    return "".join(c for c in s if unicodedata.category(c) != "Mn").lower()
+
+
 def get_db():
     if "db" not in g:
-        g.db = sqlite3.connect(DB_PATH)
+        # timeout: espera si la base está ocupada (evita "database is locked"
+        # cuando la recepción hace polling y hay una escritura en curso).
+        g.db = sqlite3.connect(DB_PATH, timeout=15)
         g.db.row_factory = sqlite3.Row
         g.db.execute("PRAGMA foreign_keys = ON")
+        g.db.execute("PRAGMA busy_timeout = 15000")
+        g.db.execute("PRAGMA journal_mode = WAL")
+        try:
+            g.db.create_function("sinacentos", 1, _sin_acentos, deterministic=True)
+        except TypeError:  # SQLite viejo sin 'deterministic'
+            g.db.create_function("sinacentos", 1, _sin_acentos)
     return g.db
 
 
@@ -181,6 +200,28 @@ def init_db():
             clave TEXT PRIMARY KEY,
             valor TEXT
         );
+
+        CREATE TABLE IF NOT EXISTS sedes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre TEXT NOT NULL,
+            tope_turnos INTEGER DEFAULT 4,
+            orden INTEGER DEFAULT 0,
+            activo INTEGER DEFAULT 1
+        );
+
+        CREATE TABLE IF NOT EXISTS plantillas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            paciente_id INTEGER NOT NULL,
+            sede_id INTEGER,
+            estado TEXT DEFAULT 'pedida',
+            fecha_molde TEXT,
+            fecha_entrega TEXT,
+            precio TEXT,
+            senia TEXT,
+            notas TEXT,
+            creado TEXT,
+            FOREIGN KEY (paciente_id) REFERENCES pacientes(id) ON DELETE CASCADE
+        );
         """
     )
     db.commit()
@@ -200,11 +241,40 @@ def init_db():
         db.execute("ALTER TABLE ejercicios ADD COLUMN fecha TEXT")
     if "cerrada" not in _cols(db, "eventos"):
         db.execute("ALTER TABLE eventos ADD COLUMN cerrada INTEGER DEFAULT 0")
+    if "sede_id" not in _cols(db, "boxes"):
+        db.execute("ALTER TABLE boxes ADD COLUMN sede_id INTEGER")
+    if "sede_id" not in _cols(db, "turnos"):
+        db.execute("ALTER TABLE turnos ADD COLUMN sede_id INTEGER")
+    # Marca de turnos que NO deben volver a marcarse "no vino" automáticamente
+    # (cuando la recepción deshace el ausente automático).
+    if "sin_auto" not in _cols(db, "turnos"):
+        db.execute("ALTER TABLE turnos ADD COLUMN sin_auto INTEGER DEFAULT 0")
+    # Marca de turnos generados por "Simular agenda" (para poder borrarlos).
+    if "sim" not in _cols(db, "turnos"):
+        db.execute("ALTER TABLE turnos ADD COLUMN sim INTEGER DEFAULT 0")
     db.commit()
+
+    # Sedes: crear Morón y Ramos la primera vez.
+    if db.execute("SELECT COUNT(*) FROM sedes").fetchone()[0] == 0:
+        db.execute("INSERT INTO sedes (nombre, tope_turnos, orden) VALUES (?,?,?)",
+                   ("Morón", 4, 0))
+        db.execute("INSERT INTO sedes (nombre, tope_turnos, orden) VALUES (?,?,?)",
+                   ("Ramos", 4, 1))
+        db.commit()
+
+    # Migración: todo lo que ya existía (boxes y turnos sin sede) queda en la
+    # primera sede (Morón), para no perder datos al introducir las sedes.
+    sede0 = db.execute("SELECT id FROM sedes ORDER BY orden, id LIMIT 1").fetchone()
+    if sede0:
+        sede0 = sede0[0]
+        db.execute("UPDATE boxes SET sede_id=? WHERE sede_id IS NULL", (sede0,))
+        db.execute("UPDATE turnos SET sede_id=? WHERE sede_id IS NULL", (sede0,))
+        db.commit()
 
     if db.execute("SELECT COUNT(*) FROM boxes").fetchone()[0] == 0:
         for i in (1, 2, 3):
-            db.execute("INSERT INTO boxes (nombre) VALUES (?)", (f"Box {i}",))
+            db.execute("INSERT INTO boxes (nombre, sede_id) VALUES (?,?)",
+                       (f"Box {i}", sede0))
         db.commit()
 
     if db.execute("SELECT COUNT(*) FROM catalogo_ejercicios").fetchone()[0] == 0:
@@ -212,6 +282,13 @@ def init_db():
 
     if db.execute("SELECT COUNT(*) FROM pacientes").fetchone()[0] == 0:
         seed_demo(db)
+
+    # Barrido final: cualquier turno/box de los seeds que haya quedado sin sede
+    # se asigna a la primera sede.
+    if sede0:
+        db.execute("UPDATE turnos SET sede_id=? WHERE sede_id IS NULL", (sede0,))
+        db.execute("UPDATE boxes SET sede_id=? WHERE sede_id IS NULL", (sede0,))
+        db.commit()
 
     db.close()
 
@@ -352,16 +429,124 @@ def get_config():
 
 
 # --------------------------------------------------------------------------
+# Sedes (Morón / Ramos). El resto de la app se filtra por la "sede activa",
+# que se guarda en una cookie del navegador (sede_id).
+# --------------------------------------------------------------------------
+def sedes_list():
+    return q("SELECT * FROM sedes WHERE activo=1 ORDER BY orden, id")
+
+
+def sede_actual_id():
+    """Sede activa según la cookie; si no hay/es inválida, la primera sede."""
+    sid = request.cookies.get("sede_id")
+    if sid:
+        try:
+            sid = int(sid)
+            if q1("SELECT 1 FROM sedes WHERE id=? AND activo=1", (sid,)):
+                return sid
+        except Exception:
+            pass
+    r = q1("SELECT id FROM sedes WHERE activo=1 ORDER BY orden, id LIMIT 1")
+    return r["id"] if r else None
+
+
+def sede_nombre(sid):
+    r = q1("SELECT nombre FROM sedes WHERE id=?", (sid,))
+    return r["nombre"] if r else ""
+
+
+def tope_de_sede(sid):
+    r = q1("SELECT tope_turnos FROM sedes WHERE id=?", (sid,))
+    return (r["tope_turnos"] if r and r["tope_turnos"] else 0) or 0
+
+
+def _sede_de_request(data):
+    """Sede que viene en el body (selector del modal) o la sede activa."""
+    sid = data.get("sede_id")
+    if sid:
+        try:
+            sid = int(sid)
+            if q1("SELECT 1 FROM sedes WHERE id=? AND activo=1", (sid,)):
+                return sid
+        except Exception:
+            pass
+    return sede_actual_id()
+
+
+def _slot_ocupado(sede_id, fecha, hora, excluir_turno=None):
+    """Cuántos turnos 'vivos' (no ausente/perdido) hay en ese horario y sede."""
+    sql = ("""SELECT COUNT(*) c FROM turnos
+              WHERE sede_id=? AND fecha=? AND hora=? AND hora<>''
+                AND estado NOT IN ('ausente','perdido')""")
+    args = [sede_id, fecha, hora]
+    if excluir_turno:
+        sql += " AND id<>?"
+        args.append(excluir_turno)
+    return q1(sql, tuple(args))["c"]
+
+
+@app.context_processor
+def inject_asset_version():
+    """Versión (mtime) de los archivos estáticos para evitar caché viejo:
+    se agrega como ?v=... a los <link>/<script>. Cambia solo al editar el archivo."""
+    def asset_v(filename):
+        try:
+            return int(os.path.getmtime(os.path.join(BASE_DIR, "static", filename)))
+        except Exception:
+            return 0
+    return {"asset_v": asset_v}
+
+
+@app.context_processor
+def inject_sedes():
+    """Deja disponibles la lista de sedes y la activa en todas las plantillas."""
+    try:
+        sedes = [dict(r) for r in sedes_list()]
+        actual = sede_actual_id()
+        nombre = next((s["nombre"] for s in sedes if s["id"] == actual), "")
+        return {"sedes_all": sedes, "sede_actual_id": actual,
+                "sede_actual_nombre": nombre}
+    except Exception:
+        return {"sedes_all": [], "sede_actual_id": None, "sede_actual_nombre": ""}
+
+
+# --------------------------------------------------------------------------
 # Vistas
 # --------------------------------------------------------------------------
 @app.route("/")
 def index():
-    return redirect(url_for("recepcion"))
+    # Si ya eligió sede (cookie), va directo a recepción; si no, al hub.
+    if request.cookies.get("sede_id"):
+        return redirect(url_for("recepcion"))
+    return redirect(url_for("hub"))
+
+
+@app.route("/hub")
+def hub():
+    """Pantalla para elegir la sede (Morón / Ramos)."""
+    return render_template("hub.html", sedes=sedes_list())
+
+
+@app.route("/sede/<int:sid>")
+def elegir_sede(sid):
+    """Guarda la sede activa en una cookie y vuelve a recepción."""
+    if not q1("SELECT 1 FROM sedes WHERE id=? AND activo=1", (sid,)):
+        return redirect(url_for("hub"))
+    destino = request.args.get("next") or url_for("recepcion")
+    resp = redirect(destino)
+    resp.set_cookie("sede_id", str(sid), max_age=60 * 60 * 24 * 365,
+                    samesite="Lax")
+    return resp
 
 
 @app.route("/recepcion")
 def recepcion():
     return render_template("recepcion.html", activo="recepcion")
+
+
+@app.route("/plantillas")
+def plantillas_page():
+    return render_template("plantillas.html", activo="plantillas")
 
 
 @app.route("/pacientes")
@@ -516,12 +701,44 @@ def api_limpiar_notif():
 # --------------------------------------------------------------------------
 # API — estado en vivo de la recepción
 # --------------------------------------------------------------------------
+def _tolerancia_min():
+    cfg = get_config()
+    try:
+        return max(0, int(cfg.get("tolerancia_min", TOLERANCIA_DEFAULT)))
+    except (TypeError, ValueError):
+        return TOLERANCIA_DEFAULT
+
+
+def _auto_ausentes(sede=None):
+    """Marca 'no vino' automáticamente a los turnos de HOY que ya pasaron su
+    tolerancia (hora + N minutos) y siguen sin llegar. Se puede deshacer:
+    al deshacer se marca sin_auto=1 para que no vuelva a auto-marcarse.
+    Un solo UPDATE (evita bloqueos por hacerlo turno por turno)."""
+    tol = _tolerancia_min()
+    hoy = date.today().isoformat()
+    ahora = datetime.now()
+    now_min = ahora.hour * 60 + ahora.minute
+    # hora "HH:MM" -> minutos; overdue si (hora + tolerancia) <= ahora.
+    cond = ("""fecha=? AND estado IN ('agendado','en_espera')
+               AND sin_auto=0 AND hora IS NOT NULL AND hora<>''
+               AND length(hora)>=5
+               AND (CAST(substr(hora,1,2) AS INTEGER)*60
+                    + CAST(substr(hora,4,2) AS INTEGER) + ?) <= ?""")
+    args = [hoy, tol, now_min]
+    if sede is not None:
+        cond += " AND sede_id=?"
+        args.append(sede)
+    run(f"UPDATE turnos SET estado='ausente', box_id=NULL WHERE {cond}", tuple(args))
+
+
 @app.route("/api/estado")
 def api_estado():
     hoy = date.today().isoformat()
     ahora = datetime.now()
+    sede = sede_actual_id()
+    _auto_ausentes(sede)   # marca "no vino" a los que pasaron la tolerancia
 
-    boxes = q("SELECT * FROM boxes WHERE activo=1 ORDER BY id")
+    boxes = q("SELECT * FROM boxes WHERE activo=1 AND sede_id=? ORDER BY id", (sede,))
     box_estado = []
     ocupados = set()
 
@@ -558,8 +775,8 @@ def api_estado():
                   b.nombre AS box_nombre
            FROM turnos t JOIN pacientes p ON p.id = t.paciente_id
            LEFT JOIN boxes b ON b.id = t.box_id
-           WHERE t.fecha=? ORDER BY t.hora, t.id""",
-        (hoy,),
+           WHERE t.fecha=? AND t.sede_id=? ORDER BY t.hora, t.id""",
+        (hoy, sede),
     )
     sala_por_hora = {}
     presentes = []
@@ -581,10 +798,11 @@ def api_estado():
             for h, v in sorted(sala_por_hora.items())]
 
     def count(estado):
-        return q1("SELECT COUNT(*) c FROM turnos WHERE fecha=? AND estado=?",
-                  (hoy, estado))["c"]
+        return q1("SELECT COUNT(*) c FROM turnos WHERE fecha=? AND sede_id=? AND estado=?",
+                  (hoy, sede, estado))["c"]
 
-    total = q1("SELECT COUNT(*) c FROM turnos WHERE fecha=?", (hoy,))["c"]
+    total = q1("SELECT COUNT(*) c FROM turnos WHERE fecha=? AND sede_id=?",
+               (hoy, sede))["c"]
     stats = {
         "total": total,
         "atendidos": count("presente") + count("en_curso") + count("terminado"),
@@ -597,6 +815,8 @@ def api_estado():
     return jsonify({
         "ahora": ahora.isoformat(), "boxes": box_estado, "libres": libres,
         "sala": sala, "presentes": presentes, "stats": stats,
+        "sede": {"id": sede, "nombre": sede_nombre(sede)},
+        "tope": tope_de_sede(sede),
     })
 
 
@@ -632,12 +852,16 @@ def api_eventos():
 def api_agenda_rango():
     desde = request.args.get("desde") or date.today().isoformat()
     hasta = request.args.get("hasta") or desde
+    sede = sede_actual_id()
+    hoy = date.today().isoformat()
+    if desde <= hoy <= hasta:
+        _auto_ausentes(sede)
     rows = q(
         """SELECT t.*, p.nombre, p.apellido, p.telefono
            FROM turnos t JOIN pacientes p ON p.id = t.paciente_id
-           WHERE t.fecha BETWEEN ? AND ?
+           WHERE t.fecha BETWEEN ? AND ? AND t.sede_id=?
            ORDER BY t.fecha, t.hora, t.id""",
-        (desde, hasta),
+        (desde, hasta, sede),
     )
     por_fecha = {}
     for t in rows:
@@ -648,7 +872,8 @@ def api_agenda_rango():
             "telefono": t["telefono"] or "",
             "duracion": t["duracion_min"] or DURACION_DEFAULT,
         })
-    return jsonify(por_fecha)
+    return jsonify({"por_fecha": por_fecha, "tope": tope_de_sede(sede),
+                    "sede_nombre": sede_nombre(sede)})
 
 
 # --------------------------------------------------------------------------
@@ -703,9 +928,10 @@ def api_elegir_fecha(tid):
     hora = d.get("hora") or horarios.get(str(wd)) or t["hora"] or ""
     run("UPDATE turnos SET estado='ausente', box_id=NULL WHERE id=?", (tid,))
     nid = run(
-        """INSERT INTO turnos (paciente_id, fecha, hora, estado, duracion_min)
-           VALUES (?,?,?, 'agendado', ?)""",
-        (t["paciente_id"], fecha, hora, t["duracion_min"] or DURACION_DEFAULT),
+        """INSERT INTO turnos (paciente_id, fecha, hora, estado, duracion_min, sede_id)
+           VALUES (?,?,?, 'agendado', ?, ?)""",
+        (t["paciente_id"], fecha, hora, t["duracion_min"] or DURACION_DEFAULT,
+         t["sede_id"]),
     )
     return jsonify(ok=True, id=nid, fecha=fecha, hora=hora)
 
@@ -751,18 +977,20 @@ def api_a_box(pid):
            AND estado IN ('agendado','en_espera') ORDER BY hora LIMIT 1""",
         (pid, hoy),
     )
+    box = q1("SELECT sede_id FROM boxes WHERE id=?", (box_id,))
+    box_sede = box["sede_id"] if box else sede_actual_id()
     if t:
         tid = t["id"]
     else:
         tid = run(
-            """INSERT INTO turnos (paciente_id, fecha, hora, estado, duracion_min)
-               VALUES (?,?,?, 'agendado', ?)""",
-            (pid, hoy, datetime.now().strftime("%H:%M"), dur),
+            """INSERT INTO turnos (paciente_id, fecha, hora, estado, duracion_min, sede_id)
+               VALUES (?,?,?, 'agendado', ?, ?)""",
+            (pid, hoy, datetime.now().strftime("%H:%M"), dur, box_sede),
         )
     run(
         """UPDATE turnos SET estado='en_curso', box_id=?, inicio=?,
-           duracion_min=?, fin=NULL WHERE id=?""",
-        (box_id, datetime.now().isoformat(), dur, tid),
+           duracion_min=?, fin=NULL, sede_id=? WHERE id=?""",
+        (box_id, datetime.now().isoformat(), dur, box_sede, tid),
     )
     # Llegada directa al box: cuenta la sesión si el turno no la contó todavía.
     if not t or t["estado"] not in ("presente", "en_curso", "terminado"):
@@ -830,6 +1058,17 @@ def api_perdido(tid):
     return jsonify(ok=True)
 
 
+@app.route("/api/turno/<int:tid>/deshacer_ausente", methods=["POST"])
+def api_deshacer_ausente(tid):
+    """Cancela el 'no vino' (vuelve a agendado) y marca sin_auto=1 para que la
+    tolerancia no lo vuelva a marcar 'no vino' solo."""
+    t = q1("SELECT * FROM turnos WHERE id=?", (tid,))
+    if not t:
+        return jsonify(ok=False, error="Turno inexistente"), 404
+    run("UPDATE turnos SET estado='agendado', box_id=NULL, sin_auto=1 WHERE id=?", (tid,))
+    return jsonify(ok=True)
+
+
 @app.route("/api/turno/<int:tid>/deshacer_vino", methods=["POST"])
 def api_deshacer_vino(tid):
     """Deshace un 'vino' marcado por error: vuelve a agendado y devuelve la sesión."""
@@ -887,9 +1126,10 @@ def api_reprogramar(tid):
     fecha, hora, p = _proximo_disponible(t)
     run("UPDATE turnos SET estado='ausente', box_id=NULL WHERE id=?", (tid,))
     nid = run(
-        """INSERT INTO turnos (paciente_id, fecha, hora, estado, duracion_min)
-           VALUES (?,?,?, 'agendado', ?)""",
-        (t["paciente_id"], fecha, hora, t["duracion_min"] or DURACION_DEFAULT),
+        """INSERT INTO turnos (paciente_id, fecha, hora, estado, duracion_min, sede_id)
+           VALUES (?,?,?, 'agendado', ?, ?)""",
+        (t["paciente_id"], fecha, hora, t["duracion_min"] or DURACION_DEFAULT,
+         t["sede_id"]),
     )
     return jsonify(ok=True, id=nid, fecha=fecha, hora=hora)
 
@@ -910,10 +1150,17 @@ def api_nuevo_turno():
     dur = int(data.get("duracion") or DURACION_DEFAULT)
     if not pid:
         return jsonify(ok=False, error="Falta el paciente"), 400
+    sede = _sede_de_request(data)
+    # Tope por horario: si ese horario ya está lleno, no deja dar más turnos.
+    tope = tope_de_sede(sede)
+    if hora and tope and _slot_ocupado(sede, fecha, hora) >= tope:
+        return jsonify(ok=False, lleno=True,
+                       error=f"Horario lleno: {hora} ya tiene {tope} turno(s) "
+                             f"en {sede_nombre(sede)} (el tope)."), 409
     tid = run(
-        """INSERT INTO turnos (paciente_id, fecha, hora, estado, duracion_min)
-           VALUES (?,?,?, 'agendado', ?)""",
-        (pid, fecha, hora, dur),
+        """INSERT INTO turnos (paciente_id, fecha, hora, estado, duracion_min, sede_id)
+           VALUES (?,?,?, 'agendado', ?, ?)""",
+        (pid, fecha, hora, dur, sede),
     )
     return jsonify(ok=True, id=tid)
 
@@ -945,25 +1192,33 @@ def api_plan():
     desde = d.get("desde") or date.today().isoformat()
     cur = date.fromisoformat(desde)
     hora_default = d.get("hora") or ""
+    sede = _sede_de_request(d)
+    tope = tope_de_sede(sede)
 
     creados = 0
+    saltados = 0
     guard = 0
     while creados < cantidad and guard < 800:
         wd = cur.weekday()
         if wd in dias:
             hora = horarios.get(str(wd)) or horarios.get(wd) or hora_default
-            run(
-                """INSERT INTO turnos (paciente_id, fecha, hora, estado, duracion_min)
-                   VALUES (?,?,?, 'agendado', ?)""",
-                (pid, cur.isoformat(), hora, dur),
-            )
-            creados += 1
+            # Respeta el tope: si ese horario está lleno, salta al próximo día
+            # válido en vez de sobrecargar el turno.
+            if hora and tope and _slot_ocupado(sede, cur.isoformat(), hora) >= tope:
+                saltados += 1
+            else:
+                run(
+                    """INSERT INTO turnos (paciente_id, fecha, hora, estado, duracion_min, sede_id)
+                       VALUES (?,?,?, 'agendado', ?, ?)""",
+                    (pid, cur.isoformat(), hora, dur, sede),
+                )
+                creados += 1
         cur += timedelta(days=1)
         guard += 1
 
     run("UPDATE pacientes SET dias=?, horarios=? WHERE id=?",
         (dias_to_str(dias), json.dumps(horarios), pid))
-    return jsonify(ok=True, creados=creados)
+    return jsonify(ok=True, creados=creados, saltados=saltados)
 
 
 @app.route("/api/turno/<int:tid>/borrar", methods=["POST"])
@@ -982,6 +1237,13 @@ def api_editar_turno(tid):
     fecha = d.get("fecha") or t["fecha"]
     hora = d.get("hora") if d.get("hora") is not None else t["hora"]
     dur = int(d.get("duracion") or t["duracion_min"] or DURACION_DEFAULT)
+    # Al mover a otro horario, respetar el tope (sin contarse a sí mismo).
+    sede = t["sede_id"] or sede_actual_id()
+    tope = tope_de_sede(sede)
+    if hora and tope and (fecha != t["fecha"] or hora != t["hora"]):
+        if _slot_ocupado(sede, fecha, hora, excluir_turno=tid) >= tope:
+            return jsonify(ok=False, lleno=True,
+                           error=f"Horario lleno: {hora} ya tiene {tope} turno(s) (el tope)."), 409
     run("UPDATE turnos SET fecha=?, hora=?, duracion_min=? WHERE id=?",
         (fecha, hora, dur, tid))
     return jsonify(ok=True)
@@ -992,11 +1254,13 @@ def api_huecos():
     """Horarios libres de un día según la cantidad de boxes."""
     fecha = request.args.get("fecha") or date.today().isoformat()
     dur = int(request.args.get("duracion") or DURACION_DEFAULT)
-    n_boxes = q1("SELECT COUNT(*) c FROM boxes WHERE activo=1")["c"] or 1
+    sede = sede_actual_id()
+    n_boxes = q1("SELECT COUNT(*) c FROM boxes WHERE activo=1 AND sede_id=?",
+                 (sede,))["c"] or 1
     rows = q(
         """SELECT hora, duracion_min FROM turnos
-           WHERE fecha=? AND estado NOT IN ('ausente','perdido')""",
-        (fecha,),
+           WHERE fecha=? AND sede_id=? AND estado NOT IN ('ausente','perdido')""",
+        (fecha, sede),
     )
     ocup = []
     for r in rows:
@@ -1057,12 +1321,15 @@ def api_huecos():
 def api_pacientes():
     term = (request.args.get("q") or "").strip()
     if term:
-        like = f"%{term}%"
+        like = f"%{_sin_acentos(term)}%"   # busca sin acentos ni mayúsculas
         filas = q(
             """SELECT * FROM pacientes
-               WHERE nombre LIKE ? OR apellido LIKE ? OR dni LIKE ?
+               WHERE sinacentos(nombre) LIKE ?
+                  OR sinacentos(apellido) LIKE ?
+                  OR sinacentos(nombre || ' ' || apellido) LIKE ?
+                  OR sinacentos(COALESCE(dni,'')) LIKE ?
                ORDER BY apellido COLLATE NOCASE LIMIT 50""",
-            (like, like, like),
+            (like, like, like, like),
         )
     else:
         filas = q("SELECT * FROM pacientes ORDER BY apellido COLLATE NOCASE LIMIT 50")
@@ -1246,6 +1513,118 @@ def api_config_set():
     return jsonify(ok=True)
 
 
+# --------------------------------------------------------------------------
+# API — sedes (Morón / Ramos)
+# --------------------------------------------------------------------------
+@app.route("/api/sedes")
+def api_sedes():
+    actual = sede_actual_id()
+    out = []
+    for s in sedes_list():
+        n_boxes = q1("SELECT COUNT(*) c FROM boxes WHERE activo=1 AND sede_id=?",
+                     (s["id"],))["c"]
+        out.append({"id": s["id"], "nombre": s["nombre"],
+                    "tope_turnos": s["tope_turnos"] or 0,
+                    "boxes": n_boxes, "actual": s["id"] == actual})
+    return jsonify({"sedes": out, "actual": actual})
+
+
+@app.route("/api/sede/<int:sid>", methods=["POST"])
+def api_editar_sede(sid):
+    d = request.get_json(force=True, silent=True) or {}
+    s = q1("SELECT * FROM sedes WHERE id=?", (sid,))
+    if not s:
+        return jsonify(ok=False, error="Sede inexistente"), 404
+    nombre = (d.get("nombre") or s["nombre"]).strip() or s["nombre"]
+    try:
+        tope = int(d.get("tope_turnos"))
+    except (TypeError, ValueError):
+        tope = s["tope_turnos"] or 0
+    tope = max(0, tope)
+    run("UPDATE sedes SET nombre=?, tope_turnos=? WHERE id=?", (nombre, tope, sid))
+    return jsonify(ok=True)
+
+
+# --------------------------------------------------------------------------
+# API — plantillas ortopédicas (RPG). Lista global (todas las sedes).
+# --------------------------------------------------------------------------
+PLANTILLA_ESTADOS = ["pedida", "fabricacion", "lista", "entregada"]
+
+
+@app.route("/api/plantillas")
+def api_plantillas():
+    rows = q(
+        """SELECT pl.*, p.nombre, p.apellido, p.telefono, s.nombre AS sede_nombre
+           FROM plantillas pl
+           JOIN pacientes p ON p.id = pl.paciente_id
+           LEFT JOIN sedes s ON s.id = pl.sede_id
+           ORDER BY
+             CASE pl.estado WHEN 'entregada' THEN 1 ELSE 0 END,
+             pl.id DESC""",
+    )
+    out = [{
+        "id": r["id"], "paciente_id": r["paciente_id"],
+        "paciente": f"{r['nombre']} {r['apellido']}",
+        "telefono": r["telefono"] or "",
+        "sede_id": r["sede_id"], "sede_nombre": r["sede_nombre"] or "—",
+        "estado": r["estado"] or "pedida",
+        "fecha_molde": r["fecha_molde"] or "", "fecha_entrega": r["fecha_entrega"] or "",
+        "precio": r["precio"] or "", "senia": r["senia"] or "",
+        "notas": r["notas"] or "",
+    } for r in rows]
+    return jsonify({"plantillas": out, "estados": PLANTILLA_ESTADOS})
+
+
+@app.route("/api/plantilla", methods=["POST"])
+def api_nueva_plantilla():
+    d = request.get_json(force=True, silent=True) or {}
+    pid = d.get("paciente_id")
+    if not pid:
+        return jsonify(ok=False, error="Elegí un paciente"), 400
+    estado = d.get("estado") if d.get("estado") in PLANTILLA_ESTADOS else "pedida"
+    plid = run(
+        """INSERT INTO plantillas
+           (paciente_id, sede_id, estado, fecha_molde, fecha_entrega,
+            precio, senia, notas, creado)
+           VALUES (?,?,?,?,?,?,?,?,?)""",
+        (pid, _sede_de_request(d), estado,
+         (d.get("fecha_molde") or "").strip(), (d.get("fecha_entrega") or "").strip(),
+         (str(d.get("precio") or "")).strip(), (str(d.get("senia") or "")).strip(),
+         (d.get("notas") or "").strip(), date.today().isoformat()),
+    )
+    return jsonify(ok=True, id=plid)
+
+
+@app.route("/api/plantilla/<int:plid>", methods=["POST"])
+def api_editar_plantilla(plid):
+    d = request.get_json(force=True, silent=True) or {}
+    pl = q1("SELECT * FROM plantillas WHERE id=?", (plid,))
+    if not pl:
+        return jsonify(ok=False, error="Plantilla inexistente"), 404
+    estado = d.get("estado") if d.get("estado") in PLANTILLA_ESTADOS else pl["estado"]
+    sede = pl["sede_id"]
+    if d.get("sede_id"):
+        sede = _sede_de_request(d)
+    run(
+        """UPDATE plantillas SET sede_id=?, estado=?, fecha_molde=?, fecha_entrega=?,
+               precio=?, senia=?, notas=? WHERE id=?""",
+        (sede, estado,
+         (d.get("fecha_molde") if d.get("fecha_molde") is not None else pl["fecha_molde"]) or "",
+         (d.get("fecha_entrega") if d.get("fecha_entrega") is not None else pl["fecha_entrega"]) or "",
+         (str(d.get("precio")) if d.get("precio") is not None else pl["precio"]) or "",
+         (str(d.get("senia")) if d.get("senia") is not None else pl["senia"]) or "",
+         (d.get("notas") if d.get("notas") is not None else pl["notas"]) or "",
+         plid),
+    )
+    return jsonify(ok=True)
+
+
+@app.route("/api/plantilla/<int:plid>/borrar", methods=["POST"])
+def api_borrar_plantilla(plid):
+    run("DELETE FROM plantillas WHERE id=?", (plid,))
+    return jsonify(ok=True)
+
+
 @app.route("/api/seed_prueba", methods=["POST"])
 def api_seed_prueba():
     """Carga pacientes de prueba con turnos repartidos en todo el día de hoy.
@@ -1269,6 +1648,7 @@ def api_seed_prueba():
     ]
     # días de la semana en los que viene (siempre incluye hoy), sólo Lun-Vie
     dias_idx = sorted(set([wd] + [(wd + 2) % 5, (wd + 4) % 5]))
+    sede = sede_actual_id()
     creados = 0
     for i, (nom, ape, os_, diag) in enumerate(nombres):
         hora = horas[i % len(horas)]
@@ -1281,16 +1661,79 @@ def api_seed_prueba():
             (nom, ape, "", "", os_, diag, 12, i % 8,
              dias_to_str(dias_idx), json.dumps(horarios), hoy),
         )
-        run("""INSERT INTO turnos (paciente_id, fecha, hora, estado, duracion_min)
-               VALUES (?,?,?, 'agendado', ?)""",
-            (pid, hoy, hora, DURACION_DEFAULT))
+        run("""INSERT INTO turnos (paciente_id, fecha, hora, estado, duracion_min, sede_id)
+               VALUES (?,?,?, 'agendado', ?, ?)""",
+            (pid, hoy, hora, DURACION_DEFAULT, sede))
         creados += 1
     return jsonify(ok=True, creados=creados)
+
+
+@app.route("/api/simular_agenda", methods=["POST"])
+def api_simular_agenda():
+    """Llena la agenda del mes (sede activa) con turnos de ejemplo para poder
+    ver el calendario/semáforo con datos. Se marcan sim=1 para borrarlos luego."""
+    import random
+    d = request.get_json(force=True, silent=True) or {}
+    sede = sede_actual_id()
+    # Mes a simular: 'YYYY-MM' o el mes actual.
+    mes = d.get("mes") or date.today().strftime("%Y-%m")
+    try:
+        anio, m = map(int, mes.split("-"))
+        primero = date(anio, m, 1)
+    except Exception:
+        primero = date.today().replace(day=1)
+    # Último día del mes.
+    if primero.month == 12:
+        siguiente = date(primero.year + 1, 1, 1)
+    else:
+        siguiente = date(primero.year, primero.month + 1, 1)
+
+    pacientes = q("SELECT id FROM pacientes ORDER BY id")
+    if not pacientes:
+        return jsonify(ok=False, error="Cargá algún paciente antes de simular"), 400
+    pids = [p["id"] for p in pacientes]
+    horas = ["08:00", "09:00", "10:00", "11:00", "12:00",
+             "14:00", "15:00", "16:00", "17:00", "18:00", "19:00"]
+    tope = tope_de_sede(sede) or 4
+
+    creados = 0
+    hoy = date.today()
+    cur = primero
+    while cur < siguiente:
+        # Sólo días futuros y de semana (no ensucia hoy ni dispara el "no vino").
+        if cur > hoy and cur.weekday() < 5:
+            # Elegir algunas horas del día y meter entre 1 y "tope" personas.
+            for hora in random.sample(horas, k=random.randint(3, 6)):
+                cuantos = random.randint(1, tope)
+                for _ in range(cuantos):
+                    pid = random.choice(pids)
+                    run("""INSERT INTO turnos
+                           (paciente_id, fecha, hora, estado, duracion_min, sede_id, sim)
+                           VALUES (?,?,?, 'agendado', ?, ?, 1)""",
+                        (pid, cur.isoformat(), hora, DURACION_DEFAULT, sede))
+                    creados += 1
+        cur += timedelta(days=1)
+    return jsonify(ok=True, creados=creados)
+
+
+@app.route("/api/limpiar_simulacion", methods=["POST"])
+def api_limpiar_simulacion():
+    """Borra todos los turnos de simulación (sim=1) de la sede activa."""
+    sede = sede_actual_id()
+    n = q1("SELECT COUNT(*) c FROM turnos WHERE sim=1 AND sede_id=?", (sede,))["c"]
+    run("DELETE FROM turnos WHERE sim=1 AND sede_id=?", (sede,))
+    return jsonify(ok=True, borrados=n)
 
 
 @app.route("/api/backup")
 def api_backup():
     """Descarga una copia de seguridad de toda la base (kinesio.db)."""
+    # Con WAL, los últimos cambios pueden estar en el archivo -wal; hacemos un
+    # checkpoint para que el .db descargado tenga TODO al día.
+    try:
+        get_db().execute("PRAGMA wal_checkpoint(TRUNCATE)")
+    except Exception:
+        pass
     stamp = datetime.now().strftime("%Y%m%d_%H%M")
     return send_file(DB_PATH, as_attachment=True,
                      download_name=f"kdym_backup_{stamp}.db")
@@ -1303,7 +1746,8 @@ def api_backup():
 def api_nuevo_box():
     d = request.get_json(force=True, silent=True) or {}
     nombre = (d.get("nombre") or "").strip() or "Box"
-    bid = run("INSERT INTO boxes (nombre) VALUES (?)", (nombre,))
+    sede = _sede_de_request(d)
+    bid = run("INSERT INTO boxes (nombre, sede_id) VALUES (?,?)", (nombre, sede))
     return jsonify(ok=True, id=bid)
 
 

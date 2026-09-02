@@ -9,30 +9,47 @@
   </div>
   <button class="btn btn-ghost btn-sm" onclick="abrirNuevoPaciente(elegirDesdeNuevo)">+ Paciente</button>
   <button class="btn btn-ghost btn-sm" onclick="abrirHuecos()">🔍 Buscar hueco</button>
+  <button class="btn btn-ghost btn-sm" onclick="simularAgenda()" title="Llenar el mes con turnos de ejemplo">🎲 Simular agenda</button>
+  <button class="btn btn-danger-soft btn-sm" onclick="limpiarSimulacion()" title="Borrar los turnos de ejemplo">🧹 Limpiar</button>
   <button class="btn btn-primary btn-sm" onclick="abrirAgregarTurnos(null, '', recargar)">📅 Agregar turnos</button>
 </div>
 
 <div class="stats" id="stats"></div>
 
-<div class="split" style="margin-top:8px;">
+<div class="split agenda-split" style="margin-top:8px;">
   <div class="col-main">
-    <div class="card card-pad">
-      <div class="cal-head">
-        <div class="seg" style="margin-right:auto;">
-          <button id="vista-mes" class="on" onclick="cambiarVista('mes')">Mes</button>
-          <button id="vista-sem" onclick="cambiarVista('semana')">Semana</button>
+    <div class="cal-cols">
+      <!-- Semáforo por horario: a la IZQUIERDA del calendario -->
+      <aside class="sem-side">
+        <div class="sem-side-h">🕐 Semáforo<br>por horario</div>
+        <select id="sem-hora" class="sem-hora-input"></select>
+        <div class="sem-side-chips">
+          <span class="sem-chip"><span class="sem-dot verde"></span> Libre</span>
+          <span class="sem-chip"><span class="sem-dot amar"></span> Falta 1</span>
+          <span class="sem-chip"><span class="sem-dot rojo"></span> Lleno</span>
         </div>
-        <button class="btn btn-ghost btn-sm" onclick="navPeriodo(-1)">←</button>
-        <div class="mes" id="cal-mes"></div>
-        <button class="btn btn-ghost btn-sm" onclick="navPeriodo(1)">→</button>
-        <button class="btn btn-line btn-sm" onclick="irHoy()">Hoy</button>
-      </div>
-      <div id="vista-mes-cont">
-        <div class="cal-grid" id="cal-dow"></div>
-        <div class="cal-grid" id="cal-grid" style="margin-top:6px;"></div>
-      </div>
-      <div id="vista-sem-cont" style="display:none; overflow-x:auto;">
-        <div class="sem-grid" id="sem-grid"></div>
+        <label class="sem-toggle"><input type="checkbox" id="sem-punto-chk"> Mostrar puntito</label>
+        <div class="sem-hint" id="sem-hint"></div>
+      </aside>
+
+      <div class="card card-pad cal-card">
+        <div class="cal-head">
+          <div class="seg" style="margin-right:auto;">
+            <button id="vista-mes" class="on" onclick="cambiarVista('mes')">Mes</button>
+            <button id="vista-sem" onclick="cambiarVista('semana')">Semana</button>
+          </div>
+          <button class="btn btn-ghost btn-sm" onclick="navPeriodo(-1)">←</button>
+          <div class="mes" id="cal-mes"></div>
+          <button class="btn btn-ghost btn-sm" onclick="navPeriodo(1)">→</button>
+          <button class="btn btn-line btn-sm" onclick="irHoy()">Hoy</button>
+        </div>
+        <div id="vista-mes-cont">
+          <div class="cal-grid" id="cal-dow"></div>
+          <div class="cal-grid" id="cal-grid" style="margin-top:6px;"></div>
+        </div>
+        <div id="vista-sem-cont" style="display:none; overflow-x:auto;">
+          <div class="sem-grid" id="sem-grid"></div>
+        </div>
       </div>
     </div>
   </div>
@@ -128,6 +145,9 @@ let MES = new Date(); MES.setDate(1);
 let SEM = null;                  // lunes de la semana visible
 let SEL = ymd(new Date());       // fecha seleccionada
 let DATA = {};                   // {fecha: [turnos]} del rango visible
+let TOPE = 0;                    // tope de turnos por horario (sede activa)
+let SEM_PUNTO = localStorage.getItem('kdym_sem_punto') === '1';  // mostrar además el puntito
+let HORA_FILTRO = localStorage.getItem('kdym_sem_hora') || '';   // horario a colorear ('' = ninguno)
 let PLAN_PAC = null;
 let PLAN_PICKER = null;
 let FALTO_TID = null;
@@ -171,8 +191,38 @@ async function cargarDatos() {
   } else {
     ini = new Date(SEM); fin = new Date(SEM); fin.setDate(fin.getDate() + 6);
   }
-  DATA = await apiGet('/api/agenda_rango?desde=' + ymd(ini) + '&hasta=' + ymd(fin));
+  const resp = await apiGet('/api/agenda_rango?desde=' + ymd(ini) + '&hasta=' + ymd(fin));
+  DATA = resp.por_fecha || {};
+  TOPE = resp.tope || 0;
   render();
+}
+
+// ---- Semáforo: verde (hay lugar), amarillo (falta 1), rojo (lleno) ----
+// Cuenta sólo los turnos "vivos" (no ausentes/perdidos) por horario.
+function contarPorHora(turnos) {
+  const c = {};
+  (turnos || []).forEach(t => {
+    if (!t.hora) return;
+    if (t.estado === 'ausente' || t.estado === 'perdido') return;
+    c[t.hora] = (c[t.hora] || 0) + 1;
+  });
+  return c;
+}
+function semaforoHora(n) {
+  if (!TOPE) return null;
+  if (n >= TOPE) return { cls: 'sem-rojo', txt: 'Lleno', dot: 'rojo' };
+  if (n === TOPE - 1) return { cls: 'sem-amar', txt: 'Falta 1', dot: 'amar' };
+  return { cls: 'sem-verde', txt: n + '/' + TOPE, dot: 'verde' };
+}
+// Color del día. Si hay un horario elegido, colorea según CÓMO VA ESE HORARIO
+// ese día (lo que pidió el usuario). Sin horario elegido: sin color (solo conteos).
+function semaforoDia(turnos) {
+  if (!TOPE || !HORA_FILTRO) return null;
+  const c = contarPorHora(turnos);
+  const n = c[HORA_FILTRO] || 0;
+  if (!n) return 'verde';           // sin turnos en ese horario ese día = libre (verde)
+  const s = semaforoHora(n);
+  return s ? s.dot : null;          // 'verde' | 'amar' | 'rojo'
 }
 
 function render() {
@@ -248,12 +298,22 @@ function pintarCalendario() {
     if (key === SEL) cls.push('sel');
     const count = turnos.length
       ? `<span class="cal-count">${turnos.length}</span>` : '';
-    const nombres = turnos.slice(0, 3).map(t =>
-      `<div class="cal-mini">${escapeHtml(t.paciente.split(' ')[0])}</div>`).join('');
+    const sem = otro ? null : semaforoDia(DATA[key]);
+    const titSem = sem === 'rojo' ? 'Lleno' : (sem === 'amar' ? 'Falta 1' : 'Hay lugar');
+    // El puntito y el relleno son EXCLUYENTES: con puntito activo, sólo punto
+    // (sin color de fondo); sin puntito, se rellena el cuadro con el color.
+    let semDot = '';
+    if (sem) {
+      if (SEM_PUNTO) semDot = `<span class="sem-dot ${sem}" title="${titSem}"></span>`;
+      else cls.push('sf-' + sem);
+    }
     html += `<div class="${cls.join(' ')}" onclick="seleccionar('${key}')">
-      <div class="cal-num">${d.getDate()}</div>${count}${nombres}</div>`;
+      <div class="cal-num">${d.getDate()}</div>${count}${semDot}</div>`;
   }
-  document.getElementById('cal-grid').innerHTML = html;
+  const grid = document.getElementById('cal-grid');
+  grid.innerHTML = html;
+  // Animación de entrada de las celdas al renderizar.
+  grid.classList.remove('cal-anim'); void grid.offsetWidth; grid.classList.add('cal-anim');
 }
 
 function seleccionar(key) { SEL = key; render(); }
@@ -272,44 +332,40 @@ function pintarDia() {
 
   const turnos = (DATA[SEL] || []).slice().sort((a, b) => (a.hora || '').localeCompare(b.hora || ''));
   const cont = document.getElementById('dia-detalle');
+  // Animación simple cada vez que se despliega la lista del día.
+  const animar = () => { cont.classList.remove('dia-anim'); void cont.offsetWidth; cont.classList.add('dia-anim'); };
+  // Botón para dar/agendar turno en esta fecha (arriba de los nombres).
+  const addBtn = `<div class="dia-add">
+      <button class="btn btn-primary btn-block" onclick="darTurnoEsteDia()">➕ Dar turno este día</button>
+      <div class="hint" style="margin-top:6px;">Podés elegir un paciente ya cargado o crear uno nuevo.</div>
+    </div>`;
   if (!turnos.length) {
-    cont.innerHTML = '<div class="empty">Sin turnos este día.</div>';
+    cont.innerHTML = addBtn + '<div class="empty">Sin turnos este día.</div>';
+    animar();
     return;
   }
   // Separar por turno (franja horaria).
   const grupos = {};
   turnos.forEach(t => { const h = t.hora || 'Sin hora'; (grupos[h] = grupos[h] || []).push(t); });
-  cont.innerHTML = Object.keys(grupos).sort().map(h => `
+  cont.innerHTML = addBtn + Object.keys(grupos).sort().map(h => {
+    return `
     <div class="hora-block">
       <div class="hora-head">
         <span class="h">${escapeHtml(h)}</span>
         <span class="hora-count">${grupos[h].length} ${grupos[h].length === 1 ? 'persona' : 'personas'}</span>
       </div>
       <div class="card">${grupos[h].map(filaTurno).join('')}</div>
-    </div>`).join('');
+    </div>`;
+  }).join('');
+  animar();
 }
 
+// Fila del día: SOLO el nombre. Tocando la fila se abre el turno (mover / reprogramar
+// / borrar). Sin botones de vino / no vino ni estados.
 function filaTurno(t) {
-  let acciones = '';
-  if (t.estado === 'agendado' || t.estado === 'en_espera') {
-    acciones = `
-      <button class="btn btn-ok btn-sm" onclick="asistio(${t.turno_id})" title="Vino">✓</button>
-      <button class="btn btn-danger-soft btn-sm" onclick="abrirFalto(${t.turno_id}, '${escapeJs(t.paciente)}')" title="No vino">✗</button>`;
-  } else if (t.estado === 'presente') {
-    acciones = `<button class="btn btn-ghost btn-sm" onclick="deshacerVino(${t.turno_id})" title="Marqué por error — deshacer">↺</button>`;
-  }
-  const pill = ['terminado', 'presente', 'en_curso'].includes(t.estado)
-    ? 'ok' : (['ausente', 'perdido'].includes(t.estado) ? 'danger' : '');
-  return `<div class="list-item">
+  return `<div class="list-item clicky" onclick="abrirTurno(${t.turno_id})" title="Tocar para mover, reprogramar o borrar">
     <div class="avatar">${iniciales(t.paciente)}</div>
-    <div class="li-main">
-      <a href="/paciente/${t.paciente_id}" class="li-name">${escapeHtml(t.paciente)}</a>
-      <div class="li-sub"><span class="pill ${pill}">${t.estado.replace('_', ' ')}</span></div>
-    </div>
-    <div class="li-actions">${acciones}
-      <button class="btn btn-ghost btn-sm" onclick="abrirTurno(${t.turno_id})" title="Editar / mover">✎</button>
-      <button class="x" onclick="borrarTurno(${t.turno_id})" title="Quitar">&times;</button>
-    </div>
+    <div class="li-main"><span class="li-name">${escapeHtml(t.paciente)}</span></div>
   </div>`;
 }
 
@@ -444,6 +500,73 @@ async function recargar() { await cargarDatos(); cargarStats(); }
 // Al crear un paciente nuevo desde la agenda, ya se agendaron sus turnos en el modal:
 // solo refrescamos el calendario.
 function elegirDesdeNuevo(id, nombre) { recargar(); }
+
+// ---- Dar/agendar turno en la fecha seleccionada ----
+// Abre el modal "Agregar turnos" en modo manual con la fecha ya cargada. Dentro
+// del modal se elige un paciente existente (buscador) o se carga uno nuevo.
+function darTurnoEsteDia() {
+  abrirAgregarTurnos(null, '', recargar);
+  atModo('manual');
+  const cont = document.getElementById('at-manual-rows');
+  if (cont) { cont.innerHTML = ''; atAgregarFila(SEL, ''); }
+  const b = document.getElementById('at-buscar');
+  if (b) setTimeout(() => b.focus(), 150);
+}
+
+// ---- Controles del semáforo: horario a colorear + puntito ----
+function actualizarSemHint() {
+  const el = document.getElementById('sem-hint');
+  if (!el) return;
+  el.textContent = HORA_FILTRO
+    ? `Los colores muestran cómo está el horario de las ${HORA_FILTRO} cada día.`
+    : 'Elegí un horario arriba para ver el semáforo (verde/amarillo/rojo) en el calendario.';
+}
+(function () {
+  // Poblar el select con horarios de 07:00 a 21:00 cada 30 min.
+  const sel = document.getElementById('sem-hora');
+  if (sel) {
+    let opts = '<option value="">Todos (sin color)</option>';
+    for (let m = 7 * 60; m <= 21 * 60; m += 30) {
+      const h = `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+      opts += `<option value="${h}">${h}</option>`;
+    }
+    sel.innerHTML = opts;
+    sel.value = HORA_FILTRO;
+    sel.addEventListener('change', () => {
+      HORA_FILTRO = sel.value;
+      localStorage.setItem('kdym_sem_hora', HORA_FILTRO);
+      actualizarSemHint();
+      render();
+    });
+  }
+  const chk = document.getElementById('sem-punto-chk');
+  if (chk) {
+    chk.checked = SEM_PUNTO;
+    chk.addEventListener('change', () => {
+      SEM_PUNTO = chk.checked;
+      localStorage.setItem('kdym_sem_punto', SEM_PUNTO ? '1' : '0');
+      render();
+    });
+  }
+  actualizarSemHint();
+})();
+
+// ---- Simular agenda del mes (punto 7) ----
+async function simularAgenda() {
+  const mes = ymd(MES).slice(0, 7);   // 'YYYY-MM' del mes visible
+  if (!confirm('Se van a cargar turnos de ejemplo en todo ' +
+    MES.toLocaleDateString('es-AR', { month: 'long', year: 'numeric' }) +
+    ' (sede actual). Después podés borrarlos con “🧹 Limpiar”. ¿Seguir?')) return;
+  const r = await api('/api/simular_agenda', { mes });
+  toast('Simulación cargada: ' + (r.creados || 0) + ' turnos ✓', 'ok');
+  recargar();
+}
+async function limpiarSimulacion() {
+  if (!confirm('¿Borrar TODOS los turnos de simulación de esta sede?')) return;
+  const r = await api('/api/limpiar_simulacion', {});
+  toast('Se borraron ' + (r.borrados || 0) + ' turnos de simulación ✓', 'ok');
+  recargar();
+}
 
 pintarFecha();
 cargarDatos();

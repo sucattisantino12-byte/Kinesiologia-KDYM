@@ -1,6 +1,8 @@
 # Base de datos (¡contiene datos de pacientes! NO debe subirse)
 kinesio.db
 *.db
+*.db-wal
+*.db-shm
 
 # Python
 __pycache__/

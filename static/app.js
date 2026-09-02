@@ -261,12 +261,32 @@ function alarmAudio() {
   if (!_ALARM_AUDIO || _ALARM_TIPO !== tipo) {
     if (_ALARM_AUDIO) { try { _ALARM_AUDIO.pause(); } catch (e) {} }
     _ALARM_AUDIO = new Audio(makeAlarmDataUri(tipo));
-    _ALARM_AUDIO.loop = true; _ALARM_AUDIO.volume = 1; _ALARM_TIPO = tipo;
+    _ALARM_AUDIO.loop = true;
+    _ALARM_AUDIO.volume = 0;   // arranca en silencio: keep-alive (ver abajo)
+    _ALARM_TIPO = tipo;
   }
   return _ALARM_AUDIO;
 }
-function sonarContinuo() { const a = alarmAudio(); if (a.paused) a.play().catch(() => {}); }
-function pararSonido() { if (_ALARM_AUDIO && !_ALARM_AUDIO.paused) { _ALARM_AUDIO.pause(); _ALARM_AUDIO.currentTime = 0; } }
+
+// ---- Clave para que suene aunque el celular esté en segundo plano / pantalla apagada ----
+// Los navegadores móviles BLOQUEAN audio.play() cuando la pestaña no está visible,
+// pero SÍ permiten cambiar el volumen de un audio que ya se está reproduciendo.
+// Por eso mantenemos el audio de la alarma reproduciéndose SIEMPRE en silencio
+// (volumen 0) desde el primer toque; cuando toca la alarma sólo subimos el volumen.
+function mantenerAudioVivo() {
+  const a = alarmAudio();
+  if (a.paused) { a.play().catch(() => {}); }
+}
+function sonarContinuo() {
+  const a = alarmAudio();
+  a.volume = 1;
+  if (a.paused) a.play().catch(() => {});   // por si el navegador lo pausó
+}
+function pararSonido() {
+  // No lo pausamos: lo dejamos vivo en silencio para que la próxima alarma
+  // pueda sonar aunque estemos en segundo plano.
+  if (_ALARM_AUDIO) { _ALARM_AUDIO.volume = 0; }
+}
 function probarAlarma() { sonarContinuo(); setTimeout(pararSonido, 3000); toast('🔊 Así suena la alarma elegida', 'ok'); }
 
 // ---- Navegación más fluida entre pestañas ----
@@ -333,6 +353,20 @@ function probarAlarma() { sonarContinuo(); setTimeout(pararSonido, 3000); toast(
 //  - sin pid: modo agenda (aparece buscador de paciente)
 let AT_PID = null, AT_PICKER = null, AT_MODO = 'auto', AT_ONDONE = null;
 
+// Llena un <select> con las sedes disponibles y marca la sede activa.
+function poblarSelectSede(selId, sedeElegida) {
+  const sel = document.getElementById(selId);
+  if (!sel) return;
+  const sedes = window.SEDES || [];
+  const actual = sedeElegida != null ? sedeElegida : window.SEDE_ACTUAL;
+  sel.innerHTML = sedes.map(s =>
+    `<option value="${s.id}" ${s.id == actual ? 'selected' : ''}>${escapeHtml(s.nombre)}</option>`
+  ).join('');
+  // Si hay una sola sede, no tiene sentido mostrar el selector.
+  const wrap = sel.closest('.field');
+  if (wrap) wrap.style.display = sedes.length > 1 ? '' : 'none';
+}
+
 function abrirAgregarTurnos(pid, nombre, onDone) {
   if (!document.getElementById('modal-agturnos')) return;
   AT_PID = pid || null; AT_ONDONE = onDone || null;
@@ -351,6 +385,7 @@ function abrirAgregarTurnos(pid, nombre, onDone) {
   document.getElementById('at-desde').value = new Date().toISOString().slice(0, 10);
   document.getElementById('at-preview').textContent = '';
   document.getElementById('at-manual-rows').innerHTML = '';
+  poblarSelectSede('at-sede');
   AT_PICKER = crearDiasPicker('at-dias-picker', 'at-dias-rows');
   atModo('auto');
   atAgregarFila();
@@ -442,9 +477,25 @@ function atElegirPac(p) {
   atPreview();
 }
 
+// Cargar un paciente nuevo desde el modal de "Agregar turnos" y dejarlo elegido.
+function atNuevoPaciente() {
+  abrirNuevoPaciente((id, nombre) => {
+    atElegirPac({
+      id: id, nombre_completo: nombre, sesiones_quedan: 0,
+      dias_idx: [], horarios: {}, ultimo_turno: null,
+    });
+  });
+}
+
+function atSedeElegida() {
+  const sel = document.getElementById('at-sede');
+  return sel && sel.value ? +sel.value : (window.SEDE_ACTUAL || null);
+}
+
 async function atGenerar() {
   if (!AT_PID) { toast('Elegí un paciente', 'alert'); return; }
   const dur = document.getElementById('at-dur').value;
+  const sede_id = atSedeElegida();
   if (AT_MODO === 'auto') {
     const data = AT_PICKER ? AT_PICKER.getData() : { dias: [], horarios: {} };
     if (!data.dias.length) { toast('Elegí al menos un día', 'alert'); return; }
@@ -452,10 +503,13 @@ async function atGenerar() {
     if (!cant || +cant <= 0) { toast('Poné cuántas sesiones agregar', 'alert'); return; }
     const r = await api('/api/plan', {
       paciente_id: AT_PID, dias: data.dias, horarios: data.horarios,
-      desde: document.getElementById('at-desde').value, cantidad: cant, duracion: dur,
+      desde: document.getElementById('at-desde').value, cantidad: cant,
+      duracion: dur, sede_id,
     });
     cerrarModal('modal-agturnos');
-    toast(`${r.creados} turno(s) agregados ✓`, 'ok');
+    let msg = `${r.creados} turno(s) agregados ✓`;
+    if (r.saltados) msg += ` · ${r.saltados} saltado(s) por horario lleno`;
+    toast(msg, r.saltados ? 'alert' : 'ok');
   } else {
     const filas = [].slice.call(document.querySelectorAll('#at-manual-rows .at-manual-row'));
     const turnos = filas.map(f => {
@@ -463,13 +517,17 @@ async function atGenerar() {
       return { fecha: ins[0].value, hora: ins[1].value };
     }).filter(t => t.fecha);
     if (!turnos.length) { toast('Agregá al menos una fecha', 'alert'); return; }
-    let n = 0;
+    let n = 0, llenos = 0;
     for (const t of turnos) {
-      await api('/api/turno', { paciente_id: AT_PID, fecha: t.fecha, hora: t.hora, duracion: dur });
-      n++;
+      try {
+        await api('/api/turno', { paciente_id: AT_PID, fecha: t.fecha, hora: t.hora, duracion: dur, sede_id });
+        n++;
+      } catch (e) { llenos++; }  // horario lleno (tope): lo salta y sigue
     }
     cerrarModal('modal-agturnos');
-    toast(`${n} turno(s) agregados ✓`, 'ok');
+    let msg = `${n} turno(s) agregados ✓`;
+    if (llenos) msg += ` · ${llenos} no entraron (horario lleno)`;
+    toast(msg, llenos ? 'alert' : 'ok');
   }
   if (AT_ONDONE) AT_ONDONE();
 }

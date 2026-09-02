@@ -6,12 +6,21 @@
       <button class="x" onclick="cerrarModal('modal-agturnos')">&times;</button>
     </div>
     <div class="modal-body">
+      <!-- Sede a la que se dan los turnos (por defecto la sede activa). -->
+      <div class="field">
+        <label>Sede</label>
+        <select class="input" id="at-sede"></select>
+      </div>
+
       <!-- Buscador de paciente (sólo cuando no viene preseleccionado, ej: agenda) -->
       <div class="field" id="at-buscar-wrap">
         <label>Paciente *</label>
         <input class="input" id="at-buscar" placeholder="Buscar paciente…" autocomplete="off">
         <div id="at-resultados"></div>
         <div id="at-elegido" class="hint"></div>
+        <div class="hint" style="margin-top:6px;">¿No está en la lista?
+          <a href="#" onclick="atNuevoPaciente();return false;" style="color:var(--azul-oscuro); font-weight:700;">Cargar paciente nuevo</a>
+        </div>
       </div>
 
       <div class="seg" style="margin-bottom:14px;">
