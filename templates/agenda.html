@@ -156,6 +156,7 @@ let FERIADOS = {};               // {fecha: nombre} días marcados como feriado
 let VER_SEDE = window.SEDE_ACTUAL;   // sede cuyo calendario se está viendo
 let SEM_PUNTO = localStorage.getItem('kdym_sem_punto') === '1';  // mostrar además el puntito
 let HORA_FILTRO = localStorage.getItem('kdym_sem_hora') || '';   // horario a colorear ('' = ninguno)
+let CAL_ANIMADO = false;         // el calendario se anima UNA vez (al entrar), no al cambiar de día
 let PLAN_PAC = null;
 let PLAN_PICKER = null;
 let FALTO_TID = null;
@@ -326,8 +327,14 @@ function pintarCalendario() {
   }
   const grid = document.getElementById('cal-grid');
   grid.innerHTML = html;
-  // Animación de entrada de las celdas al renderizar.
-  grid.classList.remove('cal-anim'); void grid.offsetWidth; grid.classList.add('cal-anim');
+  // La animación de las celdas es SOLO al entrar a la agenda; cambiar de día (o
+  // de mes) NO re-anima el calendario. La de los nombres (dia-anim) sí, siempre.
+  if (!CAL_ANIMADO) {
+    grid.classList.remove('cal-anim'); void grid.offsetWidth; grid.classList.add('cal-anim');
+    CAL_ANIMADO = true;
+  } else {
+    grid.classList.remove('cal-anim');
+  }
 }
 
 function seleccionar(key) { SEL = key; render(); }
