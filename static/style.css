@@ -1067,3 +1067,29 @@ html[data-theme="dark"] .cal-cell.pac-hl { background: #241B3A; }
 .at-slot.lleno { border-color: #F0A3A5; background: var(--rojo-bg); color: var(--rojo); cursor: not-allowed; opacity: .8; }
 .at-slot:not(.lleno):hover { transform: translateY(-1px); box-shadow: var(--sombra); }
 html[data-theme="dark"] .at-slot { background: #0F1B2E; }
+
+/* ============ Filtro por día de la semana (agenda) ============ */
+.agenda-dias-filtro { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
+.agenda-dias-lbl { font-size: 13px; font-weight: 800; color: var(--azul-oscuro); }
+.dias-chips { display: inline-flex; gap: 6px; flex-wrap: wrap; }
+.dia-chip { border: 1.5px solid var(--borde); background: #fff; border-radius: 999px; padding: 5px 12px;
+  font-family: inherit; font-weight: 700; font-size: 13px; color: var(--gris); cursor: pointer; }
+.dia-chip.on { background: var(--azul); border-color: var(--azul); color: #fff; }
+.agenda-dias-filtro a { color: var(--azul); font-weight: 700; font-size: 13px; }
+/* Celdas ocultas por el filtro de días */
+.cal-cell.cal-oculto { opacity: .12; pointer-events: none; }
+
+/* Nombre del paciente buscado en el panel del día (violeta) */
+.dia-pac-hl { background: #EDE7FB; border: 1px solid #CBB6F2; border-radius: 12px;
+  padding: 9px 12px; margin-bottom: 10px; font-size: 14px; color: #4C1D95; display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+
+/* Vista previa de los días elegidos (modal de turnos) */
+.at-preview-dias { margin-top: 10px; display: flex; flex-direction: column; gap: 6px; }
+.prev-dia { display: flex; justify-content: space-between; align-items: center; gap: 8px;
+  border: 1px solid var(--borde); border-left-width: 4px; border-radius: 8px; padding: 7px 10px; font-size: 13px; font-weight: 700; }
+.prev-dia.libre { border-left-color: var(--verde); }
+.prev-dia.casi { border-left-color: var(--amarillo); background: var(--amarillo-bg); }
+.prev-dia.lleno { border-left-color: var(--rojo); background: var(--rojo-bg); color: var(--rojo); }
+.prev-dia.feriado { border-left-color: var(--gris2); color: var(--gris); }
+html[data-theme="dark"] .dia-chip { background: #0F1B2E; }
+html[data-theme="dark"] .dia-pac-hl { background: #241B3A; border-color: #4A3A6E; color: #C9B8F0; }

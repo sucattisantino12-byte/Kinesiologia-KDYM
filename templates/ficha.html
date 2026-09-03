@@ -245,6 +245,10 @@
       <button class="x" onclick="cerrarModal('modal-pago')">&times;</button>
     </div>
     <div class="modal-body">
+      <div class="field" id="pago-precio-wrap" style="display:none;">
+        <label>Usar un precio cargado</label>
+        <select class="input" id="pago-precio" onchange="usarPrecioPreset()"></select>
+      </div>
       <div class="grid2">
         <div class="field"><label>Monto *</label><input class="input" id="pago-monto" inputmode="decimal" placeholder="$"></div>
         <div class="field"><label>Fecha</label><input class="input" id="pago-fecha" type="date"></div>
@@ -457,11 +461,31 @@ async function cargarPagos() {
     : '<div class="empty" style="margin-top:8px;">Sin pagos registrados.</div>';
   box.innerHTML = html;
 }
-function abrirPago() {
+let PRECIOS_PRESET = [];
+async function abrirPago() {
   document.getElementById('pago-monto').value = '';
   document.getElementById('pago-concepto').value = '';
   document.getElementById('pago-fecha').value = new Date().toISOString().slice(0, 10);
+  // Cargar los precios configurados para elegir rápido.
+  try { PRECIOS_PRESET = await apiGet('/api/precios'); } catch (e) { PRECIOS_PRESET = []; }
+  const wrap = document.getElementById('pago-precio-wrap');
+  const sel = document.getElementById('pago-precio');
+  if (PRECIOS_PRESET.length) {
+    sel.innerHTML = '<option value="">Elegir…</option>' + PRECIOS_PRESET.map((p, i) =>
+      `<option value="${i}">${escapeHtml(p.nombre)} · $${Math.round(p.monto).toLocaleString('es-AR')}</option>`).join('');
+    wrap.style.display = '';
+  } else {
+    wrap.style.display = 'none';
+  }
   abrirModal('modal-pago');
+}
+function usarPrecioPreset() {
+  const i = document.getElementById('pago-precio').value;
+  if (i === '') return;
+  const p = PRECIOS_PRESET[+i];
+  if (!p) return;
+  document.getElementById('pago-monto').value = p.monto;
+  if (!document.getElementById('pago-concepto').value) document.getElementById('pago-concepto').value = p.nombre;
 }
 async function guardarPago() {
   const monto = document.getElementById('pago-monto').value;

@@ -393,6 +393,7 @@ function abrirAgregarTurnos(pid, nombre, onDone) {
   document.getElementById('at-desde').value = new Date().toISOString().slice(0, 10);
   document.getElementById('at-preview').textContent = '';
   atError('');
+  const pd = document.getElementById('at-preview-dias'); if (pd) pd.innerHTML = '';
   document.getElementById('at-manual-rows').innerHTML = '';
   poblarSelectSede('at-sede');
   AT_PICKER = crearDiasPicker('at-dias-picker', 'at-dias-rows');
@@ -528,15 +529,22 @@ async function atGenerar() {
     if (!data.dias.length) { toast('Elegí al menos un día', 'alert'); return; }
     const cant = document.getElementById('at-cantidad').value;
     if (!cant || +cant <= 0) { toast('Poné cuántas sesiones agregar', 'alert'); return; }
-    const r = await api('/api/plan', {
-      paciente_id: AT_PID, dias: data.dias, horarios: data.horarios,
-      desde: document.getElementById('at-desde').value, cantidad: cant,
-      duracion: dur, sede_id,
+    const resp = await fetch('/api/plan', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        paciente_id: AT_PID, dias: data.dias, horarios: data.horarios,
+        desde: document.getElementById('at-desde').value, cantidad: cant,
+        duracion: dur, sede_id,
+      }),
     });
+    let r = {}; try { r = await resp.json(); } catch (e) {}
+    if (!resp.ok || r.ok === false) {
+      // Aunque sea un horario lleno: mensaje rojo y el modal NO se cierra.
+      atError(r.error || 'No se pudieron asignar los turnos');
+      return;
+    }
     cerrarModal('modal-agturnos');
-    let msg = `${r.creados} turno(s) agregados ✓`;
-    if (r.saltados) msg += ` · ${r.saltados} saltado(s) por horario lleno`;
-    toast(msg, r.saltados ? 'alert' : 'ok');
+    toast(`${r.creados} turno(s) agregados ✓`, 'ok');
   } else {
     const filas = [].slice.call(document.querySelectorAll('#at-manual-rows .at-manual-row'));
     const turnos = filas.map(f => {
@@ -598,4 +606,26 @@ function atElegirLibre(fecha, hora) {
   atAgregarFila(fecha, hora);
   atError('');
   toast('Agregado a la lista: ' + fecha + ' ' + hora + ' ✓', 'ok');
+}
+
+// Vista previa: cómo están los días/horarios que eligió el paciente (auto).
+async function atVistaPrevia() {
+  const cont = document.getElementById('at-preview-dias');
+  const data = AT_PICKER ? AT_PICKER.getData() : { dias: [], horarios: {} };
+  const cant = document.getElementById('at-cantidad').value;
+  if (!data.dias.length || !cant) { cont.innerHTML = '<div class="hint">Elegí los días y la cantidad primero.</div>'; return; }
+  cont.innerHTML = '<div class="hint">Cargando…</div>';
+  const r = await api('/api/plan_preview', {
+    dias: data.dias, horarios: data.horarios,
+    desde: document.getElementById('at-desde').value, cantidad: cant, sede_id: atSedeElegida(),
+  });
+  if (!r.items || !r.items.length) { cont.innerHTML = '<div class="hint">Sin días para previsualizar.</div>'; return; }
+  cont.innerHTML = r.items.map(it => {
+    const d = new Date(it.fecha + 'T12:00:00');
+    const dd = d.toLocaleDateString('es-AR', { weekday: 'short', day: 'numeric', month: 'short' });
+    if (it.feriado) return `<div class="prev-dia feriado"><span>${dd}</span><b>Feriado</b></div>`;
+    const cls = it.lleno ? 'lleno' : (it.libres === 1 ? 'casi' : 'libre');
+    const est = it.lleno ? 'LLENO' : (it.libres + ' libre' + (it.libres > 1 ? 's' : ''));
+    return `<div class="prev-dia ${cls}"><span>${dd}${it.hora ? ' · ' + it.hora : ''}</span><b>${est}</b></div>`;
+  }).join('');
 }

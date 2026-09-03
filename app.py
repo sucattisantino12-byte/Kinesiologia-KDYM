@@ -278,6 +278,12 @@ def init_db():
             firma BLOB,
             FOREIGN KEY (paciente_id) REFERENCES pacientes(id) ON DELETE CASCADE
         );
+
+        CREATE TABLE IF NOT EXISTS precios (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre TEXT,
+            monto REAL
+        );
         """
     )
     db.commit()
@@ -1317,31 +1323,69 @@ def api_plan():
     sede = _sede_de_request(d)
     tope = tope_de_sede(sede)
 
-    creados = 0
-    saltados = 0
+    # Guardar los días/horarios del paciente (su plan semanal).
+    run("UPDATE pacientes SET dias=?, horarios=? WHERE id=?",
+        (dias_to_str(dias), json.dumps(horarios), pid))
+
+    # 1) Calcular las fechas destino (salteando feriados, que son días cerrados).
+    fechas = []
     guard = 0
-    while creados < cantidad and guard < 800:
+    while len(fechas) < cantidad and guard < 800:
         wd = cur.weekday()
-        if wd in dias:
+        if wd in dias and not _es_feriado(cur.isoformat()):
             hora = horarios.get(str(wd)) or horarios.get(wd) or hora_default
-            # Salta feriados y horarios llenos (no crea turno ahí, sigue al próximo día).
-            if _es_feriado(cur.isoformat()):
-                saltados += 1
-            elif hora and tope and _slot_ocupado(sede, cur.isoformat(), hora) >= tope:
-                saltados += 1
-            else:
-                run(
-                    """INSERT INTO turnos (paciente_id, fecha, hora, estado, duracion_min, sede_id)
-                       VALUES (?,?,?, 'agendado', ?, ?)""",
-                    (pid, cur.isoformat(), hora, dur, sede),
-                )
-                creados += 1
+            fechas.append((cur.isoformat(), hora))
         cur += timedelta(days=1)
         guard += 1
 
-    run("UPDATE pacientes SET dias=?, horarios=? WHERE id=?",
-        (dias_to_str(dias), json.dumps(horarios), pid))
-    return jsonify(ok=True, creados=creados, saltados=saltados)
+    # 2) Si AUNQUE SEA UNO está lleno, no se asigna nada y se avisa cuáles.
+    if tope:
+        llenos = [f + (" " + h if h else "")
+                  for f, h in fechas if h and _slot_ocupado(sede, f, h) >= tope]
+        if llenos:
+            muestra = ", ".join(llenos[:6]) + ("…" if len(llenos) > 6 else "")
+            return jsonify(ok=False, lleno=True,
+                           error="No se asignó ningún turno porque estos horarios "
+                                 "están llenos: " + muestra), 409
+
+    # 3) Crear todos.
+    for f, h in fechas:
+        run("""INSERT INTO turnos (paciente_id, fecha, hora, estado, duracion_min, sede_id)
+               VALUES (?,?,?, 'agendado', ?, ?)""", (pid, f, h, dur, sede))
+    return jsonify(ok=True, creados=len(fechas), saltados=0)
+
+
+@app.route("/api/plan_preview", methods=["POST"])
+def api_plan_preview():
+    """Vista previa: qué días saldrían y cómo está cada horario (para que el
+    kine vea antes de confirmar cómo están los turnos que eligió el paciente)."""
+    d = request.get_json(force=True, silent=True) or {}
+    dias = sorted(set(int(x) for x in (d.get("dias") or [])))
+    horarios = d.get("horarios") or {}
+    hora_default = d.get("hora") or ""
+    cantidad = int(d.get("cantidad") or 0)
+    if not dias or cantidad <= 0:
+        return jsonify(items=[])
+    sede = _sede_de_request(d)
+    tope = tope_de_sede(sede)
+    cur = date.fromisoformat(d.get("desde") or date.today().isoformat())
+    items = []
+    guard = 0
+    while len(items) < cantidad and guard < 800:
+        wd = cur.weekday()
+        if wd in dias:
+            f = cur.isoformat()
+            if _es_feriado(f):
+                items.append({"fecha": f, "hora": "", "feriado": True})
+            else:
+                h = horarios.get(str(wd)) or horarios.get(wd) or hora_default
+                oc = _slot_ocupado(sede, f, h) if h else 0
+                libres = (max(0, tope - oc) if tope else 99)
+                items.append({"fecha": f, "hora": h, "ocupados": oc, "tope": tope,
+                              "libres": libres, "lleno": bool(tope and libres <= 0)})
+        cur += timedelta(days=1)
+        guard += 1
+    return jsonify(items=items)
 
 
 @app.route("/api/turno/<int:tid>/borrar", methods=["POST"])
@@ -2078,6 +2122,33 @@ def api_precio_sesion(pid):
     except (TypeError, ValueError):
         precio = 0
     run("UPDATE pacientes SET precio_sesion=? WHERE id=?", (precio, pid))
+    return jsonify(ok=True)
+
+
+@app.route("/api/precios")
+def api_precios():
+    rows = q("SELECT id, nombre, monto FROM precios ORDER BY monto")
+    return jsonify([{"id": r["id"], "nombre": r["nombre"] or "", "monto": r["monto"] or 0}
+                    for r in rows])
+
+
+@app.route("/api/precio", methods=["POST"])
+def api_nuevo_precio():
+    d = request.get_json(force=True, silent=True) or {}
+    nombre = (d.get("nombre") or "").strip()
+    try:
+        monto = float(d.get("monto") or 0)
+    except (TypeError, ValueError):
+        monto = 0
+    if not nombre or monto <= 0:
+        return jsonify(ok=False, error="Poné nombre y monto"), 400
+    pid = run("INSERT INTO precios (nombre, monto) VALUES (?,?)", (nombre, monto))
+    return jsonify(ok=True, id=pid)
+
+
+@app.route("/api/precio/<int:prid>/borrar", methods=["POST"])
+def api_borrar_precio(prid):
+    run("DELETE FROM precios WHERE id=?", (prid,))
     return jsonify(ok=True)
 
 

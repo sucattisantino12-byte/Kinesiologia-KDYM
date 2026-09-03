@@ -54,6 +54,17 @@
   </div>
 </div>
 
+<div class="section-title">Precios de sesión</div>
+<div class="card card-pad" style="margin-bottom:8px;">
+  <div class="hint" style="margin-bottom:10px;">Cargá los precios que usás (sesión normal, oferta, bono, etc.). Después los elegís rápido al registrar un pago en la ficha.</div>
+  <div class="row" style="align-items:flex-end; gap:8px;">
+    <div class="field grow" style="margin:0;"><label>Nombre</label><input class="input" id="pr-nombre" placeholder="Ej: Sesión normal, Oferta 10 sesiones…"></div>
+    <div class="field" style="max-width:130px; margin:0;"><label>Monto</label><input class="input" id="pr-monto" inputmode="decimal" placeholder="$"></div>
+    <button class="btn btn-primary" onclick="agregarPrecioPreset()">Agregar</button>
+  </div>
+  <div id="precios-lista" style="margin-top:12px;"></div>
+</div>
+
 <div class="section-title">Feriados (días sin turnos)</div>
 <div class="card card-pad" style="margin-bottom:8px;">
   <div class="hint" style="margin-bottom:10px;">En estos días no se pueden dar turnos. También podés marcar/quitar feriados haciendo clic en un día del calendario, en la Agenda.</div>
@@ -216,6 +227,36 @@ async function quitarFeriadoCfg(fecha) {
   cargarFeriados();
 }
 cargarFeriados();
+
+// ---- Precios de sesión (presets) ----
+async function cargarPrecios() {
+  const cont = document.getElementById('precios-lista');
+  let rows;
+  try { rows = await apiGet('/api/precios'); } catch (e) { return; }
+  if (!rows.length) { cont.innerHTML = '<div class="empty" style="font-size:13px;">Sin precios cargados.</div>'; return; }
+  cont.innerHTML = rows.map(p => `
+    <div class="list-item" style="padding:8px 4px;">
+      <div class="li-main"><div class="li-name">$${(Math.round(p.monto)).toLocaleString('es-AR')}</div>
+        <div class="li-sub">${(p.nombre || '').replace(/</g,'&lt;')}</div></div>
+      <button class="btn btn-danger-soft btn-sm" onclick="borrarPrecioPreset(${p.id})">Quitar</button>
+    </div>`).join('');
+}
+async function agregarPrecioPreset() {
+  const nombre = document.getElementById('pr-nombre').value.trim();
+  const monto = document.getElementById('pr-monto').value;
+  if (!nombre || !monto || +monto <= 0) { toast('Poné nombre y monto', 'alert'); return; }
+  await api('/api/precio', { nombre, monto });
+  document.getElementById('pr-nombre').value = '';
+  document.getElementById('pr-monto').value = '';
+  toast('Precio agregado ✓', 'ok');
+  cargarPrecios();
+}
+async function borrarPrecioPreset(id) {
+  await api('/api/precio/' + id + '/borrar');
+  toast('Precio quitado ✓', 'ok');
+  cargarPrecios();
+}
+cargarPrecios();
 
 async function cargarPrueba() {
   if (!confirm('¿Cargar pacientes de prueba con turnos para hoy?')) return;

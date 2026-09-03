@@ -24,6 +24,13 @@
   <div id="ag-buscado" class="ag-buscado" style="display:none;"></div>
 </div>
 
+<!-- Filtrar el calendario por día de la semana -->
+<div class="agenda-dias-filtro">
+  <span class="agenda-dias-lbl">Filtrar días:</span>
+  <div class="dias-chips" id="ag-dias-chips"></div>
+  <a href="#" id="ag-dias-limpiar" onclick="limpiarDiasFiltro();return false;" style="display:none;">ver todos</a>
+</div>
+
 <div class="stats" id="stats"></div>
 
 <div class="split agenda-split" style="margin-top:8px;">
@@ -165,6 +172,7 @@ let SEM_PUNTO = localStorage.getItem('kdym_sem_punto') === '1';  // mostrar adem
 let HORA_FILTRO = localStorage.getItem('kdym_sem_hora') || '';   // horario a colorear ('' = ninguno)
 let CAL_ANIMADO = false;         // el calendario se anima UNA vez (al entrar), no al cambiar de día
 let PAC_BUSCADO = null;          // {id, nombre, usadas, totales} paciente resaltado en el calendario
+let DIAS_FILTRO = new Set();     // días de la semana a mostrar (vacío = todos)
 let PLAN_PAC = null;
 let PLAN_PICKER = null;
 let FALTO_TID = null;
@@ -314,6 +322,8 @@ function pintarCalendario() {
     if (otro) cls.push('otro');
     if (key === hoy) cls.push('hoy');
     if (key === SEL) cls.push('sel');
+    // Filtro por día de la semana (Lun=0): oculta los no seleccionados.
+    if (DIAS_FILTRO.size && !DIAS_FILTRO.has((d.getDay() + 6) % 7)) cls.push('cal-oculto');
     const esFeriado = !!FERIADOS[key];
     const count = (turnos.length && !esFeriado)
       ? `<span class="cal-count">${turnos.length}</span>` : '';
@@ -410,11 +420,17 @@ function pintarDia() {
   const animar = () => { cont.classList.remove('dia-anim'); void cont.offsetWidth; cont.classList.add('dia-anim'); };
 
   const esFeriado = !!FERIADOS[SEL];
-  // Los botones (dar turno / marcar feriado) están en el menú que sale al
-  // hacer clic en un día. Acá sólo mostramos el aviso si el día es feriado.
   let addBtn = '';
+  // Si hay un paciente buscado y viene este día, se muestra su nombre en violeta.
+  if (PAC_BUSCADO && (DATA[SEL] || []).some(t => t.paciente_id === PAC_BUSCADO.id && !['ausente', 'perdido'].includes(t.estado))) {
+    addBtn += `<div class="dia-pac-hl"><span class="ag-hl-dot"></span> <b>${escapeHtml(PAC_BUSCADO.nombre)}</b> viene este día
+      <span class="ag-ses-big">${PAC_BUSCADO.usadas}/${PAC_BUSCADO.totales}</span></div>`;
+  }
   if (esFeriado) {
-    addBtn = `<div class="feriado-aviso">Feriado — no se dan turnos este día${FERIADOS[SEL] && FERIADOS[SEL] !== 'Feriado' ? ' (' + escapeHtml(FERIADOS[SEL]) + ')' : ''}.</div>`;
+    addBtn += `<div class="feriado-aviso">Feriado — no se dan turnos este día${FERIADOS[SEL] && FERIADOS[SEL] !== 'Feriado' ? ' (' + escapeHtml(FERIADOS[SEL]) + ')' : ''}.</div>`;
+  } else {
+    // Asignar turno a un paciente directamente en este día.
+    addBtn += `<div class="dia-add"><button class="btn btn-primary btn-block" onclick="darTurnoEsteDia()">Asignar turno de paciente</button></div>`;
   }
   // Separar por franja horaria.
   const grupos = {};
@@ -652,6 +668,11 @@ document.getElementById('ag-buscar').addEventListener('input', e => {
 });
 function resaltarPaciente(p) {
   PAC_BUSCADO = p;
+  // El semáforo por horario pasa a "Todos" para que no tape el violeta.
+  HORA_FILTRO = '';
+  try { localStorage.setItem('kdym_sem_hora', ''); } catch (e) {}
+  const selh = document.getElementById('sem-hora'); if (selh) selh.value = '';
+  actualizarSemHint();
   document.getElementById('ag-buscar').value = p.nombre;
   document.getElementById('ag-buscar-res').innerHTML = '';
   const b = document.getElementById('ag-buscado');
@@ -666,6 +687,25 @@ function quitarResaltado() {
   document.getElementById('ag-buscar').value = '';
   document.getElementById('ag-buscar-res').innerHTML = '';
   document.getElementById('ag-buscado').style.display = 'none';
+  render();
+}
+
+// ---- Filtro por día de la semana (mostrar sólo esos días) ----
+function pintarDiasChips() {
+  const cont = document.getElementById('ag-dias-chips');
+  if (!cont) return;
+  cont.innerHTML = DIAS_ABBR.map((d, i) =>
+    `<button class="dia-chip ${DIAS_FILTRO.has(i) ? 'on' : ''}" onclick="toggleDiaFiltro(${i})">${d}</button>`).join('');
+  document.getElementById('ag-dias-limpiar').style.display = DIAS_FILTRO.size ? '' : 'none';
+}
+function toggleDiaFiltro(i) {
+  if (DIAS_FILTRO.has(i)) DIAS_FILTRO.delete(i); else DIAS_FILTRO.add(i);
+  pintarDiasChips();
+  render();
+}
+function limpiarDiasFiltro() {
+  DIAS_FILTRO.clear();
+  pintarDiasChips();
   render();
 }
 
@@ -754,6 +794,7 @@ async function limpiarSimulacion() {
 }
 
 pintarSedeBar();
+pintarDiasChips();
 pintarFecha();
 cargarDatos();
 cargarStats();
