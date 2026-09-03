@@ -10,18 +10,27 @@
 <body class="hub-body">
   <!-- Bienvenida: aparece antes del hub -->
   <div class="hub-splash" id="hub-splash">
-    <div class="hub-splash-mark">{% include "_logo_svg.html" %}</div>
-    <div class="hub-splash-nom">KDYM</div>
-    <div class="hub-splash-sub">Kinesiología y rehabilitación</div>
+    <div class="hub-splash-inner">
+      <div class="hub-splash-mark">
+        <span class="hub-splash-ring"></span>
+        {% include "_logo_svg.html" %}
+      </div>
+      <div class="hub-splash-nom"><span>K</span><span>D</span><span>Y</span><span>M</span></div>
+      <div class="hub-splash-sub">Kinesiología y rehabilitación</div>
+    </div>
   </div>
 
   <!-- Transición al entrar a una sede -->
   <div class="hub-go" id="hub-go">
-    <div class="hub-go-pin">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6.5-5.2-6.5-10A6.5 6.5 0 0112 4.5 6.5 6.5 0 0118.5 11c0 4.8-6.5 10-6.5 10z"/><circle cx="12" cy="11" r="2.4"/></svg>
+    <span class="hub-go-circle" id="hub-go-circle"></span>
+    <div class="hub-go-inner">
+      <div class="hub-go-pin">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6.5-5.2-6.5-10A6.5 6.5 0 0112 4.5 6.5 6.5 0 0118.5 11c0 4.8-6.5 10-6.5 10z"/><circle cx="12" cy="11" r="2.4"/></svg>
+      </div>
+      <div class="hub-go-txt">Accediendo a la sede</div>
+      <div class="hub-go-sede" id="hub-go-sede"></div>
+      <div class="hub-go-dots"><span></span><span></span><span></span></div>
     </div>
-    <div class="hub-go-txt">Accediendo a la sede</div>
-    <div class="hub-go-sede" id="hub-go-sede"></div>
   </div>
 
   <div class="hub-wrap">
@@ -59,25 +68,40 @@
 
   <script>
     // Colores por posición de la sede (igual que las tarjetas del hub).
-    const HUB_COLORS = ['#2F5FB0', '#12A150', '#C8891B', '#7A5BD8'];
-    // Ocultar la bienvenida y mostrar el hub.
+    const HUB_COLORS = [
+      { base: '#2F5FB0', dark: '#1E4483' },  // azul
+      { base: '#12A150', dark: '#0C7C3D' },  // verde
+      { base: '#C8891B', dark: '#9C6A12' },  // amarillo
+      { base: '#7A5BD8', dark: '#5B3FB0' },  // violeta
+    ];
+    // Sacar la bienvenida y revelar el hub (las tarjetas entran solas por CSS).
+    document.documentElement.classList.add('hub-cargando');
     window.addEventListener('load', () => {
       setTimeout(() => {
         const sp = document.getElementById('hub-splash');
-        if (sp) sp.classList.add('fuera');
-      }, 1300);
+        sp?.classList.add('fuera');
+        document.documentElement.classList.remove('hub-cargando');
+        document.documentElement.classList.add('hub-listo');
+        // Sacarlo del DOM al terminar el fundido (corta sus animaciones).
+        setTimeout(() => { if (sp) sp.style.display = 'none'; }, 750);
+      }, 1600);
     });
-    // Al elegir sede: animación "Accediendo a la sede" con su color.
+    // Al elegir sede: círculo del color de la sede que se abre desde la tarjeta.
     function accederSede(ev, el) {
       ev.preventDefault();
       const cards = [...document.querySelectorAll('.hub-card')];
-      const idx = cards.indexOf(el);
-      const color = HUB_COLORS[idx % HUB_COLORS.length];
+      const c = HUB_COLORS[cards.indexOf(el) % HUB_COLORS.length];
+      const r = el.getBoundingClientRect();
       const go = document.getElementById('hub-go');
+      const circ = document.getElementById('hub-go-circle');
+      // Origen del círculo = centro de la tarjeta tocada.
+      circ.style.left = (r.left + r.width / 2) + 'px';
+      circ.style.top = (r.top + r.height / 2) + 'px';
+      go.style.setProperty('--go-color', c.base);
+      go.style.setProperty('--go-dark', c.dark);
       document.getElementById('hub-go-sede').textContent = el.dataset.sedeNombre || '';
-      go.style.setProperty('--go-color', color);
       go.classList.add('activo');
-      setTimeout(() => { location.href = el.getAttribute('href'); }, 950);
+      setTimeout(() => { location.href = el.getAttribute('href'); }, 1050);
     }
   </script>
 </body>

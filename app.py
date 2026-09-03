@@ -610,10 +610,16 @@ def inject_sedes():
         sedes = [dict(r) for r in sedes_list()]
         actual = sede_actual_id()
         nombre = next((s["nombre"] for s in sedes if s["id"] == actual), "")
+        # Cantidad de boxes activos de la sede activa: se renderiza directo para
+        # que "En sesión ahora" no muestre 0 y después salte al número real.
+        nb = q1("SELECT COUNT(*) c FROM boxes WHERE activo=1 AND sede_id=?",
+                (actual,)) if actual else None
         return {"sedes_all": sedes, "sede_actual_id": actual,
-                "sede_actual_nombre": nombre}
+                "sede_actual_nombre": nombre,
+                "side_boxes_n": (nb["c"] if nb else 0)}
     except Exception:
-        return {"sedes_all": [], "sede_actual_id": None, "sede_actual_nombre": ""}
+        return {"sedes_all": [], "sede_actual_id": None,
+                "sede_actual_nombre": "", "side_boxes_n": 0}
 
 
 # --------------------------------------------------------------------------
@@ -1719,6 +1725,13 @@ def api_editar_paciente(pid):
 
 @app.route("/api/paciente/<int:pid>/borrar", methods=["POST"])
 def api_borrar_paciente(pid):
+    # Borrar el paciente arrastra sus registros para no dejar datos huérfanos.
+    for t in ("turnos", "ejercicios", "evoluciones", "pagos",
+              "adjuntos", "consentimientos", "plantillas", "eventos"):
+        try:
+            run(f"DELETE FROM {t} WHERE paciente_id=?", (pid,))
+        except Exception:
+            pass
     run("DELETE FROM pacientes WHERE id=?", (pid,))
     return jsonify(ok=True)
 

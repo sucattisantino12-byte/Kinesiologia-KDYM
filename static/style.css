@@ -755,41 +755,106 @@ body.splashing { overflow: hidden; }
   background: var(--acc); color: #fff; font-size: 16px; font-weight: 800; }
 
 /* ---- Hub: bienvenida (splash) antes del hub ---- */
+/* Fondo claro y aireado, en sintonía con el hub (nada de pantalla oscura fea). */
 .hub-splash {
   position: fixed; inset: 0; z-index: 60; display: flex;
-  flex-direction: column; align-items: center; justify-content: center; gap: 14px;
-  background: radial-gradient(70% 70% at 50% 40%, #17346A 0%, #0C1E44 70%, #081733 100%);
-  color: #fff; opacity: 1; transition: opacity .6s ease;
-}
-.hub-splash.fuera { opacity: 0; pointer-events: none; }
-.hub-splash-mark { width: 96px; height: 96px; border-radius: 50%; display: flex;
   align-items: center; justify-content: center;
-  background: radial-gradient(120% 120% at 32% 26%, #8FB2EC 0%, #3D67B4 42%, #16305F 100%);
-  box-shadow: inset 0 -5px 12px rgba(5,13,31,.5), 0 10px 26px rgba(5,13,31,.4);
-  animation: splashPop .7s cubic-bezier(.2,.9,.3,1.3) both; }
-.hub-splash-mark svg { width: 56px; height: 56px; }
-.hub-splash-nom { font-size: 44px; font-weight: 800; letter-spacing: .06em;
-  animation: splashUp .7s .15s ease both; }
-.hub-splash-sub { font-size: 16px; font-weight: 600; color: #B7C6E6;
-  animation: splashUp .7s .3s ease both; }
-@keyframes splashPop { from { transform: scale(.5); opacity: 0; } to { transform: scale(1); opacity: 1; } }
-@keyframes splashUp { from { transform: translateY(14px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-
-/* ---- Hub: transición "Accediendo a la sede" ---- */
-.hub-go {
-  position: fixed; inset: 0; z-index: 70; display: flex;
-  flex-direction: column; align-items: center; justify-content: center; gap: 12px;
-  background: var(--go-color, #2F5FB0); color: #fff;
-  opacity: 0; pointer-events: none; transition: opacity .4s ease;
+  background:
+    radial-gradient(60% 55% at 12% 8%, rgba(109,155,224,.55) 0%, rgba(109,155,224,0) 60%),
+    radial-gradient(55% 55% at 92% 96%, rgba(18,161,80,.28) 0%, rgba(18,161,80,0) 60%),
+    radial-gradient(70% 60% at 88% 4%, rgba(47,95,176,.32) 0%, rgba(47,95,176,0) 55%),
+    linear-gradient(135deg, #EAF0FB 0%, #F5F8FD 55%, #FBFCFE 100%);
+  opacity: 1; transition: opacity .7s ease, transform .7s ease;
 }
-.hub-go.activo { opacity: 1; pointer-events: auto; }
-.hub-go-pin { width: 84px; height: 84px; border-radius: 50%; display: flex;
-  align-items: center; justify-content: center; background: rgba(255,255,255,.16);
-  animation: goPulse 1s ease-in-out infinite; }
-.hub-go-pin svg { width: 44px; height: 44px; }
-.hub-go-txt { font-size: 16px; font-weight: 600; opacity: .9; letter-spacing: .04em; }
-.hub-go-sede { font-size: 38px; font-weight: 800; letter-spacing: -.01em; }
-@keyframes goPulse { 0%,100% { transform: scale(1); } 50% { transform: scale(1.12); } }
+.hub-splash.fuera { opacity: 0; transform: scale(1.04); pointer-events: none; }
+.hub-splash-inner { text-align: center; display: flex; flex-direction: column;
+  align-items: center; gap: 16px; }
+.hub-splash-mark {
+  position: relative; width: 108px; height: 108px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center; color: #fff;
+  background: radial-gradient(120% 120% at 32% 26%, #8FB2EC 0%, #3D67B4 42%, #16305F 100%);
+  box-shadow: 0 18px 40px rgba(30,68,131,.34), inset 0 -5px 12px rgba(5,13,31,.4);
+  animation: splashMark .9s cubic-bezier(.18,.9,.28,1.3) both;
+}
+.hub-splash-mark svg { width: 60px; height: 60px; position: relative;
+  animation: splashGlow 1.8s ease-in-out .6s infinite; }
+/* Anillo que se expande alrededor del logo. */
+.hub-splash-ring {
+  position: absolute; inset: -6px; border-radius: 50%;
+  border: 2px solid rgba(47,95,176,.5);
+  animation: splashRing 1.7s ease-out .5s infinite;
+}
+.hub-splash-nom { display: flex; gap: 2px; font-size: 52px; font-weight: 800;
+  letter-spacing: .04em; color: var(--navy); }
+.hub-splash-nom span { display: inline-block; animation: splashLetra .6s ease both; }
+.hub-splash-nom span:nth-child(1) { animation-delay: .30s; }
+.hub-splash-nom span:nth-child(2) { animation-delay: .40s; }
+.hub-splash-nom span:nth-child(3) { animation-delay: .50s; }
+.hub-splash-nom span:nth-child(4) { animation-delay: .60s; }
+.hub-splash-sub { font-size: 16px; font-weight: 600; color: var(--gris);
+  animation: splashUp .7s .75s ease both; }
+@keyframes splashMark { 0% { transform: scale(.4) rotate(-14deg); opacity: 0; }
+  100% { transform: scale(1) rotate(0); opacity: 1; } }
+@keyframes splashLetra { from { transform: translateY(16px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; } }
+@keyframes splashUp { from { transform: translateY(12px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; } }
+@keyframes splashRing { 0% { transform: scale(1); opacity: .7; }
+  100% { transform: scale(1.5); opacity: 0; } }
+@keyframes splashGlow { 0%,100% { filter: drop-shadow(0 0 0 rgba(255,255,255,0)); }
+  50% { filter: drop-shadow(0 0 10px rgba(255,255,255,.7)); } }
+
+/* Entrada de las tarjetas del hub al terminar la bienvenida. */
+.hub-cargando .hub-wrap { opacity: 0; }
+.hub-listo .hub-brand { animation: hubUp .6s ease both; }
+.hub-listo .hub-title { animation: hubUp .6s .05s ease both; }
+.hub-listo .hub-hint { animation: hubUp .6s .1s ease both; }
+.hub-listo .hub-card { animation: hubCard .6s cubic-bezier(.2,.8,.3,1.1) both; }
+.hub-listo .hub-card:nth-child(1) { animation-delay: .16s; }
+.hub-listo .hub-card:nth-child(2) { animation-delay: .26s; }
+.hub-listo .hub-card:nth-child(3) { animation-delay: .36s; }
+.hub-listo .hub-card:nth-child(4) { animation-delay: .46s; }
+@keyframes hubUp { from { transform: translateY(14px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+@keyframes hubCard { from { transform: translateY(26px) scale(.96); opacity: 0; } to { transform: translateY(0) scale(1); opacity: 1; } }
+
+/* ---- Hub: transición "Accediendo a la sede" (círculo que se abre) ---- */
+.hub-go { position: fixed; inset: 0; z-index: 70; overflow: hidden;
+  pointer-events: none; }
+.hub-go.activo { pointer-events: auto; }
+/* Círculo del color de la sede que crece desde la tarjeta tocada. */
+.hub-go-circle { position: absolute; left: 50%; top: 50%; width: 10px; height: 10px;
+  border-radius: 50%; transform: translate(-50%, -50%) scale(0);
+  background: radial-gradient(circle at 50% 40%, var(--go-color, #2F5FB0) 0%, var(--go-dark, #1E4483) 100%); }
+.hub-go.activo .hub-go-circle { animation: goExpand .7s cubic-bezier(.6,0,.3,1) forwards; }
+@keyframes goExpand { to { transform: translate(-50%, -50%) scale(400); } }
+.hub-go-inner { position: absolute; inset: 0; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; gap: 14px; color: #fff;
+  opacity: 0; }
+.hub-go.activo .hub-go-inner { animation: goInner .5s ease .35s forwards; }
+@keyframes goInner { from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); } }
+.hub-go-pin { width: 92px; height: 92px; border-radius: 50%; display: flex;
+  align-items: center; justify-content: center; background: rgba(255,255,255,.18);
+  box-shadow: 0 0 0 0 rgba(255,255,255,.35); }
+.hub-go.activo .hub-go-pin { animation: goPulse 1.4s ease-out infinite; }
+.hub-go-pin svg { width: 46px; height: 46px; }
+.hub-go-txt { font-size: 15px; font-weight: 600; opacity: .92;
+  letter-spacing: .06em; text-transform: uppercase; }
+.hub-go-sede { font-size: 42px; font-weight: 800; letter-spacing: -.01em; }
+.hub-go-dots { display: flex; gap: 7px; margin-top: 4px; }
+.hub-go-dots span { width: 8px; height: 8px; border-radius: 50%;
+  background: rgba(255,255,255,.85); }
+.hub-go.activo .hub-go-dots span { animation: goDot 1s ease-in-out infinite; }
+.hub-go.activo .hub-go-dots span:nth-child(2) { animation-delay: .16s; }
+.hub-go.activo .hub-go-dots span:nth-child(3) { animation-delay: .32s; }
+@keyframes goPulse { 0% { box-shadow: 0 0 0 0 rgba(255,255,255,.4); }
+  100% { box-shadow: 0 0 0 26px rgba(255,255,255,0); } }
+@keyframes goDot { 0%,100% { transform: translateY(0); opacity: .5; }
+  50% { transform: translateY(-6px); opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  .hub-splash-mark, .hub-splash-nom span, .hub-splash-sub, .hub-splash-ring,
+  .hub-go-circle, .hub-go-inner, .hub-listo .hub-card { animation-duration: .01ms !important; }
+}
 
 /* ---- Config de sedes ---- */
 .sede-cfg-row { display: flex; align-items: flex-end; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--borde2); }
