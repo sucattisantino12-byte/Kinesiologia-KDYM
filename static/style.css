@@ -712,8 +712,12 @@ body.splashing { overflow: hidden; }
 .sede-cambiar { font-size: 11px; font-weight: 700; color: var(--azul); background: #fff; border: 1px solid var(--azul-borde); padding: 3px 8px; border-radius: 999px; }
 
 /* ---- Hub: elegir sede (grande y legible) ---- */
-.hub-body { min-height: 100vh; display: flex; align-items: center; justify-content: center;
-  background: radial-gradient(130% 90% at 50% -10%, #E4ECFA 0%, #F3F6FC 55%, #fff 100%); padding: 28px 20px; }
+.hub-body { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 28px 20px;
+  background:
+    radial-gradient(60% 55% at 12% 8%, rgba(109,155,224,.55) 0%, rgba(109,155,224,0) 60%),
+    radial-gradient(55% 55% at 92% 96%, rgba(18,161,80,.30) 0%, rgba(18,161,80,0) 60%),
+    radial-gradient(70% 60% at 88% 4%, rgba(47,95,176,.35) 0%, rgba(47,95,176,0) 55%),
+    linear-gradient(135deg, #EAF0FB 0%, #F5F8FD 55%, #FBFCFE 100%); }
 .hub-wrap { width: 100%; max-width: 860px; text-align: center; }
 .hub-brand { display: inline-flex; align-items: center; gap: 14px; margin-bottom: 34px; text-align: left; }
 .hub-mark { display: inline-flex; width: 64px; height: 64px; flex: none; border-radius: 50%;
@@ -936,7 +940,7 @@ details.sala-sec[open] > summary::after { content: '▾'; }
 
 /* ============ Menú rápido al clic en un día del calendario ============ */
 .dia-menu {
-  position: fixed; z-index: 200; min-width: 180px;
+  position: fixed; z-index: 200; width: 210px;
   background: #fff; border: 1px solid var(--borde); border-radius: 12px;
   box-shadow: 0 12px 34px rgba(15,35,80,.22); padding: 10px;
 }
@@ -947,3 +951,7 @@ details.sala-sec[open] > summary::after { content: '▾'; }
 .dia-filtro { font-size: 12px; font-weight: 700; color: var(--azul-oscuro);
   background: var(--azul-claro); border-radius: 8px; padding: 6px 10px; margin-bottom: 10px; }
 .dia-filtro a { color: var(--azul); font-weight: 700; }
+
+/* ============ Plantillas: vista lista (una columna) ============ */
+.pl-list { display: flex; flex-direction: column; gap: 10px; }
+.pl-list .pl-card { width: 100%; }

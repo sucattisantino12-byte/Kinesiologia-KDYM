@@ -95,7 +95,7 @@
     <div class="modal-body">
       <div class="grid2">
         <div class="field"><label>Fecha</label><input class="input" id="turno-fecha" type="date"></div>
-        <div class="field"><label>Hora</label><input class="input" id="turno-hora" type="time"></div>
+        <div class="field"><label>Hora</label><input class="input" id="turno-hora" type="time" step="900"></div>
       </div>
       <div class="field"><label>Duración (minutos)</label><input class="input" id="turno-dur" type="number" min="5"></div>
       <div class="hint" style="margin:-4px 0 8px;">Para cambiarlo a mano (un día puntual), editá la fecha/hora y tocá “Guardar cambios”.</div>
@@ -335,6 +335,9 @@ function seleccionar(key) { SEL = key; render(); }
 // Menú rápido al hacer clic izquierdo en un día del calendario:
 // dar turno o marcar/quitar feriado, ahí mismo.
 function diaMenu(ev, key) {
+  // Capturar la posición de la celda ANTES de renderizar (seleccionar re-dibuja
+  // el calendario y destruiría la celda, dejando el menú en 0,0 = arriba izq).
+  const cell = ev.currentTarget.getBoundingClientRect();
   seleccionar(key);
   const menu = document.getElementById('dia-menu');
   if (!menu) return;
@@ -349,7 +352,6 @@ function diaMenu(ev, key) {
        <button class="btn btn-ghost btn-block btn-sm" style="margin-top:6px;" onclick="cerrarDiaMenu(); marcarFeriado()">⊘ Marcar feriado</button>`);
   // Posicionar cerca de la celda tocada.
   menu.style.display = 'block';
-  const cell = ev.currentTarget.getBoundingClientRect();
   const mw = menu.offsetWidth, mh = menu.offsetHeight;
   let left = cell.left, top = cell.bottom + 4;
   if (left + mw > window.innerWidth - 8) left = window.innerWidth - mw - 8;
@@ -388,18 +390,11 @@ function pintarDia() {
   const animar = () => { cont.classList.remove('dia-anim'); void cont.offsetWidth; cont.classList.add('dia-anim'); };
 
   const esFeriado = !!FERIADOS[SEL];
-  // Barra: marcar/quitar feriado + dar turno (o aviso si es feriado).
-  let addBtn;
+  // Los botones (dar turno / marcar feriado) están en el menú que sale al
+  // hacer clic en un día. Acá sólo mostramos el aviso si el día es feriado.
+  let addBtn = '';
   if (esFeriado) {
-    addBtn = `<div class="dia-add">
-      <div class="feriado-aviso">⊘ Feriado — no se dan turnos este día${FERIADOS[SEL] && FERIADOS[SEL] !== 'Feriado' ? ' (' + escapeHtml(FERIADOS[SEL]) + ')' : ''}.</div>
-      <button class="btn btn-line btn-block" onclick="quitarFeriado()">✓ Quitar feriado</button>
-    </div>`;
-  } else {
-    addBtn = `<div class="dia-add">
-      <button class="btn btn-primary btn-block" onclick="darTurnoEsteDia()">+ Dar turno este día</button>
-      <button class="btn btn-ghost btn-block btn-sm" style="margin-top:6px;" onclick="marcarFeriado()">⊘ Marcar día como feriado</button>
-    </div>`;
+    addBtn = `<div class="feriado-aviso">Feriado — no se dan turnos este día${FERIADOS[SEL] && FERIADOS[SEL] !== 'Feriado' ? ' (' + escapeHtml(FERIADOS[SEL]) + ')' : ''}.</div>`;
   }
   // Separar por franja horaria.
   const grupos = {};
@@ -661,7 +656,7 @@ function actualizarSemHint() {
   const sel = document.getElementById('sem-hora');
   if (sel) {
     let opts = '<option value="">Todos (sin color)</option>';
-    for (let m = 7 * 60; m <= 21 * 60; m += 30) {
+    for (let m = 7 * 60; m <= 21 * 60; m += 15) {
       const h = `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
       opts += `<option value="${h}">${h}</option>`;
     }

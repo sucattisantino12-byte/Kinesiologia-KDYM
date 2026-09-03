@@ -95,7 +95,7 @@ function crearDiasPicker(pickerId, rowsId) {
       rows.innerHTML = [...state.dias].sort((a, b) => a - b).map(i =>
         `<div class="dia-hora-row">
            <span class="dia-hora-lbl">${DIAS_ABBR[i]}</span>
-           <input type="time" class="input" data-dia="${i}" value="${state.horarios[i] || ''}">
+           <input type="time" step="900" class="input" data-dia="${i}" value="${state.horarios[i] || ''}">
          </div>`).join('');
       rows.querySelectorAll('input[type=time]').forEach(inp =>
         inp.oninput = () => { state.horarios[+inp.dataset.dia] = inp.value; });
@@ -430,7 +430,7 @@ function atAgregarFila(fecha, hora) {
   div.className = 'at-manual-row';
   div.innerHTML =
     `<input class="input" type="date" value="${fecha || ''}">` +
-    `<input class="input" type="time" value="${hora || ''}">` +
+    `<input class="input" type="time" step="900" value="${hora || ''}">` +
     `<button class="x" onclick="this.parentNode.remove()" title="Quitar">&times;</button>`;
   cont.appendChild(div);
 }
