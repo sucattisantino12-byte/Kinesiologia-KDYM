@@ -9,6 +9,7 @@
   </div>
   <button class="btn btn-ghost btn-sm" onclick="abrirNuevoPaciente(elegirDesdeNuevo)">+ Paciente</button>
   <button class="btn btn-ghost btn-sm" onclick="abrirHuecos()">Buscar hueco</button>
+  <button class="btn btn-ghost btn-sm" onclick="abrirOfrecer()">Ofrecer turno libre</button>
   <button class="btn btn-ghost btn-sm" onclick="simularAgenda()" title="Llenar el mes con turnos de ejemplo">Simular agenda</button>
   <button class="btn btn-danger-soft btn-sm" onclick="limpiarSimulacion()" title="Borrar los turnos de ejemplo">Limpiar</button>
   <button class="btn btn-primary btn-sm" onclick="agAgregarTurnos()">Agregar turnos</button>
@@ -151,6 +152,29 @@
       </div>
       <button class="btn btn-primary btn-block" onclick="buscarHuecos()">Buscar horarios</button>
       <div id="huecos-res" style="margin-top:14px;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: ofrecer los próximos turnos libres -->
+<div class="modal-bg" id="modal-ofrecer">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>Ofrecer turno libre</h3>
+      <button class="x" onclick="cerrarModal('modal-ofrecer')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="hint" style="margin-bottom:8px;">Elegí (opcional) qué días y/o a qué hora le queda cómodo al paciente. Te muestro los próximos lugares libres para ofrecerle.</div>
+      <div class="field">
+        <label>Días que le sirven (opcional)</label>
+        <div class="dias-chips" id="of-dias"></div>
+      </div>
+      <div class="field">
+        <label>Hora (opcional)</label>
+        <select class="input" id="of-hora"></select>
+      </div>
+      <button class="btn btn-primary btn-block" onclick="buscarOfrecer()">Ver próximos libres</button>
+      <div id="of-res" style="margin-top:14px;"></div>
     </div>
   </div>
 </div>
@@ -479,10 +503,12 @@ function verDiaToggle() { VER_DIA = !VER_DIA; pintarDia(); }
 async function cargarDiaLibres() {
   const box = document.getElementById('dia-libres');
   if (!box) return;
+  const cab = '<div class="dia-libres-cab"><span>Cómo está el día</span>' +
+    '<button class="x" onclick="verDiaToggle()" title="Cerrar">&times;</button></div>';
   const d = await apiGet('/api/horarios_libres?fecha=' + SEL + '&sede=' + VER_SEDE);
-  if (d.feriado) { box.innerHTML = '<div class="hint">Feriado — no se dan turnos.</div>'; return; }
-  if (!d.abierto) { box.innerHTML = '<div class="hint">El centro no abre este día.</div>'; return; }
-  box.innerHTML = '<div class="dia-libres-slots">' + d.slots.map(s => {
+  if (d.feriado) { box.innerHTML = cab + '<div class="hint">Feriado — no se dan turnos.</div>'; return; }
+  if (!d.abierto) { box.innerHTML = cab + '<div class="hint">El centro no abre este día.</div>'; return; }
+  box.innerHTML = cab + '<div class="dia-libres-slots">' + d.slots.map(s => {
     const cls = s.libres <= 0 ? 'lleno' : (s.libres === 1 ? 'casi' : 'libre');
     const txt = s.libres <= 0 ? 'lleno' : (s.libres + ' libre' + (s.libres > 1 ? 's' : ''));
     return `<div class="at-slot ${cls}" style="cursor:default;">${s.hora}<small>${txt}</small></div>`;
@@ -596,6 +622,52 @@ async function buscarHuecos() {
   ).join('');
   document.getElementById('huecos-res').innerHTML =
     `<div class="hint" style="margin-bottom:8px;">${d.boxes} box(es) en total. Horarios de 08 a 20 hs:</div><div>${chips}</div>`;
+}
+
+// ---- Ofrecer los próximos turnos libres al paciente ----
+let OF_DIAS = new Set();
+function abrirOfrecer() {
+  OF_DIAS = new Set();
+  document.getElementById('of-dias').innerHTML = DIAS_ABBR.map((d, i) =>
+    `<button type="button" class="dia-chip" data-i="${i}" onclick="ofToggleDia(${i})">${d}</button>`).join('');
+  let opts = '<option value="">Cualquier hora</option>';
+  for (let m = 7 * 60; m <= 21 * 60; m += 15) {
+    const h = `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+    opts += `<option value="${h}">${h}</option>`;
+  }
+  document.getElementById('of-hora').innerHTML = opts;
+  document.getElementById('of-res').innerHTML = '';
+  abrirModal('modal-ofrecer');
+}
+function ofToggleDia(i) {
+  if (OF_DIAS.has(i)) OF_DIAS.delete(i); else OF_DIAS.add(i);
+  const b = document.querySelector(`#of-dias .dia-chip[data-i="${i}"]`);
+  if (b) b.classList.toggle('on');
+}
+async function buscarOfrecer() {
+  const cont = document.getElementById('of-res');
+  const dias = [...OF_DIAS].join(',');
+  const hora = document.getElementById('of-hora').value;
+  cont.innerHTML = '<div class="hint">Buscando…</div>';
+  const d = await apiGet('/api/proximos_libres?sede=' + VER_SEDE +
+    (dias ? '&dias=' + dias : '') + (hora ? '&hora=' + hora : '') + '&limite=12');
+  if (!d.items.length) { cont.innerHTML = '<div class="empty">No hay lugares libres con ese filtro en los próximos días.</div>'; return; }
+  cont.innerHTML = d.items.map(it => {
+    let dd = new Date(it.fecha + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
+    dd = dd.charAt(0).toUpperCase() + dd.slice(1);
+    return `<div class="of-item"><div class="of-info"><b>${dd}</b><span>${it.hora} · ${it.libres} libre${it.libres > 1 ? 's' : ''}</span></div>
+      <button class="btn btn-primary btn-sm" onclick="ofAsignar('${it.fecha}','${it.hora}')">Asignar</button></div>`;
+  }).join('');
+}
+function ofAsignar(fecha, hora) {
+  cerrarModal('modal-ofrecer');
+  SEL = fecha;
+  abrirAgregarTurnos(null, '', recargar);
+  poblarSelectSede('at-sede', VER_SEDE);
+  atModo('manual');
+  document.getElementById('at-manual-rows').innerHTML = '';
+  atAgregarFila(fecha, hora);
+  const b = document.getElementById('at-buscar'); if (b) setTimeout(() => b.focus(), 150);
 }
 
 // ---- Acciones de asistencia ----

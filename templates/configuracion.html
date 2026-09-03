@@ -82,6 +82,14 @@
   <button class="btn btn-primary" onclick="guardarWa()">Guardar WhatsApp</button>
 </div>
 
+<div class="section-title">Retiro de plantillas</div>
+<div class="card card-pad" style="margin-bottom:8px;">
+  <div class="hint" style="margin-bottom:10px;">Se usa en el mensaje de WhatsApp "Avisar que sus plantillas están listas".</div>
+  <div class="field"><label>Horario de retiro</label><input class="input" id="cfg-retiro-horario" placeholder="Ej: Lun a Vie de 9 a 18 hs"></div>
+  <div class="field"><label>Dirección de retiro</label><input class="input" id="cfg-retiro-dir" placeholder="Ej: Av. Rivadavia 1234, Morón"></div>
+  <button class="btn btn-primary" onclick="guardarRetiro()">Guardar</button>
+</div>
+
 <div class="section-title">Días y horario del centro</div>
 <div class="card card-pad" style="margin-bottom:8px;">
   <div class="hint" style="margin-bottom:10px;">Marcá los días que abre el centro y el horario de cada uno (puede ser distinto por día).</div>
@@ -145,6 +153,8 @@ function centroSet(i, k, v) { if (CENTRO_HOR[i]) CENTRO_HOR[i][k] = v; }
 // Config del servidor (WhatsApp + horario del centro).
 apiGet('/api/config').then(c => {
   document.getElementById('cfg-wa').value = c.wa_kine || '';
+  document.getElementById('cfg-retiro-horario').value = c.retiro_horario || '';
+  document.getElementById('cfg-retiro-dir').value = c.retiro_direccion || '';
   try { CENTRO_HOR = JSON.parse(c.centro_horarios || '{}'); } catch (e) { CENTRO_HOR = {}; }
   if (!Object.keys(CENTRO_HOR).length) {
     CENTRO_HOR = { 0: { a: '08:00', c: '20:00' }, 1: { a: '08:00', c: '20:00' }, 2: { a: '08:00', c: '20:00' }, 3: { a: '08:00', c: '20:00' }, 4: { a: '08:00', c: '20:00' }, 5: { a: '09:00', c: '13:00' } };
@@ -155,6 +165,13 @@ async function guardarWa() {
   const wa = document.getElementById('cfg-wa').value.replace(/[^0-9]/g, '');
   await api('/api/config', { wa_kine: wa });
   toast('WhatsApp guardado ✓', 'ok');
+}
+async function guardarRetiro() {
+  await api('/api/config', {
+    retiro_horario: document.getElementById('cfg-retiro-horario').value.trim(),
+    retiro_direccion: document.getElementById('cfg-retiro-dir').value.trim(),
+  });
+  toast('Datos de retiro guardados ✓', 'ok');
 }
 async function guardarCentro() {
   await api('/api/config', { centro_horarios: JSON.stringify(CENTRO_HOR) });

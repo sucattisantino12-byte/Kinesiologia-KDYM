@@ -677,14 +677,21 @@ def pacientes():
     filas = q(
         "SELECT * FROM pacientes ORDER BY apellido COLLATE NOCASE, nombre COLLATE NOCASE"
     )
+    # Membresía de sedes por paciente (según dónde tiene turnos) para el filtro.
+    mem = {}
+    for r in q("SELECT DISTINCT paciente_id, sede_id FROM turnos "
+               "WHERE paciente_id IS NOT NULL"):
+        mem.setdefault(r["paciente_id"], []).append(r["sede_id"])
     lista = []
     for p in filas:
         d = paciente_dict(p)
         d["hoy"] = d["id"] in hoy_ids
+        d["sedes"] = sorted(set(mem.get(p["id"], [])))
         lista.append(d)
     # Los que tienen turno hoy van primero.
     lista.sort(key=lambda x: (not x["hoy"], x["nombre_completo"].lower()))
-    return render_template("pacientes.html", activo="pacientes", pacientes=lista)
+    return render_template("pacientes.html", activo="pacientes",
+                           pacientes=lista, sedes=sedes_list())
 
 
 @app.route("/paciente/<int:pid>")
@@ -1526,26 +1533,111 @@ def api_horarios_libres():
                     "abierto": abierto and not feriado, "feriado": feriado})
 
 
+@app.route("/api/proximos_libres")
+def api_proximos_libres():
+    """Lista los próximos turnos libres (para ofrecerle al paciente). Se puede
+    filtrar por días de la semana y por hora. Devuelve fecha, día, hora, libres."""
+    sede = _sede_de_args()
+    tope = tope_de_sede(sede) or 0
+    limite = min(30, int(request.args.get("limite") or 12))
+    hora_f = (request.args.get("hora") or "").strip()
+    dias_f = request.args.get("dias") or ""
+    dias_set = set(int(x) for x in dias_f.split(",") if x.strip().isdigit()) if dias_f else set()
+    cfg = get_config()
+    hor = parse_horarios(cfg.get("centro_horarios", ""))
+
+    def rango(wd):
+        if hor:
+            dd = hor.get(str(wd))
+            if not dd:
+                return None
+            return dd.get("a", "08:00"), dd.get("c", "20:00")
+        return "08:00", "20:00"
+
+    def tomin(s, dv):
+        try:
+            hh, mm = map(int, str(s).split(":"))
+            return hh * 60 + mm
+        except Exception:
+            return dv
+
+    out = []
+    cur = date.today()
+    guard = 0
+    while len(out) < limite and guard < 120:
+        guard += 1
+        cur += timedelta(days=1)
+        wd = cur.weekday()
+        if dias_set and wd not in dias_set:
+            continue
+        if _es_feriado(cur.isoformat()):
+            continue
+        rg = rango(wd)
+        if not rg:
+            continue
+        m0, m1 = tomin(rg[0], 480), tomin(rg[1], 1200)
+        # conteo por hora ese día
+        counts = {}
+        for r in q("""SELECT hora, COUNT(*) c FROM turnos WHERE fecha=? AND sede_id=?
+                      AND estado NOT IN ('ausente','perdido') AND hora<>'' GROUP BY hora""",
+                   (cur.isoformat(), sede)):
+            counts[r["hora"]] = r["c"]
+        horas = [hora_f] if hora_f else [f"{m//60:02d}:{m%60:02d}" for m in range(m0, m1, 30)]
+        for h in horas:
+            hm = tomin(h, -1)
+            if hm < m0 or hm >= m1:
+                continue
+            libres = (tope - counts.get(h, 0)) if tope else 99
+            if libres > 0:
+                out.append({"fecha": cur.isoformat(),
+                            "dia": DIAS_FULL[wd], "hora": h, "libres": libres})
+                if len(out) >= limite:
+                    break
+    return jsonify(items=out)
+
+
 # --------------------------------------------------------------------------
 # API — pacientes
 # --------------------------------------------------------------------------
 @app.route("/api/pacientes")
 def api_pacientes():
     term = (request.args.get("q") or "").strip()
+    sede = (request.args.get("sede") or "").strip()   # "" o "todas" = ambas
+    try:
+        sid = int(sede)
+    except Exception:
+        sid = None
+
+    where, params = [], []
     if term:
         like = f"%{_sin_acentos(term)}%"   # busca sin acentos ni mayúsculas
-        filas = q(
-            """SELECT * FROM pacientes
-               WHERE sinacentos(nombre) LIKE ?
-                  OR sinacentos(apellido) LIKE ?
-                  OR sinacentos(nombre || ' ' || apellido) LIKE ?
-                  OR sinacentos(COALESCE(dni,'')) LIKE ?
-               ORDER BY apellido COLLATE NOCASE LIMIT 50""",
-            (like, like, like, like),
-        )
-    else:
-        filas = q("SELECT * FROM pacientes ORDER BY apellido COLLATE NOCASE LIMIT 50")
-    return jsonify([paciente_dict(p) for p in filas])
+        where.append("(sinacentos(nombre) LIKE ? OR sinacentos(apellido) LIKE ? "
+                     "OR sinacentos(nombre || ' ' || apellido) LIKE ? "
+                     "OR sinacentos(COALESCE(dni,'')) LIKE ?)")
+        params += [like, like, like, like]
+    if sid is not None:
+        where.append("EXISTS (SELECT 1 FROM turnos t "
+                     "WHERE t.paciente_id = pacientes.id AND t.sede_id = ?)")
+        params.append(sid)
+
+    sql = "SELECT * FROM pacientes"
+    if where:
+        sql += " WHERE " + " AND ".join(where)
+    sql += " ORDER BY apellido COLLATE NOCASE LIMIT 50"
+    filas = q(sql, tuple(params))
+
+    # Membresía de sedes por paciente (según dónde tiene turnos) para los chips.
+    mem = {}
+    for r in q("SELECT DISTINCT paciente_id, sede_id FROM turnos "
+               "WHERE paciente_id IS NOT NULL"):
+        mem.setdefault(r["paciente_id"], []).append(r["sede_id"])
+
+    out = []
+    for p in filas:
+        d = paciente_dict(p)
+        d["sedes"] = sorted(set(mem.get(p["id"], [])))
+        out.append(d)
+    return jsonify(out)
 
 
 @app.route("/api/paciente/<int:pid>/resumen")

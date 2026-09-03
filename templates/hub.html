@@ -8,6 +8,22 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ asset_v('style.css') }}">
 </head>
 <body class="hub-body">
+  <!-- Bienvenida: aparece antes del hub -->
+  <div class="hub-splash" id="hub-splash">
+    <div class="hub-splash-mark">{% include "_logo_svg.html" %}</div>
+    <div class="hub-splash-nom">KDYM</div>
+    <div class="hub-splash-sub">Kinesiología y rehabilitación</div>
+  </div>
+
+  <!-- Transición al entrar a una sede -->
+  <div class="hub-go" id="hub-go">
+    <div class="hub-go-pin">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6.5-5.2-6.5-10A6.5 6.5 0 0112 4.5 6.5 6.5 0 0118.5 11c0 4.8-6.5 10-6.5 10z"/><circle cx="12" cy="11" r="2.4"/></svg>
+    </div>
+    <div class="hub-go-txt">Accediendo a la sede</div>
+    <div class="hub-go-sede" id="hub-go-sede"></div>
+  </div>
+
   <div class="hub-wrap">
     <div class="hub-brand">
       <span class="hub-mark">{% include "_logo_svg.html" %}</span>
@@ -22,7 +38,7 @@
 
     <div class="hub-cards">
       {% for s in sedes %}
-      <a class="hub-card" href="{{ url_for('elegir_sede', sid=s.id) }}">
+      <a class="hub-card" href="{{ url_for('elegir_sede', sid=s.id) }}" data-sede-nombre="{{ s.nombre }}" onclick="accederSede(event, this)">
         <div class="hub-card-top">
           <span class="hub-pin">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6.5-5.2-6.5-10A6.5 6.5 0 0112 4.5 6.5 6.5 0 0118.5 11c0 4.8-6.5 10-6.5 10z"/><circle cx="12" cy="11" r="2.4"/></svg>
@@ -40,5 +56,29 @@
       {% endfor %}
     </div>
   </div>
+
+  <script>
+    // Colores por posición de la sede (igual que las tarjetas del hub).
+    const HUB_COLORS = ['#2F5FB0', '#12A150', '#C8891B', '#7A5BD8'];
+    // Ocultar la bienvenida y mostrar el hub.
+    window.addEventListener('load', () => {
+      setTimeout(() => {
+        const sp = document.getElementById('hub-splash');
+        if (sp) sp.classList.add('fuera');
+      }, 1300);
+    });
+    // Al elegir sede: animación "Accediendo a la sede" con su color.
+    function accederSede(ev, el) {
+      ev.preventDefault();
+      const cards = [...document.querySelectorAll('.hub-card')];
+      const idx = cards.indexOf(el);
+      const color = HUB_COLORS[idx % HUB_COLORS.length];
+      const go = document.getElementById('hub-go');
+      document.getElementById('hub-go-sede').textContent = el.dataset.sedeNombre || '';
+      go.style.setProperty('--go-color', color);
+      go.classList.add('activo');
+      setTimeout(() => { location.href = el.getAttribute('href'); }, 950);
+    }
+  </script>
 </body>
 </html>

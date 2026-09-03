@@ -121,6 +121,21 @@ const PL_EST = {
   entregada:  { txt: 'Entregada',     cls: 'muted-pill' },
 };
 
+let PL_CONFIG = {};
+apiGet('/api/config').then(c => { PL_CONFIG = c || {}; }).catch(() => {});
+
+// Avisar por WhatsApp que las plantillas están listas para retirar.
+function avisarPlantilla(tel, nombre) {
+  tel = (tel || '').replace(/[^0-9]/g, '');
+  if (!tel) { toast('Esa persona no tiene teléfono cargado', 'alert'); return; }
+  const nom = (nombre || '').split(' ')[0];
+  let msg = `Hola ${nom}, ya podés retirar tus plantillas en KDYM.`;
+  if (PL_CONFIG.retiro_horario) msg += ` Horario de retiro: ${PL_CONFIG.retiro_horario}.`;
+  if (PL_CONFIG.retiro_direccion) msg += ` Dirección: ${PL_CONFIG.retiro_direccion}.`;
+  msg += ' ¡Te esperamos!';
+  window.open('https://wa.me/' + tel + '?text=' + encodeURIComponent(msg), '_blank');
+}
+
 function fMoneda(v) { return v ? ('$' + v) : ''; }
 function fFecha(s) {
   if (!s) return '';
@@ -181,6 +196,7 @@ function pintarPlantillas() {
           ${Object.keys(PL_EST).map(k => `<option value="${k}" ${k === p.estado ? 'selected' : ''}>${PL_EST[k].txt}</option>`).join('')}
         </select>
         ${p.es_paciente ? `<button class="btn btn-line btn-sm" onclick="agTurnosPlantilla(${p.paciente_id}, '${escapeJs(p.paciente)}')">Agregar turnos</button>` : ''}
+        ${p.telefono ? `<button class="btn btn-sm ${p.estado === 'lista' ? 'btn-wa' : 'btn-line'}" onclick="avisarPlantilla('${escapeJs(p.telefono)}', '${escapeJs(p.paciente)}')">Avisar por WhatsApp</button>` : ''}
         <button class="btn btn-ghost btn-sm" onclick="editarPlantilla(${p.id})">✎ Editar</button>
         <button class="btn btn-danger-soft btn-sm" onclick="borrarPlantilla(${p.id})">✕</button>
       </div>

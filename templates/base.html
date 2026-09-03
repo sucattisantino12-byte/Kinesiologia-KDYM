@@ -74,7 +74,7 @@
       {% if sede_actual_nombre %}
       <a class="sede-switch" href="{{ url_for('hub') }}" title="Cambiar de sede">
         <span class="sede-ping"></span>
-        <span class="sede-txt"><small>Sede</small><b>{{ sede_actual_nombre }}</b></span>
+        <span class="sede-txt"><small>Sede</small><b class="js-sede-nom">{{ sede_actual_nombre }}</b></span>
         <span class="sede-cambiar">Cambiar</span>
       </a>
       {% endif %}
@@ -109,7 +109,7 @@
           {% if sede_actual_nombre %}
           <a class="mtop-sede" href="{{ url_for('hub') }}" title="Cambiar de sede">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6.5-5.2-6.5-10A6.5 6.5 0 0112 4.5 6.5 6.5 0 0118.5 11c0 4.8-6.5 10-6.5 10z"/><circle cx="12" cy="11" r="2.2"/></svg>
-            <span><small>Sede</small><b>{{ sede_actual_nombre }}</b></span>
+            <span><small>Sede</small><b class="js-sede-nom">{{ sede_actual_nombre }}</b></span>
           </a>
           {% endif %}
         </div>
@@ -156,6 +156,14 @@
     // Sedes disponibles y sede activa (para selectores del lado del cliente).
     window.SEDES = {{ sedes_all | tojson }};
     window.SEDE_ACTUAL = {{ (sede_actual_id if sede_actual_id is not none else 'null') | tojson }};
+    // Pintar el nombre de la sede activa con su color (mismo orden que el hub).
+    (function () {
+      const COLS = ['#2F5FB0', '#12A150', '#C8891B', '#7A5BD8'];
+      const idx = (window.SEDES || []).findIndex(s => s.id === window.SEDE_ACTUAL);
+      if (idx < 0) return;
+      const col = COLS[idx % COLS.length];
+      document.querySelectorAll('.js-sede-nom').forEach(el => { el.style.color = col; });
+    })();
   </script>
   <script src="{{ url_for('static', filename='app.js') }}?v={{ asset_v('app.js') }}"></script>
   {% block scripts %}{% endblock %}
