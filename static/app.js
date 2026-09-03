@@ -63,8 +63,21 @@ function iniciales(nombre) {
     .map(s => s[0].toUpperCase()).join('');
 }
 
-function cerrarModal(id) { document.getElementById(id).classList.remove('show'); }
-function abrirModal(id) { document.getElementById(id).classList.add('show'); }
+function cerrarModal(id) {
+  const el = document.getElementById(id);
+  if (el) { el.classList.remove('show'); el.style.zIndex = ''; }
+}
+function abrirModal(id) {
+  const el = document.getElementById(id);
+  if (!el) return;
+  // Si ya hay otro modal abierto, este va por encima (modales apilados).
+  const abiertos = [...document.querySelectorAll('.modal-bg.show')].filter(m => m !== el);
+  if (abiertos.length) {
+    const maxZ = Math.max(...abiertos.map(m => parseInt(getComputedStyle(m).zIndex, 10) || 100));
+    el.style.zIndex = (maxZ + 10);
+  }
+  el.classList.add('show');
+}
 
 document.addEventListener('click', e => {
   if (e.target.classList && e.target.classList.contains('modal-bg')) {
@@ -361,9 +374,13 @@ function probarAlarma() { sonarContinuo(); setTimeout(pararSonido, 3000); toast(
 //  - sin pid: modo agenda (aparece buscador de paciente)
 let AT_PID = null, AT_PICKER = null, AT_MODO = 'auto', AT_ONDONE = null;
 let AT_DIAS = new Set();          // días de la semana elegidos (0=Lun)
+let AT_HORAS = {};                // hora por día de la semana {wd: "HH:MM"}
 let AT_PLAN_MODO = 'nuevo';       // 'nuevo' | 'extender'
 let AT_PROP = null;               // última propuesta mostrada (filas)
+let AT_PROP_ABIERTA = false;      // si el panel de propuesta está desplegado
+let AT_PROP_VISTA = 'lista';      // 'lista' | 'calendario'
 let AT_QUEDAN = 0;                // sesiones que le quedan al paciente
+const AT_DUR = 30;                // duración fija (siempre 30 min)
 
 // Llena un <select> con las sedes disponibles y marca la sede activa.
 function poblarSelectSede(selId, sedeElegida) {
@@ -394,14 +411,15 @@ function abrirAgregarTurnos(pid, nombre, onDone) {
     document.getElementById('at-elegido').textContent = '';
   }
   document.getElementById('at-cantidad').value = '';
-  document.getElementById('at-hora').value = '';
   document.getElementById('at-desde').value = new Date().toISOString().slice(0, 10);
   atError('');
   document.getElementById('at-propuesta').innerHTML = '';
   document.getElementById('at-manual-rows').innerHTML = '';
-  AT_DIAS = new Set(); AT_PROP = null; AT_QUEDAN = 0;
+  AT_DIAS = new Set(); AT_HORAS = {}; AT_PROP = null; AT_PROP_ABIERTA = false;
+  AT_PROP_VISTA = 'lista'; AT_QUEDAN = 0;
   atPlanModo('nuevo');
   atRenderDiasChips();
+  atRenderHorasRows();
   document.getElementById('at-plan-info').textContent = '';
   poblarSelectSede('at-sede');
   atModo('auto');
@@ -417,15 +435,19 @@ async function atCargarPlanPaciente(pid) {
   } catch (e) {}
 }
 
-// Precarga los días/hora/cantidad del paciente en el flujo de plan.
+// Precarga los días/horas/cantidad del paciente en el flujo de plan.
 function atAplicarPlanPaciente(p) {
   AT_QUEDAN = p.sesiones_quedan > 0 ? p.sesiones_quedan : 0;
   AT_DIAS = new Set(p.dias_idx || []);
-  atRenderDiasChips();
-  // Horario preferido: el primero que tenga cargado.
+  // Hora por cada día que ya tenía cargada.
+  AT_HORAS = {};
   const hs = p.horarios || {};
-  const primera = (p.dias_idx || []).map(i => hs[i] || hs[String(i)]).find(Boolean);
-  if (primera) document.getElementById('at-hora').value = primera;
+  (p.dias_idx || []).forEach(i => {
+    const h = hs[i] || hs[String(i)];
+    if (h) AT_HORAS[i] = h;
+  });
+  atRenderDiasChips();
+  atRenderHorasRows();
   if (!document.getElementById('at-cantidad').value)
     document.getElementById('at-cantidad').value = AT_QUEDAN || '';
   atSetDesde(p.ultimo_turno);
@@ -460,6 +482,7 @@ function atPlanModo(m) {
   // "Extender" calcula la cantidad solo (las que faltan): se oculta el input.
   document.getElementById('at-cantidad-wrap').style.display = m === 'extender' ? 'none' : '';
   atPlanInfo();
+  atInvalidarPropuesta();
 }
 
 function atPlanInfo() {
@@ -480,9 +503,42 @@ function atRenderDiasChips() {
   ).join('');
 }
 function atToggleDiaChip(i) {
-  if (AT_DIAS.has(i)) AT_DIAS.delete(i); else AT_DIAS.add(i);
+  if (AT_DIAS.has(i)) { AT_DIAS.delete(i); delete AT_HORAS[i]; }
+  else {
+    AT_DIAS.add(i);
+    // Default cómodo: copio la primera hora ya cargada (igual se puede cambiar).
+    if (AT_HORAS[i] == null) { const prim = Object.values(AT_HORAS)[0]; if (prim) AT_HORAS[i] = prim; }
+  }
   const b = document.querySelector(`#at-dias-chips .dia-chip[data-i="${i}"]`);
   if (b) b.classList.toggle('on');
+  atRenderHorasRows();
+  atInvalidarPropuesta();
+}
+
+// Un input de hora por cada día elegido (pueden ser distintos).
+function atRenderHorasRows() {
+  const wrap = document.getElementById('at-horas-wrap');
+  const rows = document.getElementById('at-horas-rows');
+  if (!rows) return;
+  const dias = [...AT_DIAS].sort((a, b) => a - b);
+  if (wrap) wrap.style.display = dias.length ? '' : 'none';
+  rows.innerHTML = dias.map(i =>
+    `<div class="dia-hora-row"><span class="dia-hora-lbl">${DIAS_ABBR[i]}</span>
+       <input type="time" step="900" class="input at-hora-dia" data-i="${i}" value="${AT_HORAS[i] || ''}"></div>`
+  ).join('');
+  rows.querySelectorAll('.at-hora-dia').forEach(inp => inp.oninput = () => {
+    AT_HORAS[+inp.dataset.i] = inp.value;
+    atInvalidarPropuesta();
+  });
+}
+
+// Si cambian los parámetros, la propuesta anterior queda vieja.
+function atInvalidarPropuesta() {
+  if (!AT_PROP && !AT_PROP_ABIERTA) return;
+  AT_PROP = null; AT_PROP_ABIERTA = false;
+  const cont = document.getElementById('at-propuesta');
+  if (cont) cont.innerHTML = '';
+  atBotonConfirmar(); atBotonVerPropuesta();
 }
 
 // Botón del pie: cambia según haya o no una propuesta a la vista.
@@ -491,23 +547,36 @@ function atBotonConfirmar() {
   if (!b) return;
   if (AT_MODO !== 'auto') { b.textContent = 'Agregar turnos'; return; }
   if (AT_PROP && AT_PROP.length) {
-    const n = AT_PROP.filter(r => r.estado !== 'feriado').length;
+    const n = AT_PROP.filter(r => !r.removed && r.estado !== 'feriado' && r.hora).length;
     b.textContent = `Confirmar y agendar (${n})`;
   } else {
-    b.textContent = 'Ver propuesta';
+    b.textContent = 'Agregar turnos';
   }
+}
+// Texto del botón "Ver / Ocultar propuesta".
+function atBotonVerPropuesta() {
+  const b = document.getElementById('at-ver-prop');
+  if (b) b.textContent = AT_PROP_ABIERTA ? 'Ocultar propuesta' : 'Ver propuesta de turnos';
 }
 
 async function atProponer() {
+  const cont = document.getElementById('at-propuesta');
+  // Toggle: si ya está desplegada, la cierro.
+  if (AT_PROP_ABIERTA) {
+    AT_PROP_ABIERTA = false;
+    cont.innerHTML = '';
+    atBotonVerPropuesta(); atBotonConfirmar();
+    return;
+  }
   atError('');
   if (!AT_PID) { toast('Elegí un paciente', 'alert'); return; }
   if (!AT_DIAS.size) { atError('Elegí al menos un día de la semana.'); return; }
-  const hora = document.getElementById('at-hora').value;
-  if (!hora) { atError('Elegí un horario preferido.'); return; }
-  const cont = document.getElementById('at-propuesta');
+  const horarios = {};
+  for (const i of AT_DIAS) { if (AT_HORAS[i]) horarios[i] = AT_HORAS[i]; }
+  if ([...AT_DIAS].some(i => !horarios[i])) { atError('Poné el horario de cada día elegido.'); return; }
   cont.innerHTML = '<div class="hint">Armando la propuesta…</div>';
   const body = {
-    paciente_id: AT_PID, dias: [...AT_DIAS], hora,
+    paciente_id: AT_PID, dias: [...AT_DIAS], horarios,
     desde: document.getElementById('at-desde').value,
     modo: AT_PLAN_MODO, sede_id: atSedeElegida(),
   };
@@ -517,43 +586,108 @@ async function atProponer() {
   });
   let r = {}; try { r = await resp.json(); } catch (e) {}
   if (!resp.ok || r.ok === false) { cont.innerHTML = ''; atError(r.error || 'No se pudo armar la propuesta'); return; }
-  AT_PROP = r.items;
-  atRenderPropuesta(r);
-  atBotonConfirmar();
+  // Para las llenas con alternativa, arranco con la alternativa cargada.
+  AT_PROP = (r.items || []).map(it => {
+    if (it.estado === 'lleno' && it.alternativa) { it.pedida = it.hora; it.hora = it.alternativa; }
+    it.removed = false;
+    return it;
+  });
+  AT_PROP_RESUMEN = r.resumen || {};
+  AT_PROP_ABIERTA = true;
+  atRenderPropuesta();
+  atBotonConfirmar(); atBotonVerPropuesta();
 }
 
-function atRenderPropuesta(r) {
+let AT_PROP_RESUMEN = {};
+function atPropVista(v) { AT_PROP_VISTA = v; atRenderPropuesta(); }
+
+function atRenderPropuesta() {
   const cont = document.getElementById('at-propuesta');
-  const rs = r.resumen || {};
+  if (!AT_PROP) { cont.innerHTML = ''; return; }
+  const rs = AT_PROP_RESUMEN || {};
   let head = `<div class="at-prop-head">Propuesta: <b>${rs.ok || 0}</b> ok`;
   if (rs.llenos) head += ` · <b class="rojo">${rs.llenos}</b> con horario lleno`;
   if (rs.feriados) head += ` · <b>${rs.feriados}</b> feriado(s) reprogramado(s)`;
   head += '. Ajustá lo que quieras y confirmá.</div>';
-  const filas = r.items.map((it, idx) => {
+  const toggle = `<div class="seg seg-sm at-prop-vista">
+      <button type="button" class="${AT_PROP_VISTA === 'lista' ? 'on' : ''}" onclick="atPropVista('lista')">Lista</button>
+      <button type="button" class="${AT_PROP_VISTA === 'calendario' ? 'on' : ''}" onclick="atPropVista('calendario')">Calendario</button>
+    </div>`;
+  const cuerpo = AT_PROP_VISTA === 'calendario' ? atPropCalendario() : atPropLista();
+  cont.innerHTML = head + toggle + cuerpo;
+  if (AT_PROP_VISTA === 'lista') {
+    cont.querySelectorAll('.at-prop-hora').forEach(inp => inp.oninput = () => {
+      AT_PROP[+inp.dataset.idx].hora = inp.value;
+      atBotonConfirmar();
+    });
+  }
+}
+
+function atPropLista() {
+  return AT_PROP.map((it, idx) => {
+    if (it.removed) return '';
     const d = new Date(it.fecha + 'T12:00:00');
     const dd = d.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'short' });
     const fecha = dd.charAt(0).toUpperCase() + dd.slice(1);
     if (it.estado === 'feriado')
-      return `<div class="at-prop-row feriado" data-idx="${idx}" data-fecha="${it.fecha}" data-estado="feriado">
-        <div class="at-prop-fecha">${fecha}</div>
-        <div class="at-prop-tag">Feriado — se reprograma</div></div>`;
-    // Si está lleno y hay alternativa, arranca con la alternativa cargada.
-    const horaIni = (it.estado === 'lleno' && it.alternativa) ? it.alternativa : it.hora;
+      return `<div class="at-prop-row feriado">
+        <div class="at-prop-info"><div class="at-prop-fecha">${fecha}</div>
+        <span class="at-prop-tag">Feriado — se reprograma</span></div></div>`;
     const aviso = it.estado === 'lleno'
-      ? (it.alternativa ? `<span class="at-prop-tag rojo">Lleno ${it.hora} → sugerido ${it.alternativa}</span>`
-                        : `<span class="at-prop-tag rojo">Lleno ${it.hora} — sin lugar ese día</span>`)
+      ? (it.pedida ? `<span class="at-prop-tag rojo">Estaba lleno ${it.pedida} → sugerido</span>`
+                   : `<span class="at-prop-tag rojo">Lleno — sin lugar ese día</span>`)
       : `<span class="at-prop-tag ok">Libre</span>`;
-    return `<div class="at-prop-row ${it.estado}" data-idx="${idx}" data-fecha="${it.fecha}" data-estado="${it.estado}">
-      <div class="at-prop-fecha">${fecha}</div>
-      <input class="input at-prop-hora" type="time" step="900" value="${horaIni}">
-      ${aviso}
-      <button class="x" onclick="atQuitarProp(this)" title="Quitar">&times;</button></div>`;
+    return `<div class="at-prop-row ${it.estado}">
+      <div class="at-prop-info"><div class="at-prop-fecha">${fecha}</div>${aviso}</div>
+      <input class="input at-prop-hora" type="time" step="900" data-idx="${idx}" value="${it.hora || ''}">
+      <button class="x" onclick="atQuitarProp(${idx})" title="Quitar">&times;</button></div>`;
   }).join('');
-  cont.innerHTML = head + filas;
 }
 
-function atQuitarProp(btn) {
-  btn.closest('.at-prop-row').remove();
+function atQuitarProp(idx) {
+  if (AT_PROP[idx]) AT_PROP[idx].removed = true;
+  atRenderPropuesta(); atBotonConfirmar();
+}
+
+// Vista calendario: mini-almanaque por mes con los días marcados y su hora.
+function atPropCalendario() {
+  const marcados = {};
+  AT_PROP.forEach(it => { if (!it.removed) marcados[it.fecha] = { hora: it.hora, estado: it.estado }; });
+  const fechas = AT_PROP.filter(it => !it.removed).map(it => it.fecha).sort();
+  if (!fechas.length) return '<div class="hint">No quedaron turnos.</div>';
+  // Meses únicos que aparecen.
+  const meses = [];
+  fechas.forEach(f => {
+    const [y, m] = f.split('-').map(Number);
+    if (!meses.some(x => x.y === y && x.m === m - 1)) meses.push({ y, m: m - 1 });
+  });
+  return `<div class="at-cal-leg">
+      <span><i class="mini-dot on"></i> Va</span>
+      <span><i class="mini-dot lleno"></i> Estaba lleno</span>
+      <span><i class="mini-dot feriado"></i> Feriado</span>
+    </div>` + meses.map(mm => atMiniMes(mm.y, mm.m, marcados)).join('');
+}
+
+function atMiniMes(y, m, marcados) {
+  const primero = new Date(y, m, 1);
+  const ndias = new Date(y, m + 1, 0).getDate();
+  const offset = (primero.getDay() + 6) % 7;   // Lun=0
+  const nombre = primero.toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
+  const dow = ['L', 'M', 'M', 'J', 'V', 'S', 'D'].map(x => `<div class="mini-dow">${x}</div>`).join('');
+  let cells = '';
+  for (let i = 0; i < offset; i++) cells += '<div class="mini-cell vacio"></div>';
+  for (let d = 1; d <= ndias; d++) {
+    const fecha = `${y}-${String(m + 1).padStart(2, '0')}-${String(d).padStart(2, '0')}`;
+    const mk = marcados[fecha];
+    if (mk) {
+      const cls = mk.estado === 'feriado' ? 'feriado' : (mk.estado === 'lleno' ? 'lleno' : 'on');
+      cells += `<div class="mini-cell ${cls}"><span class="n">${d}</span>${mk.hora ? `<span class="h">${mk.hora}</span>` : ''}</div>`;
+    } else {
+      cells += `<div class="mini-cell"><span class="n">${d}</span></div>`;
+    }
+  }
+  return `<div class="mini-mes"><div class="mini-tit">${nombre.charAt(0).toUpperCase() + nombre.slice(1)}</div>
+    <div class="mini-grid">${dow}${cells}</div></div>`;
 }
 
 function atAgregarFila(fecha, hora) {
@@ -572,12 +706,7 @@ function atAgregarFila(fecha, hora) {
 document.addEventListener('input', function (e) {
   if (!e.target) return;
   // Si cambian los parámetros del plan, la propuesta anterior queda vieja.
-  if (['at-cantidad', 'at-desde', 'at-hora'].includes(e.target.id) && AT_PROP) {
-    AT_PROP = null;
-    document.getElementById('at-propuesta').innerHTML =
-      '<div class="hint">Cambiaste algo — tocá “Ver propuesta” para actualizarla.</div>';
-    atBotonConfirmar();
-  }
+  if (['at-cantidad', 'at-desde'].includes(e.target.id)) atInvalidarPropuesta();
   if (e.target.id === 'at-buscar') {
     clearTimeout(window._atbt);
     const term = e.target.value.trim();
@@ -601,9 +730,9 @@ function atElegirPac(p) {
   document.getElementById('at-buscar').value = p.nombre_completo;
   document.getElementById('at-elegido').innerHTML = '✓ ' + escapeHtml(p.nombre_completo) + ' seleccionado';
   document.getElementById('at-propuesta').innerHTML = '';
-  AT_PROP = null;
+  AT_PROP = null; AT_PROP_ABIERTA = false;
   atAplicarPlanPaciente(p);
-  atBotonConfirmar();
+  atBotonConfirmar(); atBotonVerPropuesta();
 }
 
 // Cargar un paciente nuevo desde el modal de "Agregar turnos" y dejarlo elegido.
@@ -641,19 +770,15 @@ async function atPostTurno(body) {
 async function atGenerar() {
   atError('');
   if (!AT_PID) { toast('Elegí un paciente', 'alert'); return; }
-  const dur = document.getElementById('at-dur').value;
+  const dur = AT_DUR;   // duración fija (30 min)
   const sede_id = atSedeElegida();
   if (AT_MODO === 'auto') {
     // Si todavía no hay propuesta a la vista, primero la armo para revisar.
     if (!AT_PROP || !AT_PROP.length) { atProponer(); return; }
-    // Recolecto las filas (con las horas eventualmente editadas), sin feriados.
-    const rows = [].slice.call(document.querySelectorAll('#at-propuesta .at-prop-row'))
-      .filter(el => el.dataset.estado !== 'feriado')
-      .map(el => {
-        const t = el.querySelector('.at-prop-hora');
-        return { fecha: el.dataset.fecha, hora: t ? t.value : '' };
-      })
-      .filter(r => r.fecha && r.hora);
+    // Recolecto las filas desde el estado (sirve en vista lista y calendario).
+    const rows = AT_PROP
+      .filter(it => !it.removed && it.estado !== 'feriado' && it.fecha && it.hora)
+      .map(it => ({ fecha: it.fecha, hora: it.hora }));
     if (!rows.length) { atError('No quedaron turnos para agendar.'); return; }
     const resp = await fetch('/api/plan_confirmar', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },

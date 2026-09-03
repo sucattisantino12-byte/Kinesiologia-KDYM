@@ -101,6 +101,8 @@
       go.style.setProperty('--go-dark', c.dark);
       document.getElementById('hub-go-sede').textContent = el.dataset.sedeNombre || '';
       go.classList.add('activo');
+      // Marca para que Recepción haga su animación de entrada esta única vez.
+      try { sessionStorage.setItem('kdym_bienvenida', '1'); } catch (e) {}
       setTimeout(() => { location.href = el.getAttribute('href'); }, 1050);
     }
   </script>

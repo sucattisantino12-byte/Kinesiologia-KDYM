@@ -178,5 +178,17 @@
 {% endblock %}
 
 {% block scripts %}
+<script>
+// Animación de entrada de Recepción: sólo la primera vez, al entrar desde el hub.
+(function () {
+  try {
+    if (sessionStorage.getItem('kdym_bienvenida')) {
+      sessionStorage.removeItem('kdym_bienvenida');
+      const m = document.querySelector('main.wrap');
+      if (m) m.classList.add('recep-enter');
+    }
+  } catch (e) {}
+})();
+</script>
 <script src="{{ url_for('static', filename='recepcion.js') }}?v={{ asset_v('recepcion.js') }}"></script>
 {% endblock %}

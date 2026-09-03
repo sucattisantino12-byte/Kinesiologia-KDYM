@@ -1458,15 +1458,20 @@ def api_plan_propuesta():
     d = request.get_json(force=True, silent=True) or {}
     pid = d.get("paciente_id")
     dias = sorted(set(int(x) for x in (d.get("dias") or [])))
-    hora = (d.get("hora") or "").strip()
+    hora = (d.get("hora") or "").strip()          # hora por defecto (compat)
+    horarios = d.get("horarios") or {}            # {"0":"10:00","3":"15:00",...}
     sede = _sede_de_request(d)
     tope = tope_de_sede(sede) or 0
+
+    def hora_de(wd):
+        return (horarios.get(str(wd)) or horarios.get(wd) or hora or "").strip()
+
     if not pid:
         return jsonify(ok=False, error="Falta el paciente"), 400
     if not dias:
         return jsonify(ok=False, error="Elegí al menos un día de la semana"), 400
-    if not hora:
-        return jsonify(ok=False, error="Elegí un horario preferido"), 400
+    if not any(hora_de(wd) for wd in dias):
+        return jsonify(ok=False, error="Elegí el horario de cada día"), 400
     p = q1("SELECT * FROM pacientes WHERE id=?", (pid,))
     if not p:
         return jsonify(ok=False, error="Paciente inexistente"), 404
@@ -1501,15 +1506,16 @@ def api_plan_propuesta():
             elif not _slots_dia(sede, f):
                 pass   # el centro no abre ese día: se ignora sin avisar
             else:
-                oc = _slot_ocupado(sede, f, hora)
+                h = hora_de(wd)
+                oc = _slot_ocupado(sede, f, h)
                 libres = (max(0, tope - oc) if tope else 99)
                 if tope and libres <= 0:
-                    items.append({"fecha": f, "dia": DIAS_FULL[wd], "hora": hora,
+                    items.append({"fecha": f, "dia": DIAS_FULL[wd], "hora": h,
                                   "estado": "lleno",
-                                  "alternativa": _alternativa_hora(sede, f, hora),
+                                  "alternativa": _alternativa_hora(sede, f, h),
                                   "libres": 0})
                 else:
-                    items.append({"fecha": f, "dia": DIAS_FULL[wd], "hora": hora,
+                    items.append({"fecha": f, "dia": DIAS_FULL[wd], "hora": h,
                                   "estado": "ok", "alternativa": None, "libres": libres})
                 puestos += 1
         cur += timedelta(days=1)

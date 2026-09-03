@@ -1,6 +1,6 @@
 <!-- Modal compartido: Agregar turnos (automático o manual). Usado en ficha y agenda. -->
 <div class="modal-bg" id="modal-agturnos">
-  <div class="modal">
+  <div class="modal modal-lg">
     <div class="modal-head">
       <h3 id="at-titulo">Agregar turnos</h3>
       <button class="x" onclick="cerrarModal('modal-agturnos')">&times;</button>
@@ -42,27 +42,20 @@
             <label>Cantidad de sesiones</label>
             <input class="input" id="at-cantidad" type="number" min="1" placeholder="cuántas">
           </div>
-          <div class="field">
-            <label>Duración</label>
-            <select class="input" id="at-dur">
-              <option value="20">20 min</option>
-              <option value="30" selected>30 min</option>
-              <option value="45">45 min</option>
-              <option value="60">60 min</option>
-            </select>
-          </div>
+          <div class="field"><label>Empezar desde</label><input class="input" id="at-desde" type="date"></div>
         </div>
 
         <div class="field">
           <label>¿Qué días viene?</label>
           <div class="dias-chips" id="at-dias-chips"></div>
         </div>
-        <div class="grid2">
-          <div class="field"><label>Horario preferido</label><input class="input" id="at-hora" type="time" step="900"></div>
-          <div class="field"><label>Empezar desde</label><input class="input" id="at-desde" type="date"></div>
+        <!-- Un horario por cada día elegido (pueden ser distintos) -->
+        <div class="field" id="at-horas-wrap" style="display:none;">
+          <label>Horario de cada día</label>
+          <div id="at-horas-rows" class="at-horas-rows"></div>
         </div>
 
-        <button type="button" class="btn btn-line btn-block" style="margin-top:4px;" onclick="atProponer()">Ver propuesta de turnos</button>
+        <button type="button" class="btn btn-line btn-block" id="at-ver-prop" style="margin-top:4px;" onclick="atProponer()">Ver propuesta de turnos</button>
         <div id="at-propuesta" class="at-propuesta"></div>
       </div>
 
