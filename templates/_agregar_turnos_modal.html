@@ -28,6 +28,25 @@
         <button id="at-tab-manual" onclick="atModo('manual')">Manual</button>
       </div>
 
+      <!-- Horarios libres del día (para ofrecerle al paciente) -->
+      <div class="at-libres">
+        <button type="button" class="at-libres-toggle" onclick="atToggleLibres()">
+          <span>Ver horarios libres para ofrecer</span><span id="at-libres-flecha">▾</span>
+        </button>
+        <div id="at-libres-panel" style="display:none;">
+          <div class="field" style="margin-bottom:8px;">
+            <label>Elegí un día para ver cómo está</label>
+            <input class="input" id="at-libres-fecha" type="date" onchange="atCargarLibres()">
+          </div>
+          <div class="at-libres-leg">
+            <span><i class="dot verde"></i> Libre</span>
+            <span><i class="dot amar"></i> Casi lleno</span>
+            <span><i class="dot rojo"></i> Lleno</span>
+          </div>
+          <div id="at-libres-slots" class="at-libres-slots"></div>
+        </div>
+      </div>
+
       <!-- AUTOMÁTICO: usa los días/horarios que ya tiene (editables) -->
       <div id="at-modo-auto">
         <div class="field">
@@ -60,6 +79,7 @@
         <div id="at-manual-rows"></div>
         <button class="btn btn-line btn-sm" onclick="atAgregarFila()">+ Agregar otra fecha</button>
       </div>
+      <div class="at-error" id="at-error" style="display:none;"></div>
     </div>
     <div class="modal-foot">
       <button class="btn btn-ghost" onclick="cerrarModal('modal-agturnos')">Cancelar</button>

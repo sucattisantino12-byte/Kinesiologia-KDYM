@@ -1437,6 +1437,51 @@ def api_huecos():
                     "apertura": apertura, "cierre": cierre})
 
 
+@app.route("/api/horarios_libres")
+def api_horarios_libres():
+    """Para ofrecerle horarios al paciente: por cada franja del día, cuántos
+    lugares quedan según el TOPE de la sede. Verde/amarillo/rojo en el front."""
+    fecha = request.args.get("fecha") or date.today().isoformat()
+    sede = _sede_de_args()
+    tope = tope_de_sede(sede) or 0
+    cfg = get_config()
+    try:
+        wd = date.fromisoformat(fecha).weekday()
+    except Exception:
+        wd = 0
+    hor = parse_horarios(cfg.get("centro_horarios", ""))
+    apertura, cierre, abierto = "08:00", "20:00", True
+    if hor:
+        dd = hor.get(str(wd))
+        if dd:
+            apertura, cierre = dd.get("a", "08:00"), dd.get("c", "20:00")
+        else:
+            abierto = False
+
+    def tomin(s, dv):
+        try:
+            hh, mm = map(int, str(s).split(":"))
+            return hh * 60 + mm
+        except Exception:
+            return dv
+
+    counts = {}
+    for r in q("""SELECT hora, COUNT(*) c FROM turnos
+                  WHERE fecha=? AND sede_id=? AND estado NOT IN ('ausente','perdido')
+                    AND hora IS NOT NULL AND hora<>'' GROUP BY hora""", (fecha, sede)):
+        counts[r["hora"]] = r["c"]
+    feriado = _es_feriado(fecha)
+    m0, m1 = tomin(apertura, 8 * 60), tomin(cierre, 20 * 60)
+    slots = []
+    for m in range(m0, m1, 30):
+        h = f"{m // 60:02d}:{m % 60:02d}"
+        c = counts.get(h, 0)
+        libres = (max(0, tope - c) if tope else 99)
+        slots.append({"hora": h, "libres": libres, "ocupados": c})
+    return jsonify({"slots": slots, "tope": tope,
+                    "abierto": abierto and not feriado, "feriado": feriado})
+
+
 # --------------------------------------------------------------------------
 # API — pacientes
 # --------------------------------------------------------------------------
@@ -1918,10 +1963,12 @@ def api_simular_agenda():
     while cur < siguiente:
         # Sólo días futuros y de semana (no ensucia hoy ni dispara el "no vino").
         if cur > hoy and cur.weekday() < 5:
-            # Elegir algunas horas del día y meter entre 1 y "tope" personas.
+            # Elegir algunas horas del día y meter personas SIN pasar el tope.
             for hora in random.sample(horas, k=random.randint(3, 6)):
-                cuantos = random.randint(1, tope)
-                for _ in range(cuantos):
+                libres = max(0, tope - _slot_ocupado(sede, cur.isoformat(), hora))
+                if libres <= 0:
+                    continue
+                for _ in range(random.randint(1, libres)):
                     pid = random.choice(pids)
                     run("""INSERT INTO turnos
                            (paciente_id, fecha, hora, estado, duracion_min, sede_id, sim)

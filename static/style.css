@@ -1041,3 +1041,29 @@ html[data-theme="dark"] .firma-wrap, html[data-theme="dark"] .firma-img { backgr
 html[data-theme="dark"] .ag-buscar-res { background: var(--blanco); }
 html[data-theme="dark"] .ag-buscado { background: #241B3A; border-color: #4A3A6E; }
 html[data-theme="dark"] .cal-cell.pac-hl { background: #241B3A; }
+
+/* ============ Modal turnos: error en rojo + horarios libres ============ */
+.at-error {
+  background: var(--rojo-bg); color: var(--rojo); border: 1px solid #F0A3A5;
+  border-radius: 10px; padding: 10px 12px; font-size: 13px; font-weight: 700; margin-top: 12px;
+}
+.at-libres { border: 1px solid var(--borde); border-radius: 12px; margin-bottom: 14px; overflow: hidden; }
+.at-libres-toggle { width: 100%; display: flex; justify-content: space-between; align-items: center;
+  background: var(--gris-claro); border: none; cursor: pointer; font-family: inherit;
+  font-weight: 800; font-size: 13px; color: var(--azul-oscuro); padding: 11px 14px; }
+#at-libres-panel { padding: 12px 14px 14px; }
+.at-libres-leg { display: flex; gap: 14px; font-size: 12px; font-weight: 700; color: var(--gris); margin-bottom: 10px; }
+.at-libres-leg .dot { display: inline-block; width: 10px; height: 10px; border-radius: 50%; vertical-align: middle; margin-right: 4px; }
+.at-libres-leg .dot.verde { background: var(--verde); }
+.at-libres-leg .dot.amar { background: var(--amarillo); }
+.at-libres-leg .dot.rojo { background: var(--rojo); }
+.at-libres-slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(88px, 1fr)); gap: 8px; }
+.at-slot { display: flex; flex-direction: column; align-items: center; gap: 2px; cursor: pointer;
+  border: 1.5px solid var(--borde); border-radius: 10px; padding: 8px 4px; background: #fff;
+  font-family: inherit; font-weight: 800; font-size: 14px; color: var(--texto); }
+.at-slot small { font-size: 10.5px; font-weight: 700; }
+.at-slot.libre { border-color: #9BE0BB; background: var(--verde-bg); color: var(--verde); }
+.at-slot.casi { border-color: #ECCB7E; background: var(--amarillo-bg); color: var(--amarillo); }
+.at-slot.lleno { border-color: #F0A3A5; background: var(--rojo-bg); color: var(--rojo); cursor: not-allowed; opacity: .8; }
+.at-slot:not(.lleno):hover { transform: translateY(-1px); box-shadow: var(--sombra); }
+html[data-theme="dark"] .at-slot { background: #0F1B2E; }

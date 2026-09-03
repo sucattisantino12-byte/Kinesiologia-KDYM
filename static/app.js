@@ -392,6 +392,7 @@ function abrirAgregarTurnos(pid, nombre, onDone) {
   document.getElementById('at-cantidad').value = '';
   document.getElementById('at-desde').value = new Date().toISOString().slice(0, 10);
   document.getElementById('at-preview').textContent = '';
+  atError('');
   document.getElementById('at-manual-rows').innerHTML = '';
   poblarSelectSede('at-sede');
   AT_PICKER = crearDiasPicker('at-dias-picker', 'at-dias-rows');
@@ -500,7 +501,25 @@ function atSedeElegida() {
   return sel && sel.value ? +sel.value : (window.SEDE_ACTUAL || null);
 }
 
+// Mensaje de error (rojo) dentro del modal de turnos, sin cerrarlo.
+function atError(msg) {
+  const e = document.getElementById('at-error');
+  if (!e) return;
+  e.textContent = msg || '';
+  e.style.display = msg ? '' : 'none';
+}
+// Crea un turno sin mostrar toast (para poder manejar "lleno" a mano).
+async function atPostTurno(body) {
+  const r = await fetch('/api/turno', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+  });
+  let d = {}; try { d = await r.json(); } catch (e) {}
+  return { ok: r.ok && d.ok !== false, lleno: !!d.lleno, feriado: !!d.feriado,
+           error: d.error || 'No se pudo dar el turno' };
+}
+
 async function atGenerar() {
+  atError('');
   if (!AT_PID) { toast('Elegí un paciente', 'alert'); return; }
   const dur = document.getElementById('at-dur').value;
   const sede_id = atSedeElegida();
@@ -525,17 +544,58 @@ async function atGenerar() {
       return { fecha: ins[0].value, hora: ins[1].value };
     }).filter(t => t.fecha);
     if (!turnos.length) { toast('Agregá al menos una fecha', 'alert'); return; }
-    let n = 0, llenos = 0;
+    let n = 0; const problemas = [];
     for (const t of turnos) {
-      try {
-        await api('/api/turno', { paciente_id: AT_PID, fecha: t.fecha, hora: t.hora, duracion: dur, sede_id });
-        n++;
-      } catch (e) { llenos++; }  // horario lleno (tope): lo salta y sigue
+      const r = await atPostTurno({ paciente_id: AT_PID, fecha: t.fecha, hora: t.hora, duracion: dur, sede_id });
+      if (r.ok) n++; else problemas.push(r.error);
+    }
+    if (problemas.length) {
+      // Horario lleno / feriado: mensaje en rojo y el modal QUEDA ABIERTO.
+      atError((n ? (n + ' turno(s) agregados. ') : '') + problemas.join(' · '));
+      if (n && AT_ONDONE) AT_ONDONE();
+      return;
     }
     cerrarModal('modal-agturnos');
-    let msg = `${n} turno(s) agregados ✓`;
-    if (llenos) msg += ` · ${llenos} no entraron (horario lleno)`;
-    toast(msg, llenos ? 'alert' : 'ok');
+    toast(n + ' turno(s) agregados ✓', 'ok');
   }
   if (AT_ONDONE) AT_ONDONE();
+}
+
+// ---- Panel "horarios libres para ofrecer" ----
+function atToggleLibres() {
+  const p = document.getElementById('at-libres-panel');
+  const abrir = p.style.display === 'none';
+  p.style.display = abrir ? '' : 'none';
+  document.getElementById('at-libres-flecha').textContent = abrir ? '▴' : '▾';
+  if (abrir) {
+    const f = document.getElementById('at-libres-fecha');
+    if (!f.value) {
+      // por defecto: la fecha del primer turno manual, o hoy.
+      const prim = document.querySelector('#at-manual-rows input[type=date]');
+      f.value = (prim && prim.value) || new Date().toISOString().slice(0, 10);
+    }
+    atCargarLibres();
+  }
+}
+async function atCargarLibres() {
+  const cont = document.getElementById('at-libres-slots');
+  const fecha = document.getElementById('at-libres-fecha').value;
+  if (!fecha) { cont.innerHTML = ''; return; }
+  const sede = atSedeElegida();
+  const d = await apiGet('/api/horarios_libres?fecha=' + fecha + '&sede=' + sede);
+  if (d.feriado) { cont.innerHTML = '<div class="hint">Ese día es feriado — no se dan turnos.</div>'; return; }
+  if (!d.abierto) { cont.innerHTML = '<div class="hint">El centro no abre ese día.</div>'; return; }
+  cont.innerHTML = d.slots.map(s => {
+    const cls = s.libres <= 0 ? 'lleno' : (s.libres === 1 ? 'casi' : 'libre');
+    const txt = s.libres <= 0 ? 'lleno' : (s.libres + ' libre' + (s.libres > 1 ? 's' : ''));
+    return `<button type="button" class="at-slot ${cls}" ${s.libres <= 0 ? 'disabled' : ''}
+      onclick="atElegirLibre('${fecha}','${s.hora}')">${s.hora}<small>${txt}</small></button>`;
+  }).join('') || '<div class="hint">Sin horarios configurados.</div>';
+}
+// Elegir un horario libre: lo agrega a la lista (modo manual) listo para confirmar.
+function atElegirLibre(fecha, hora) {
+  atModo('manual');
+  atAgregarFila(fecha, hora);
+  atError('');
+  toast('Agregado a la lista: ' + fecha + ' ' + hora + ' ✓', 'ok');
 }
