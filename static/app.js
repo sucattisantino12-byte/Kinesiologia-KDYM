@@ -287,7 +287,7 @@ function pararSonido() {
   // pueda sonar aunque estemos en segundo plano.
   if (_ALARM_AUDIO) { _ALARM_AUDIO.volume = 0; }
 }
-function probarAlarma() { sonarContinuo(); setTimeout(pararSonido, 3000); toast('🔊 Así suena la alarma elegida', 'ok'); }
+function probarAlarma() { sonarContinuo(); setTimeout(pararSonido, 3000); toast('Así suena la alarma elegida', 'ok'); }
 
 // ---- Navegación más fluida entre pestañas ----
 // La app es multipágina (cada pestaña recarga). Para que el cambio se sienta

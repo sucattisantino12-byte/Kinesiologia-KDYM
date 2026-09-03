@@ -11,21 +11,29 @@
   <div class="hub-wrap">
     <div class="hub-brand">
       <span class="hub-mark">{% include "_logo_svg.html" %}</span>
-      <div class="hub-nom">KDYM</div>
-      <div class="hub-sub">Kinesiología y rehabilitación</div>
+      <div>
+        <div class="hub-nom">KDYM</div>
+        <div class="hub-sub">Kinesiología y rehabilitación</div>
+      </div>
     </div>
 
-    <div class="hub-title">¿En qué sede estás?</div>
-    <div class="hub-hint">Elegí la sede. Vas a ver sus boxes, turnos y agenda por separado.</div>
+    <div class="hub-title">¿En qué sede vas a trabajar?</div>
+    <div class="hub-hint">Elegí una sede. Cada una tiene sus boxes, turnos y agenda por separado.</div>
 
     <div class="hub-cards">
       {% for s in sedes %}
       <a class="hub-card" href="{{ url_for('elegir_sede', sid=s.id) }}">
-        <span class="hub-pin">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6.5-5.2-6.5-10A6.5 6.5 0 0112 4.5 6.5 6.5 0 0118.5 11c0 4.8-6.5 10-6.5 10z"/><circle cx="12" cy="11" r="2.4"/></svg>
-        </span>
-        <span class="hub-card-nom">{{ s.nombre }}</span>
-        <span class="hub-card-go">Entrar →</span>
+        <div class="hub-card-top">
+          <span class="hub-pin">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6.5-5.2-6.5-10A6.5 6.5 0 0112 4.5 6.5 6.5 0 0118.5 11c0 4.8-6.5 10-6.5 10z"/><circle cx="12" cy="11" r="2.4"/></svg>
+          </span>
+          <span class="hub-card-nom">{{ s.nombre }}</span>
+        </div>
+        <div class="hub-card-datos">
+          <div class="hub-dato"><span class="n">{{ s.boxes }}</span><span class="l">box{{ 'es' if s.boxes != 1 else '' }}</span></div>
+          <div class="hub-dato"><span class="n">{{ s.turnos_hoy }}</span><span class="l">turnos hoy</span></div>
+        </div>
+        <div class="hub-card-go">Entrar a {{ s.nombre }}</div>
       </a>
       {% else %}
       <div class="empty">No hay sedes cargadas.</div>

@@ -236,6 +236,11 @@ def init_db():
             creado TEXT,
             FOREIGN KEY (paciente_id) REFERENCES pacientes(id) ON DELETE CASCADE
         );
+
+        CREATE TABLE IF NOT EXISTS feriados (
+            fecha TEXT PRIMARY KEY,
+            nombre TEXT
+        );
         """
     )
     db.commit()
@@ -474,6 +479,20 @@ def tope_de_sede(sid):
     return (r["tope_turnos"] if r and r["tope_turnos"] else 0) or 0
 
 
+def _es_feriado(fecha):
+    """True si esa fecha ('YYYY-MM-DD') está marcada como feriado."""
+    return bool(q1("SELECT 1 FROM feriados WHERE fecha=?", (fecha,)))
+
+
+def _sede_de_args():
+    """Sede pasada en la query (?sede=), validada; si no, la sede activa.
+    Permite ver el calendario de otra sede sin cambiar la sede activa."""
+    sid = request.args.get("sede", type=int)
+    if sid and q1("SELECT 1 FROM sedes WHERE id=? AND activo=1", (sid,)):
+        return sid
+    return sede_actual_id()
+
+
 def _sede_de_request(data):
     """Sede que viene en el body (selector del modal) o la sede activa."""
     sid = data.get("sede_id")
@@ -538,7 +557,16 @@ def index():
 @app.route("/hub")
 def hub():
     """Pantalla para elegir la sede (Morón / Ramos)."""
-    return render_template("hub.html", sedes=sedes_list())
+    sedes = []
+    for s in sedes_list():
+        n_boxes = q1("SELECT COUNT(*) c FROM boxes WHERE activo=1 AND sede_id=?",
+                     (s["id"],))["c"]
+        hoy = date.today().isoformat()
+        n_turnos = q1("SELECT COUNT(*) c FROM turnos WHERE fecha=? AND sede_id=? "
+                      "AND estado NOT IN ('ausente','perdido')", (hoy, s["id"]))["c"]
+        sedes.append({"id": s["id"], "nombre": s["nombre"],
+                      "boxes": n_boxes, "turnos_hoy": n_turnos})
+    return render_template("hub.html", sedes=sedes)
 
 
 @app.route("/sede/<int:sid>")
@@ -749,7 +777,7 @@ def _auto_ausentes(sede=None):
 def api_estado():
     hoy = date.today().isoformat()
     ahora = datetime.now()
-    sede = sede_actual_id()
+    sede = _sede_de_args()   # opcional ?sede= (la agenda mira otra sede sin cambiarla)
     _auto_ausentes(sede)   # marca "no vino" a los que pasaron la tolerancia
 
     boxes = q("SELECT * FROM boxes WHERE activo=1 AND sede_id=? ORDER BY id", (sede,))
@@ -866,7 +894,7 @@ def api_eventos():
 def api_agenda_rango():
     desde = request.args.get("desde") or date.today().isoformat()
     hasta = request.args.get("hasta") or desde
-    sede = sede_actual_id()
+    sede = _sede_de_args()   # permite ver Morón o Ramos sin cambiar la sede activa
     hoy = date.today().isoformat()
     if desde <= hoy <= hasta:
         _auto_ausentes(sede)
@@ -886,8 +914,11 @@ def api_agenda_rango():
             "telefono": t["telefono"] or "",
             "duracion": t["duracion_min"] or DURACION_DEFAULT,
         })
+    feriados = {r["fecha"]: (r["nombre"] or "Feriado")
+                for r in q("SELECT fecha, nombre FROM feriados WHERE fecha BETWEEN ? AND ?",
+                           (desde, hasta))}
     return jsonify({"por_fecha": por_fecha, "tope": tope_de_sede(sede),
-                    "sede_nombre": sede_nombre(sede)})
+                    "sede_nombre": sede_nombre(sede), "feriados": feriados})
 
 
 # --------------------------------------------------------------------------
@@ -1112,7 +1143,8 @@ def _proximo_disponible(t):
     if not dias:
         dias = [date.fromisoformat(t["fecha"]).weekday()]
     for _ in range(400):
-        if cur.weekday() in dias:
+        # Próximo día que viene el paciente y que NO sea feriado.
+        if cur.weekday() in dias and not _es_feriado(cur.isoformat()):
             break
         cur += timedelta(days=1)
     hora = horarios.get(str(cur.weekday())) or t["hora"] or ""
@@ -1164,6 +1196,10 @@ def api_nuevo_turno():
     dur = int(data.get("duracion") or DURACION_DEFAULT)
     if not pid:
         return jsonify(ok=False, error="Falta el paciente"), 400
+    # Feriado: no se dan turnos ese día.
+    if _es_feriado(fecha):
+        return jsonify(ok=False, feriado=True,
+                       error="Ese día es feriado — no se dan turnos."), 409
     sede = _sede_de_request(data)
     # Tope por horario: si ese horario ya está lleno, no deja dar más turnos.
     tope = tope_de_sede(sede)
@@ -1216,9 +1252,10 @@ def api_plan():
         wd = cur.weekday()
         if wd in dias:
             hora = horarios.get(str(wd)) or horarios.get(wd) or hora_default
-            # Respeta el tope: si ese horario está lleno, salta al próximo día
-            # válido en vez de sobrecargar el turno.
-            if hora and tope and _slot_ocupado(sede, cur.isoformat(), hora) >= tope:
+            # Salta feriados y horarios llenos (no crea turno ahí, sigue al próximo día).
+            if _es_feriado(cur.isoformat()):
+                saltados += 1
+            elif hora and tope and _slot_ocupado(sede, cur.isoformat(), hora) >= tope:
                 saltados += 1
             else:
                 run(
@@ -1268,7 +1305,7 @@ def api_huecos():
     """Horarios libres de un día según la cantidad de boxes."""
     fecha = request.args.get("fecha") or date.today().isoformat()
     dur = int(request.args.get("duracion") or DURACION_DEFAULT)
-    sede = sede_actual_id()
+    sede = _sede_de_args()
     n_boxes = q1("SELECT COUNT(*) c FROM boxes WHERE activo=1 AND sede_id=?",
                  (sede,))["c"] or 1
     rows = q(
@@ -1560,6 +1597,87 @@ def api_editar_sede(sid):
 
 
 # --------------------------------------------------------------------------
+# API — feriados (días sin turnos). Son globales (valen para todas las sedes).
+# --------------------------------------------------------------------------
+@app.route("/api/feriados")
+def api_feriados():
+    rows = q("SELECT fecha, nombre FROM feriados ORDER BY fecha")
+    return jsonify({r["fecha"]: (r["nombre"] or "Feriado") for r in rows})
+
+
+@app.route("/api/feriado", methods=["POST"])
+def api_nuevo_feriado():
+    d = request.get_json(force=True, silent=True) or {}
+    fecha = (d.get("fecha") or "").strip()
+    if not fecha:
+        return jsonify(ok=False, error="Falta la fecha"), 400
+    nombre = (d.get("nombre") or "Feriado").strip() or "Feriado"
+    run("INSERT INTO feriados (fecha, nombre) VALUES (?,?) "
+        "ON CONFLICT(fecha) DO UPDATE SET nombre=excluded.nombre", (fecha, nombre))
+    return jsonify(ok=True)
+
+
+@app.route("/api/feriado/borrar", methods=["POST"])
+def api_borrar_feriado():
+    d = request.get_json(force=True, silent=True) or {}
+    fecha = (d.get("fecha") or "").strip()
+    run("DELETE FROM feriados WHERE fecha=?", (fecha,))
+    return jsonify(ok=True)
+
+
+# Feriados de Argentina (próximos, según el calendario oficial 2026 que pasó el centro).
+FERIADOS_AR = [
+    ("2026-10-12", "Día del Respeto a la Diversidad Cultural"),
+    ("2026-11-20", "Día de la Soberanía Nacional"),
+    ("2026-12-07", "Feriado con fines turísticos (puente)"),
+    ("2026-12-08", "Inmaculada Concepción de María"),
+    ("2026-12-25", "Navidad"),
+]
+
+
+@app.route("/api/feriados/cargar_ar", methods=["POST"])
+def api_cargar_feriados_ar():
+    n = 0
+    for fecha, nombre in FERIADOS_AR:
+        run("INSERT INTO feriados (fecha, nombre) VALUES (?,?) "
+            "ON CONFLICT(fecha) DO UPDATE SET nombre=excluded.nombre", (fecha, nombre))
+        n += 1
+    return jsonify(ok=True, cargados=n)
+
+
+@app.route("/api/feriado/turnos")
+def api_feriado_turnos():
+    """Cuántos turnos 'vivos' hay en una fecha (para avisar al marcar feriado)."""
+    fecha = request.args.get("fecha") or ""
+    sede = _sede_de_args()
+    n = q1("""SELECT COUNT(*) c FROM turnos WHERE fecha=? AND sede_id=?
+              AND estado IN ('agendado','en_espera','presente')""", (fecha, sede))["c"]
+    return jsonify(cantidad=n)
+
+
+@app.route("/api/feriado/reprogramar_turnos", methods=["POST"])
+def api_feriado_reprogramar_turnos():
+    """Reprograma todos los turnos vivos de una fecha (sede) a la próxima fecha
+    disponible de cada paciente (salteando feriados). Se usa al marcar un feriado."""
+    d = request.get_json(force=True, silent=True) or {}
+    fecha = (d.get("fecha") or "").strip()
+    sede = _sede_de_request(d)
+    if not fecha:
+        return jsonify(ok=False, error="Falta la fecha"), 400
+    turnos = q("""SELECT * FROM turnos WHERE fecha=? AND sede_id=?
+                  AND estado IN ('agendado','en_espera','presente')""", (fecha, sede))
+    movidos = 0
+    for t in turnos:
+        nf, nh, _p = _proximo_disponible(t)
+        run("UPDATE turnos SET estado='ausente', box_id=NULL WHERE id=?", (t["id"],))
+        run("""INSERT INTO turnos (paciente_id, fecha, hora, estado, duracion_min, sede_id)
+               VALUES (?,?,?, 'agendado', ?, ?)""",
+            (t["paciente_id"], nf, nh, t["duracion_min"] or DURACION_DEFAULT, t["sede_id"]))
+        movidos += 1
+    return jsonify(ok=True, movidos=movidos)
+
+
+# --------------------------------------------------------------------------
 # API — plantillas ortopédicas (RPG). Lista global (todas las sedes).
 # --------------------------------------------------------------------------
 PLANTILLA_ESTADOS = ["pedida", "fabricacion", "lista", "entregada"]
@@ -1688,7 +1806,7 @@ def api_simular_agenda():
     ver el calendario/semáforo con datos. Se marcan sim=1 para borrarlos luego."""
     import random
     d = request.get_json(force=True, silent=True) or {}
-    sede = sede_actual_id()
+    sede = _sede_de_request(d)
     # Mes a simular: 'YYYY-MM' o el mes actual.
     mes = d.get("mes") or date.today().strftime("%Y-%m")
     try:
@@ -1732,8 +1850,8 @@ def api_simular_agenda():
 
 @app.route("/api/limpiar_simulacion", methods=["POST"])
 def api_limpiar_simulacion():
-    """Borra todos los turnos de simulación (sim=1) de la sede activa."""
-    sede = sede_actual_id()
+    """Borra todos los turnos de simulación (sim=1) de la sede indicada."""
+    sede = _sede_de_request(request.get_json(force=True, silent=True) or {})
     n = q1("SELECT COUNT(*) c FROM turnos WHERE sim=1 AND sede_id=?", (sede,))["c"]
     run("DELETE FROM turnos WHERE sim=1 AND sede_id=?", (sede,))
     return jsonify(ok=True, borrados=n)

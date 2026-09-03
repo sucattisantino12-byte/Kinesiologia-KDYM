@@ -15,12 +15,12 @@
 </div>
 
 <div class="field">
-  <input class="input" id="buscar" placeholder="🔍  Buscar por nombre, apellido o DNI…" autocomplete="off">
+  <input class="input" id="buscar" placeholder=" Buscar por nombre, apellido o DNI…" autocomplete="off">
 </div>
 
 <div class="pac-grid stagger-in" id="lista">
   {% for p in pacientes %}
-  {% if loop.first and p.hoy %}<div class="pac-sep">📌 Con turno hoy</div>{% endif %}
+  {% if loop.first and p.hoy %}<div class="pac-sep">Con turno hoy</div>{% endif %}
   {% if pacientes[0].hoy and not p.hoy and pacientes[loop.index0 - 1].hoy %}<div class="pac-sep">Todos los pacientes</div>{% endif %}
   <a href="{{ url_for('ficha', pid=p.id) }}" class="pac-card {{ 'row-hoy' if p.hoy }}" data-nombre="{{ (p.nombre_completo ~ ' ' ~ p.dni ~ ' ' ~ p.obra_social)|lower }}">
     <div class="avatar">{{ (p.nombre[:1] ~ p.apellido[:1])|upper }}</div>

@@ -97,6 +97,15 @@ a { color: inherit; text-decoration: none; }
   .mtop-r2 { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
   .mtop-title { font-size: 20px; font-weight: 800; letter-spacing: -.02em; }
   .mtop-fecha { font-size: 12px; color: #9DB3D6; font-weight: 500; margin-top: 2px; }
+  /* Chip de sede en el header del celular */
+  .mtop-sede {
+    display: inline-flex; align-items: center; gap: 7px; flex: none;
+    background: rgba(255,255,255,.14); border: 1px solid rgba(255,255,255,.22);
+    color: #fff; padding: 6px 11px; border-radius: 999px; text-decoration: none;
+  }
+  .mtop-sede svg { width: 15px; height: 15px; opacity: .9; }
+  .mtop-sede small { display: block; font-size: 9px; text-transform: uppercase; letter-spacing: .05em; opacity: .8; line-height: 1; }
+  .mtop-sede b { font-size: 14px; line-height: 1.1; }
 
   /* Nav inferior fija */
   .mbot {
@@ -444,10 +453,8 @@ main.wrap { animation: pageIn .4s ease both; }
 .mbot a:active, .mbot button:active { transform: scale(.9); }
 .side-nav a { transition: background .12s, color .12s; }
 
-@media (prefers-reduced-motion: reduce) {
-  main.wrap { animation: none; }
-  #nav-progress { display: none; }
-}
+/* (Antes había reglas que apagaban las animaciones si el celular tenía
+   "reducir movimiento". Se quitaron a pedido: las animaciones se muestran siempre.) */
 
 @media (max-width: 760px) {
   .split { flex-direction: column; }
@@ -704,31 +711,44 @@ body.splashing { overflow: hidden; }
 .sede-txt b { font-size: 15px; }
 .sede-cambiar { font-size: 11px; font-weight: 700; color: var(--azul); background: #fff; border: 1px solid var(--azul-borde); padding: 3px 8px; border-radius: 999px; }
 
-/* ---- Hub: elegir sede ---- */
+/* ---- Hub: elegir sede (grande y legible) ---- */
 .hub-body { min-height: 100vh; display: flex; align-items: center; justify-content: center;
-  background: radial-gradient(120% 90% at 50% -10%, #E8EEF9 0%, #F6F8FC 55%, #fff 100%); padding: 24px; }
-.hub-wrap { width: 100%; max-width: 560px; text-align: center; }
-.hub-brand { margin-bottom: 26px; }
-.hub-mark { display: inline-flex; width: 66px; height: 66px; }
-.hub-mark svg { width: 100%; height: 100%; }
-.hub-nom { font-size: 30px; font-weight: 800; letter-spacing: .02em; color: var(--navy); margin-top: 6px; }
-.hub-sub { color: var(--gris); font-weight: 600; }
-.hub-title { font-size: 22px; font-weight: 800; color: var(--texto); margin-bottom: 4px; }
-.hub-hint { color: var(--gris); margin-bottom: 22px; }
-.hub-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; }
-@media (max-width: 480px) { .hub-cards { grid-template-columns: 1fr; } }
+  background: radial-gradient(130% 90% at 50% -10%, #E4ECFA 0%, #F3F6FC 55%, #fff 100%); padding: 28px 20px; }
+.hub-wrap { width: 100%; max-width: 860px; text-align: center; }
+.hub-brand { display: inline-flex; align-items: center; gap: 14px; margin-bottom: 34px; text-align: left; }
+.hub-mark { display: inline-flex; width: 64px; height: 64px; flex: none; border-radius: 50%;
+  background: radial-gradient(120% 120% at 32% 26%, #8FB2EC 0%, #3D67B4 42%, #16305F 100%);
+  box-shadow: inset 0 -4px 10px rgba(5,13,31,.5), 0 6px 16px rgba(5,13,31,.28); align-items: center; justify-content: center; }
+.hub-mark svg { width: 40px; height: 40px; }
+.hub-nom { font-size: 34px; font-weight: 800; letter-spacing: .04em; color: var(--navy); line-height: 1; }
+.hub-sub { color: var(--gris); font-weight: 600; font-size: 14px; margin-top: 3px; }
+.hub-title { font-size: 30px; font-weight: 800; color: var(--texto); margin-bottom: 6px; letter-spacing: -.02em; }
+.hub-hint { color: var(--gris); font-size: 16px; margin-bottom: 30px; }
+.hub-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 22px; }
+@media (max-width: 640px) { .hub-cards { grid-template-columns: 1fr; } }
 .hub-card {
-  display: flex; flex-direction: column; align-items: center; gap: 8px;
-  padding: 26px 18px; background: #fff; border: 1.5px solid var(--borde);
-  border-radius: 20px; text-decoration: none; color: var(--texto);
-  box-shadow: var(--sombra); transition: transform .15s, box-shadow .15s, border-color .15s;
+  display: flex; flex-direction: column; align-items: center; gap: 16px;
+  padding: 38px 22px 30px; background: #fff; border: 2px solid var(--borde);
+  border-radius: 24px; text-decoration: none; color: var(--texto);
+  box-shadow: 0 10px 30px rgba(15,35,80,.08);
+  transition: transform .16s, box-shadow .16s, border-color .16s;
 }
-.hub-card:hover { transform: translateY(-3px); box-shadow: var(--sombra-md); border-color: var(--azul); }
-.hub-pin { width: 52px; height: 52px; display: flex; align-items: center; justify-content: center;
-  border-radius: 50%; background: var(--azul-claro); color: var(--azul-oscuro); }
-.hub-pin svg { width: 28px; height: 28px; }
-.hub-card-nom { font-size: 20px; font-weight: 800; }
-.hub-card-go { font-size: 13px; font-weight: 700; color: var(--azul); }
+.hub-card:hover { transform: translateY(-4px); box-shadow: 0 18px 44px rgba(47,95,176,.22); border-color: var(--azul); }
+/* Color distinto por sede para diferenciarlas de un vistazo. */
+.hub-card:nth-child(1) { --acc: #2F5FB0; --accbg: #E8EEF9; }
+.hub-card:nth-child(2) { --acc: #12A150; --accbg: #E7F7EE; }
+.hub-card:nth-child(3) { --acc: #C8891B; --accbg: #FDF3DF; }
+.hub-card-top { display: flex; flex-direction: column; align-items: center; gap: 12px; }
+.hub-pin { width: 66px; height: 66px; display: flex; align-items: center; justify-content: center;
+  border-radius: 50%; background: var(--accbg); color: var(--acc); }
+.hub-pin svg { width: 36px; height: 36px; }
+.hub-card-nom { font-size: 32px; font-weight: 800; letter-spacing: -.01em; }
+.hub-card-datos { display: flex; gap: 26px; }
+.hub-dato { display: flex; flex-direction: column; }
+.hub-dato .n { font-size: 26px; font-weight: 800; color: var(--acc); line-height: 1; }
+.hub-dato .l { font-size: 12px; font-weight: 700; color: var(--gris); text-transform: uppercase; letter-spacing: .04em; margin-top: 3px; }
+.hub-card-go { margin-top: 4px; width: 100%; padding: 13px; border-radius: 12px;
+  background: var(--acc); color: #fff; font-size: 16px; font-weight: 800; }
 
 /* ---- Config de sedes ---- */
 .sede-cfg-row { display: flex; align-items: flex-end; gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--borde2); }
@@ -821,7 +841,6 @@ details.sala-sec[open] > summary::after { content: '▾'; }
 .dia-anim > *:nth-child(3) { animation-delay: .16s; }
 .dia-anim > *:nth-child(4) { animation-delay: .24s; }
 .dia-anim > *:nth-child(n+5) { animation-delay: .3s; }
-@media (prefers-reduced-motion: reduce) { .dia-anim > * { animation: none; } }
 
 /* ============ Pacientes: alternar tarjetas / lista (fila) ============ */
 .pac-list { display: flex; flex-direction: column; gap: 8px; }
@@ -877,10 +896,6 @@ details.sala-sec[open] > summary::after { content: '▾'; }
 .modal-bg { transition: opacity .3s ease; }
 .modal { animation: modalIn .38s cubic-bezier(.22,.7,.3,1) both; }
 @keyframes modalIn { from { opacity: 0; transform: translateY(14px) scale(.98); } to { opacity: 1; transform: translateY(0) scale(1); } }
-@media (prefers-reduced-motion: reduce) {
-  main.wrap, .modal { animation: none; }
-  .cal-cell { transition: none; }
-}
 
 /* ============ Botón "dar turno este día" (detalle del día) ============ */
 .dia-add { margin-bottom: 14px; }
@@ -898,6 +913,37 @@ details.sala-sec[open] > summary::after { content: '▾'; }
 .stagger-in > *:nth-child(6) { animation-delay: .20s; }
 .stagger-in > *:nth-child(7) { animation-delay: .24s; }
 .stagger-in > *:nth-child(n+8) { animation-delay: .28s; }
-@media (prefers-reduced-motion: reduce) {
-  .cal-anim .cal-cell, .stagger-in > * { animation: none; }
+
+/* ============ Feriados (días sin turnos) ============ */
+.cal-cell.feriado {
+  background: repeating-linear-gradient(135deg, #F3F5F9 0 8px, #E9edf4 8px 16px);
+  border-color: #D7DEEA;
 }
+.cal-cell.feriado .cal-num { color: var(--gris2); }
+.cal-feriado {
+  font-size: 10px; font-weight: 800; color: #8a6d1a; background: var(--amarillo-bg);
+  border-radius: 6px; padding: 1px 5px; align-self: flex-start; margin-top: 2px;
+}
+.feriado-aviso {
+  background: var(--amarillo-bg); color: #8a6d1a; border: 1px solid #ECCB7E;
+  border-radius: 10px; padding: 10px 12px; font-size: 13px; font-weight: 700; margin-bottom: 8px;
+}
+
+/* ============ Selector de sede del calendario (agenda) ============ */
+.agenda-sede-bar { display: flex; align-items: center; gap: 10px; margin: 0 0 12px; flex-wrap: wrap; }
+.agenda-sede-lbl { font-size: 13px; font-weight: 800; color: var(--azul-oscuro); }
+.agenda-sede-bar .seg button { font-size: 14px; font-weight: 700; padding: 8px 18px; }
+
+/* ============ Menú rápido al clic en un día del calendario ============ */
+.dia-menu {
+  position: fixed; z-index: 200; min-width: 180px;
+  background: #fff; border: 1px solid var(--borde); border-radius: 12px;
+  box-shadow: 0 12px 34px rgba(15,35,80,.22); padding: 10px;
+}
+.dia-menu-tit { font-size: 12px; font-weight: 800; color: var(--azul-oscuro); margin-bottom: 8px; }
+.dia-menu-info { font-size: 12px; font-weight: 700; color: #8a6d1a; background: var(--amarillo-bg);
+  border-radius: 8px; padding: 6px 8px; margin-bottom: 8px; }
+/* Nota de filtro por horario en el panel del día */
+.dia-filtro { font-size: 12px; font-weight: 700; color: var(--azul-oscuro);
+  background: var(--azul-claro); border-radius: 8px; padding: 6px 10px; margin-bottom: 10px; }
+.dia-filtro a { color: var(--azul); font-weight: 700; }
