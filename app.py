@@ -591,6 +591,55 @@ def _slot_ocupado(sede_id, fecha, hora, excluir_turno=None):
     return q1(sql, tuple(args))["c"]
 
 
+def _hm_a_min(s, dv=0):
+    try:
+        hh, mm = map(int, str(s).split(":"))
+        return hh * 60 + mm
+    except Exception:
+        return dv
+
+
+def _slots_dia(sede_id, fecha):
+    """Slots de 30' de ese día con lugares libres, según el horario del centro
+    y el tope de la sede. Devuelve [(hora, libres), ...]; [] si el centro cierra."""
+    cfg = get_config()
+    tope = tope_de_sede(sede_id) or 0
+    try:
+        wd = date.fromisoformat(fecha).weekday()
+    except Exception:
+        return []
+    hor = parse_horarios(cfg.get("centro_horarios", ""))
+    if hor:
+        dd = hor.get(str(wd))
+        if not dd:
+            return []   # el centro no abre ese día
+        apertura, cierre = dd.get("a", "08:00"), dd.get("c", "20:00")
+    else:
+        apertura, cierre = "08:00", "20:00"
+    counts = {}
+    for r in q("""SELECT hora, COUNT(*) c FROM turnos
+                  WHERE fecha=? AND sede_id=? AND estado NOT IN ('ausente','perdido')
+                    AND hora IS NOT NULL AND hora<>'' GROUP BY hora""", (fecha, sede_id)):
+        counts[r["hora"]] = r["c"]
+    m0, m1 = _hm_a_min(apertura, 8 * 60), _hm_a_min(cierre, 20 * 60)
+    out = []
+    for m in range(m0, m1, 30):
+        h = f"{m // 60:02d}:{m % 60:02d}"
+        libres = (max(0, tope - counts.get(h, 0)) if tope else 99)
+        out.append((h, libres))
+    return out
+
+
+def _alternativa_hora(sede_id, fecha, hora):
+    """La hora libre más cercana a `hora` ese día (para sugerir si está llena)."""
+    libres = [(h, lib) for h, lib in _slots_dia(sede_id, fecha) if lib > 0]
+    if not libres:
+        return None
+    base = _hm_a_min(hora, 0)
+    libres.sort(key=lambda x: abs(_hm_a_min(x[0], 0) - base))
+    return libres[0][0]
+
+
 @app.context_processor
 def inject_asset_version():
     """Versión (mtime) de los archivos estáticos para evitar caché viejo:
@@ -1399,6 +1448,132 @@ def api_plan_preview():
         cur += timedelta(days=1)
         guard += 1
     return jsonify(items=items)
+
+
+@app.route("/api/plan_propuesta", methods=["POST"])
+def api_plan_propuesta():
+    """Propone el plan completo: una sesión por cada día elegido, a la hora
+    pedida. Marca los horarios llenos (con una alternativa cercana) y los
+    feriados (que se saltan y se reprograman al próximo día válido)."""
+    d = request.get_json(force=True, silent=True) or {}
+    pid = d.get("paciente_id")
+    dias = sorted(set(int(x) for x in (d.get("dias") or [])))
+    hora = (d.get("hora") or "").strip()
+    sede = _sede_de_request(d)
+    tope = tope_de_sede(sede) or 0
+    if not pid:
+        return jsonify(ok=False, error="Falta el paciente"), 400
+    if not dias:
+        return jsonify(ok=False, error="Elegí al menos un día de la semana"), 400
+    if not hora:
+        return jsonify(ok=False, error="Elegí un horario preferido"), 400
+    p = q1("SELECT * FROM pacientes WHERE id=?", (pid,))
+    if not p:
+        return jsonify(ok=False, error="Paciente inexistente"), 404
+
+    modo = d.get("modo") or "nuevo"
+    quedan = (p["sesiones_totales"] or 0) - (p["sesiones_usadas"] or 0)
+    if modo == "extender":
+        # Las que faltan por agendar = las que quedan menos las ya agendadas a futuro.
+        fut = q1("""SELECT COUNT(*) c FROM turnos WHERE paciente_id=? AND fecha>=?
+                    AND estado IN ('agendado','en_espera','presente')""",
+                 (pid, date.today().isoformat()))["c"]
+        cantidad = max(0, quedan - fut)
+    else:
+        cantidad = int(d.get("cantidad") or quedan or 0)
+    if cantidad <= 0:
+        return jsonify(ok=False,
+                       error="No hay sesiones para agendar. Revisá las sesiones del paciente."), 400
+
+    cur = date.fromisoformat(d.get("desde") or date.today().isoformat())
+    items = []
+    puestos = 0
+    guard = 0
+    while puestos < cantidad and guard < 900:
+        guard += 1
+        wd = cur.weekday()
+        f = cur.isoformat()
+        if wd in dias:
+            if _es_feriado(f):
+                # Feriado: se avisa y se salta (no cuenta; se reprograma solo).
+                items.append({"fecha": f, "dia": DIAS_FULL[wd], "hora": "",
+                              "estado": "feriado", "alternativa": None, "libres": 0})
+            elif not _slots_dia(sede, f):
+                pass   # el centro no abre ese día: se ignora sin avisar
+            else:
+                oc = _slot_ocupado(sede, f, hora)
+                libres = (max(0, tope - oc) if tope else 99)
+                if tope and libres <= 0:
+                    items.append({"fecha": f, "dia": DIAS_FULL[wd], "hora": hora,
+                                  "estado": "lleno",
+                                  "alternativa": _alternativa_hora(sede, f, hora),
+                                  "libres": 0})
+                else:
+                    items.append({"fecha": f, "dia": DIAS_FULL[wd], "hora": hora,
+                                  "estado": "ok", "alternativa": None, "libres": libres})
+                puestos += 1
+        cur += timedelta(days=1)
+
+    resumen = {"ok": sum(1 for i in items if i["estado"] == "ok"),
+               "llenos": sum(1 for i in items if i["estado"] == "lleno"),
+               "feriados": sum(1 for i in items if i["estado"] == "feriado"),
+               "cantidad": cantidad}
+    return jsonify(ok=True, items=items, resumen=resumen,
+                   paciente=nombre_completo(p), quedan=quedan,
+                   cantidad=cantidad, modo=modo)
+
+
+@app.route("/api/plan_confirmar", methods=["POST"])
+def api_plan_confirmar():
+    """Crea los turnos del plan ya revisado (lista de {fecha, hora}). Saltea
+    feriados y filas sin hora, y avisa si algún horario quedó lleno."""
+    d = request.get_json(force=True, silent=True) or {}
+    pid = d.get("paciente_id")
+    rows = d.get("rows") or []
+    dur = int(d.get("duracion") or DURACION_DEFAULT)
+    sede = _sede_de_request(d)
+    tope = tope_de_sede(sede) or 0
+    if not pid:
+        return jsonify(ok=False, error="Falta el paciente"), 400
+    if not rows:
+        return jsonify(ok=False, error="No hay turnos para crear"), 400
+
+    creados, saltados, llenos = 0, 0, []
+    for r in rows:
+        f = (r.get("fecha") or "").strip()
+        h = (r.get("hora") or "").strip()
+        if not f or not h or _es_feriado(f):
+            saltados += 1
+            continue
+        if tope and _slot_ocupado(sede, f, h) >= tope:
+            llenos.append(f + " " + h)
+            continue
+        run("""INSERT INTO turnos (paciente_id, fecha, hora, estado, duracion_min, sede_id)
+               VALUES (?,?,?, 'agendado', ?, ?)""", (pid, f, h, dur, sede))
+        creados += 1
+
+    # Guardar la preferencia de días/horarios del paciente (su plan semanal).
+    dias, horarios = [], {}
+    for r in rows:
+        f, h = (r.get("fecha") or ""), (r.get("hora") or "")
+        if f and h:
+            try:
+                wd = date.fromisoformat(f).weekday()
+                dias.append(wd)
+                horarios[str(wd)] = h
+            except Exception:
+                pass
+    if dias:
+        run("UPDATE pacientes SET dias=?, horarios=? WHERE id=?",
+            (dias_to_str(sorted(set(dias))), json.dumps(horarios), pid))
+
+    if llenos:
+        muestra = ", ".join(llenos[:6]) + ("…" if len(llenos) > 6 else "")
+        return jsonify(ok=True, creados=creados, saltados=saltados,
+                       llenos=llenos,
+                       aviso=f"{creados} turno(s) creados. Estos quedaron llenos y "
+                             f"no se agendaron: {muestra}")
+    return jsonify(ok=True, creados=creados, saltados=saltados, llenos=[])
 
 
 @app.route("/api/turno/<int:tid>/borrar", methods=["POST"])

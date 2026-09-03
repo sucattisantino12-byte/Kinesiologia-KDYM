@@ -340,6 +340,33 @@ a { color: inherit; text-decoration: none; }
 .at-manual-row { display: flex; gap: 8px; align-items: center; margin-bottom: 8px; }
 .at-manual-row .input { flex: 1; }
 .at-manual-row .x { flex: none; }
+
+/* Plan de sesiones: toggle chico nuevo/extender */
+.seg.seg-sm button { padding: 7px 10px; font-size: 13px; }
+
+/* Propuesta de turnos (revisar y confirmar) */
+.at-propuesta { margin-top: 12px; }
+.at-prop-head { font-size: 13px; color: var(--gris); margin-bottom: 10px; line-height: 1.5; }
+.at-prop-head b { color: var(--texto); }
+.at-prop-head b.rojo { color: var(--rojo); }
+.at-prop-row {
+  display: flex; align-items: center; gap: 8px; padding: 8px 10px;
+  border: 1px solid var(--borde); border-radius: 12px; margin-bottom: 8px; background: #fff;
+}
+.at-prop-row.lleno { border-color: #F0A3A5; background: var(--rojo-bg); }
+.at-prop-row.feriado { border-style: dashed; background: var(--gris-claro); color: var(--gris); }
+.at-prop-fecha { flex: 1; font-weight: 700; font-size: 13.5px; }
+.at-prop-hora { flex: none; width: 108px; }
+.at-prop-tag { flex: none; font-size: 11.5px; font-weight: 700; padding: 3px 8px; border-radius: 999px; }
+.at-prop-tag.ok { background: var(--verde-bg); color: var(--verde); }
+.at-prop-tag.rojo { background: #fff; color: var(--rojo); border: 1px solid #F0A3A5; }
+.at-prop-row .x { flex: none; }
+html[data-theme="dark"] .at-prop-row { background: #0F1B2E; }
+html[data-theme="dark"] .at-prop-row.feriado { background: #16223A; }
+@media (max-width: 520px) {
+  .at-prop-row { flex-wrap: wrap; }
+  .at-prop-fecha { flex-basis: 100%; }
+}
 .st.agendado { background: var(--gris); }
 .st.en_espera { background: var(--amarillo); }
 .st.en_curso { background: var(--azul); }

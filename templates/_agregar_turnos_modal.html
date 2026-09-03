@@ -24,38 +24,21 @@
       </div>
 
       <div class="seg" style="margin-bottom:14px;">
-        <button id="at-tab-auto" class="on" onclick="atModo('auto')">Automático</button>
+        <button id="at-tab-auto" class="on" onclick="atModo('auto')">Plan de sesiones</button>
         <button id="at-tab-manual" onclick="atModo('manual')">Manual</button>
       </div>
 
-      <!-- Horarios libres del día (para ofrecerle al paciente) -->
-      <div class="at-libres">
-        <button type="button" class="at-libres-toggle" onclick="atToggleLibres()">
-          <span>Ver horarios libres para ofrecer</span><span id="at-libres-flecha">▾</span>
-        </button>
-        <div id="at-libres-panel" style="display:none;">
-          <div class="field" style="margin-bottom:8px;">
-            <label>Elegí un día para ver cómo está</label>
-            <input class="input" id="at-libres-fecha" type="date" onchange="atCargarLibres()">
-          </div>
-          <div class="at-libres-leg">
-            <span><i class="dot verde"></i> Libre</span>
-            <span><i class="dot amar"></i> Casi lleno</span>
-            <span><i class="dot rojo"></i> Lleno</span>
-          </div>
-          <div id="at-libres-slots" class="at-libres-slots"></div>
-        </div>
-      </div>
-
-      <!-- AUTOMÁTICO: usa los días/horarios que ya tiene (editables) -->
+      <!-- PLAN DE SESIONES: propone todo y confirmás -->
       <div id="at-modo-auto">
-        <div class="field">
-          <label>¿Qué días viene? <span class="muted" style="font-weight:500;">(podés cambiar el horario de cada día)</span></label>
-          <div class="dias-picker" id="at-dias-picker"></div>
-          <div class="dias-horas" id="at-dias-rows"></div>
+        <!-- Nuevo plan o extender el que ya tiene -->
+        <div class="seg seg-sm" id="at-plan-modo" style="margin-bottom:12px;">
+          <button type="button" id="at-pm-nuevo" class="on" onclick="atPlanModo('nuevo')">Nuevo plan</button>
+          <button type="button" id="at-pm-ext" onclick="atPlanModo('extender')">Extender (faltantes)</button>
         </div>
+        <div class="hint" id="at-plan-info" style="margin-bottom:10px;"></div>
+
         <div class="grid2">
-          <div class="field">
+          <div class="field" id="at-cantidad-wrap">
             <label>Cantidad de sesiones</label>
             <input class="input" id="at-cantidad" type="number" min="1" placeholder="cuántas">
           </div>
@@ -69,10 +52,18 @@
             </select>
           </div>
         </div>
-        <div class="field"><label>Empezar desde</label><input class="input" id="at-desde" type="date"></div>
-        <div class="hint" id="at-preview"></div>
-        <button type="button" class="btn btn-line btn-sm btn-block" style="margin-top:6px;" onclick="atVistaPrevia()">Ver cómo están esos días</button>
-        <div id="at-preview-dias" class="at-preview-dias"></div>
+
+        <div class="field">
+          <label>¿Qué días viene?</label>
+          <div class="dias-chips" id="at-dias-chips"></div>
+        </div>
+        <div class="grid2">
+          <div class="field"><label>Horario preferido</label><input class="input" id="at-hora" type="time" step="900"></div>
+          <div class="field"><label>Empezar desde</label><input class="input" id="at-desde" type="date"></div>
+        </div>
+
+        <button type="button" class="btn btn-line btn-block" style="margin-top:4px;" onclick="atProponer()">Ver propuesta de turnos</button>
+        <div id="at-propuesta" class="at-propuesta"></div>
       </div>
 
       <!-- MANUAL: turnos sueltos eligiendo fecha y hora -->
@@ -80,12 +71,31 @@
         <div class="hint" style="margin-bottom:10px;">Agregá turnos uno por uno eligiendo fecha y hora.</div>
         <div id="at-manual-rows"></div>
         <button class="btn btn-line btn-sm" onclick="atAgregarFila()">+ Agregar otra fecha</button>
+
+        <!-- Horarios libres del día (para ofrecerle al paciente) -->
+        <div class="at-libres" style="margin-top:12px;">
+          <button type="button" class="at-libres-toggle" onclick="atToggleLibres()">
+            <span>Ver horarios libres para ofrecer</span><span id="at-libres-flecha">▾</span>
+          </button>
+          <div id="at-libres-panel" style="display:none;">
+            <div class="field" style="margin-bottom:8px;">
+              <label>Elegí un día para ver cómo está</label>
+              <input class="input" id="at-libres-fecha" type="date" onchange="atCargarLibres()">
+            </div>
+            <div class="at-libres-leg">
+              <span><i class="dot verde"></i> Libre</span>
+              <span><i class="dot amar"></i> Casi lleno</span>
+              <span><i class="dot rojo"></i> Lleno</span>
+            </div>
+            <div id="at-libres-slots" class="at-libres-slots"></div>
+          </div>
+        </div>
       </div>
       <div class="at-error" id="at-error" style="display:none;"></div>
     </div>
     <div class="modal-foot">
       <button class="btn btn-ghost" onclick="cerrarModal('modal-agturnos')">Cancelar</button>
-      <button class="btn btn-primary" onclick="atGenerar()">Agregar turnos</button>
+      <button class="btn btn-primary" id="at-confirmar" onclick="atGenerar()">Agregar turnos</button>
     </div>
   </div>
 </div>
