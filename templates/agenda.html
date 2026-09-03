@@ -24,14 +24,15 @@
   <div id="ag-buscado" class="ag-buscado" style="display:none;"></div>
 </div>
 
+<!-- (Las estadísticas del día están en Recepción y Reportes; en la Agenda se sacan
+     para que entren más turnos sin scrollear.) -->
+
 <!-- Filtrar el calendario por día de la semana -->
 <div class="agenda-dias-filtro">
   <span class="agenda-dias-lbl">Filtrar días:</span>
   <div class="dias-chips" id="ag-dias-chips"></div>
   <a href="#" id="ag-dias-limpiar" onclick="limpiarDiasFiltro();return false;" style="display:none;">ver todos</a>
 </div>
-
-<div class="stats" id="stats"></div>
 
 <div class="split agenda-split" style="margin-top:8px;">
   <div class="col-main">
@@ -191,9 +192,11 @@ function pintarFecha() {
 
 // ---- Stats ----
 async function cargarStats() {
+  const cont = document.getElementById('stats');
+  if (!cont) return;   // en la agenda ya no se muestran las stats
   const est = await apiGet('/api/estado?sede=' + VER_SEDE);
   const s = est.stats;
-  document.getElementById('stats').innerHTML = [
+  cont.innerHTML = [
     [s.total, 'Turnos hoy'], [s.atendidos, 'Vinieron'],
     [s.presentes + s.en_curso, 'En el centro'], [s.pendientes, 'Por venir'],
     [s.ausentes, 'No vinieron'],
@@ -475,7 +478,8 @@ function limpiarHoraFiltro() {
 // Fila del día: SOLO el nombre. Tocando la fila se abre el turno (mover / reprogramar
 // / borrar). Sin botones de vino / no vino ni estados.
 function filaTurno(t) {
-  return `<div class="list-item clicky" onclick="abrirTurno(${t.turno_id})" title="Tocar para mover, reprogramar o borrar">
+  const hl = (PAC_BUSCADO && t.paciente_id === PAC_BUSCADO.id) ? ' pac-hl-row' : '';
+  return `<div class="list-item clicky${hl}" onclick="abrirTurno(${t.turno_id})" title="Tocar para mover, reprogramar o borrar">
     <div class="avatar">${iniciales(t.paciente)}</div>
     <div class="li-main"><span class="li-name">${escapeHtml(t.paciente)}</span></div>
   </div>`;
