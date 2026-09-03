@@ -174,6 +174,7 @@ let HORA_FILTRO = localStorage.getItem('kdym_sem_hora') || '';   // horario a co
 let CAL_ANIMADO = false;         // el calendario se anima UNA vez (al entrar), no al cambiar de día
 let PAC_BUSCADO = null;          // {id, nombre, usadas, totales} paciente resaltado en el calendario
 let DIAS_FILTRO = new Set();     // días de la semana a mostrar (vacío = todos)
+let VER_DIA = false;             // mostrar "cómo está este día" (horarios libres) en el panel
 let PLAN_PAC = null;
 let PLAN_PICKER = null;
 let FALTO_TID = null;
@@ -432,8 +433,12 @@ function pintarDia() {
   if (esFeriado) {
     addBtn += `<div class="feriado-aviso">Feriado — no se dan turnos este día${FERIADOS[SEL] && FERIADOS[SEL] !== 'Feriado' ? ' (' + escapeHtml(FERIADOS[SEL]) + ')' : ''}.</div>`;
   } else {
-    // Asignar turno a un paciente directamente en este día.
-    addBtn += `<div class="dia-add"><button class="btn btn-primary btn-block" onclick="darTurnoEsteDia()">Asignar turno de paciente</button></div>`;
+    // Asignar turno directo + ver cómo está el día (persiste al cambiar de día).
+    addBtn += `<div class="dia-add">
+      <button class="btn btn-primary btn-block" onclick="darTurnoEsteDia()">Asignar turno de paciente</button>
+      <button class="btn btn-line btn-block btn-sm" style="margin-top:6px;" onclick="verDiaToggle()">${VER_DIA ? 'Ocultar cómo está el día' : 'Ver cómo está este día'}</button>
+    </div>`;
+    if (VER_DIA) addBtn += `<div id="dia-libres" class="dia-libres"><div class="hint">Cargando…</div></div>`;
   }
   // Separar por franja horaria.
   const grupos = {};
@@ -452,6 +457,7 @@ function pintarDia() {
     const vacio = HORA_FILTRO ? ('Sin turnos a las ' + HORA_FILTRO + ' este día.') : 'Sin turnos este día.';
     cont.innerHTML = addBtn + filtroNota + '<div class="empty">' + vacio + '</div>';
     animar();
+    if (VER_DIA && !esFeriado) cargarDiaLibres();
     return;
   }
   cont.innerHTML = addBtn + filtroNota + horasOrden.map(h => {
@@ -465,6 +471,22 @@ function pintarDia() {
     </div>`;
   }).join('');
   animar();
+  if (VER_DIA && !esFeriado) cargarDiaLibres();
+}
+// "Ver cómo está este día": muestra los horarios libres del día en el panel y
+// NO desaparece al cambiar de día (se acuerda que está abierto).
+function verDiaToggle() { VER_DIA = !VER_DIA; pintarDia(); }
+async function cargarDiaLibres() {
+  const box = document.getElementById('dia-libres');
+  if (!box) return;
+  const d = await apiGet('/api/horarios_libres?fecha=' + SEL + '&sede=' + VER_SEDE);
+  if (d.feriado) { box.innerHTML = '<div class="hint">Feriado — no se dan turnos.</div>'; return; }
+  if (!d.abierto) { box.innerHTML = '<div class="hint">El centro no abre este día.</div>'; return; }
+  box.innerHTML = '<div class="dia-libres-slots">' + d.slots.map(s => {
+    const cls = s.libres <= 0 ? 'lleno' : (s.libres === 1 ? 'casi' : 'libre');
+    const txt = s.libres <= 0 ? 'lleno' : (s.libres + ' libre' + (s.libres > 1 ? 's' : ''));
+    return `<div class="at-slot ${cls}" style="cursor:default;">${s.hora}<small>${txt}</small></div>`;
+  }).join('') + '</div>';
 }
 function limpiarHoraFiltro() {
   HORA_FILTRO = '';

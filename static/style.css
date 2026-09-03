@@ -879,15 +879,24 @@ details.sala-sec[open] > summary::after { content: '▾'; }
 /* Agenda en 3 columnas: semáforo (izq) · calendario ANCHO (centro) · pacientes (der). */
 .agenda-split { align-items: flex-start; }
 .agenda-split > .col-main { flex: 1 1 auto; min-width: 0; }
-.agenda-split > .col-side { flex: 0 0 300px; min-width: 260px; }
+/* Panel del día: columna LARGA (ocupa el alto de la pantalla) para mostrar
+   muchos nombres; la lista scrollea adentro. Queda fija al hacer scroll. */
+.agenda-split > .col-side {
+  flex: 0 0 320px; min-width: 280px;
+  position: sticky; top: 14px; align-self: flex-start;
+  max-height: calc(100vh - 24px);
+  display: flex; flex-direction: column;
+}
+.agenda-split > .col-side #dia-detalle { flex: 1; overflow-y: auto; min-height: 0; padding-right: 4px; }
 @media (max-width: 760px) {
   .cal-cols { flex-direction: column; }
   .sem-side { width: 100%; flex-direction: row; flex-wrap: wrap; align-items: center; position: static; gap: 8px 14px; }
   .sem-side-h { width: 100%; }
   .sem-hora-input { width: auto; min-width: 150px; }
   .sem-side-chips { flex-direction: row; flex-wrap: wrap; gap: 12px; }
-  /* En columna, un flex-basis fijo pondría alto fijo al panel: lo reseteamos. */
-  .agenda-split > .col-side { flex: 1 1 auto; width: 100%; }
+  /* En celular el panel fluye normal (no fijo ni con alto fijo). */
+  .agenda-split > .col-side { flex: 1 1 auto; width: 100%; position: static; max-height: none; }
+  .agenda-split > .col-side #dia-detalle { overflow: visible; }
 }
 
 /* ============ Animaciones suaves (no rápidas) en toda la app ============ */
@@ -1104,3 +1113,7 @@ html[data-theme="dark"] .dia-pac-hl { background: #241B3A; border-color: #4A3A6E
 .list-item.pac-hl-row .li-name { color: #4C1D95; }
 html[data-theme="dark"] .list-item.pac-hl-row { background: #241B3A; }
 html[data-theme="dark"] .list-item.pac-hl-row .li-name { color: #C9B8F0; }
+
+/* "Ver cómo está este día" (horarios libres) dentro del panel del día */
+.dia-libres { margin-bottom: 12px; }
+.dia-libres-slots { display: grid; grid-template-columns: repeat(auto-fill, minmax(68px, 1fr)); gap: 6px; }
