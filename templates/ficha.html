@@ -92,6 +92,23 @@
     </div>
 
     <div class="row" style="align-items:center; justify-content:space-between;">
+      <div class="section-title" style="margin-top:6px;">Pagos y bono</div>
+      <button class="btn btn-ghost btn-sm" onclick="abrirPago()">+ Pago</button>
+    </div>
+    <div class="card card-pad" id="pagos-box"><div class="empty">Cargando…</div></div>
+
+    <div class="row" style="align-items:center; justify-content:space-between;">
+      <div class="section-title" style="margin-top:6px;">Archivos y fotos</div>
+      <label class="btn btn-ghost btn-sm" style="cursor:pointer;">+ Subir
+        <input type="file" id="adj-file" style="display:none;" onchange="subirAdjunto(this)"></label>
+    </div>
+    <div class="hint" style="margin:-2px 0 8px;">Estudios, recetas, fotos de evolución (máx. 8 MB por archivo).</div>
+    <div class="card card-pad" id="adjuntos-box"><div class="empty">Cargando…</div></div>
+
+    <div class="section-title" style="margin-top:6px;">Consentimiento informado</div>
+    <div class="card card-pad" id="consent-box"><div class="empty">Cargando…</div></div>
+
+    <div class="row" style="align-items:center; justify-content:space-between;">
       <div class="section-title">Historial de turnos</div>
       <button class="btn btn-primary btn-sm" onclick="abrirAgregarTurnos(PID, PNOMBRE, () => location.reload())">+ Agregar turnos</button>
     </div>
@@ -216,6 +233,58 @@
     <div class="modal-foot">
       <button class="btn btn-ghost" onclick="cerrarModal('modal-evo')">Cancelar</button>
       <button class="btn btn-primary" onclick="guardarEvo()">Guardar nota</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal registrar pago -->
+<div class="modal-bg" id="modal-pago">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>Registrar pago</h3>
+      <button class="x" onclick="cerrarModal('modal-pago')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="grid2">
+        <div class="field"><label>Monto *</label><input class="input" id="pago-monto" inputmode="decimal" placeholder="$"></div>
+        <div class="field"><label>Fecha</label><input class="input" id="pago-fecha" type="date"></div>
+      </div>
+      <div class="field"><label>Método</label>
+        <select class="input" id="pago-metodo">
+          <option value="Efectivo">Efectivo</option>
+          <option value="Transferencia">Transferencia</option>
+          <option value="Débito">Débito</option>
+          <option value="Crédito">Crédito</option>
+          <option value="Mercado Pago">Mercado Pago</option>
+          <option value="Obra social">Obra social</option>
+        </select>
+      </div>
+      <div class="field"><label>Concepto</label><input class="input" id="pago-concepto" placeholder="Ej: bono 10 sesiones, seña…"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="cerrarModal('modal-pago')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarPago()">Guardar pago</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal consentimiento (firma) -->
+<div class="modal-bg" id="modal-firma">
+  <div class="modal">
+    <div class="modal-head">
+      <h3>Consentimiento informado</h3>
+      <button class="x" onclick="cerrarModal('modal-firma')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="hint" style="margin-bottom:10px;">El paciente autoriza el tratamiento kinesiológico y el tratamiento de sus datos de salud (Ley 25.326). Firmá abajo con el dedo o el mouse.</div>
+      <div class="field"><label>Aclaración / DNI</label><input class="input" id="firma-aclaracion" placeholder="Nombre y DNI de quien firma"></div>
+      <label>Firma</label>
+      <div class="firma-wrap"><canvas id="firma-canvas" class="firma-canvas"></canvas></div>
+      <button class="btn btn-ghost btn-sm" style="margin-top:6px;" onclick="limpiarFirma()">Borrar firma</button>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="cerrarModal('modal-firma')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarFirma()">Guardar firma</button>
     </div>
   </div>
 </div>
@@ -365,5 +434,125 @@ function toggleTurnoEj(tid) {
   const item = box.closest('.turno-item');
   if (item) item.classList.toggle('abierto', !abierto);
 }
+
+function money(n) { return '$' + (Math.round(n || 0)).toLocaleString('es-AR'); }
+
+// ---- Pagos y bono ----
+async function cargarPagos() {
+  const box = document.getElementById('pagos-box');
+  const d = await apiGet('/api/paciente/' + PID + '/pagos');
+  const saldoCls = d.saldo > 0 ? 'danger' : 'ok';
+  let html = `<div class="pago-resumen">
+    <div><div class="k">Precio por sesión</div>
+      <div class="pr-precio"><input class="input" id="precio-ses" inputmode="decimal" value="${d.precio_sesion || ''}" placeholder="$" style="max-width:100px;">
+      <button class="btn btn-line btn-sm" onclick="guardarPrecio()">Guardar</button></div></div>
+    <div><div class="k">Total pagado</div><div class="v">${money(d.total_pagado)}</div></div>
+    <div><div class="k">Saldo</div><div class="v pill ${saldoCls}">${money(d.saldo)}</div></div>
+  </div>`;
+  html += d.pagos.length
+    ? d.pagos.map(p => `<div class="pago-item">
+        <div class="li-main"><div class="li-name">${money(p.monto)} <span class="muted" style="font-weight:600;">${escapeHtml(p.metodo || '')}</span></div>
+          <div class="li-sub">${escapeHtml(p.fecha || '')}${p.concepto ? ' · ' + escapeHtml(p.concepto) : ''}</div></div>
+        <button class="x" onclick="borrarPago(${p.id})" title="Quitar">&times;</button></div>`).join('')
+    : '<div class="empty" style="margin-top:8px;">Sin pagos registrados.</div>';
+  box.innerHTML = html;
+}
+function abrirPago() {
+  document.getElementById('pago-monto').value = '';
+  document.getElementById('pago-concepto').value = '';
+  document.getElementById('pago-fecha').value = new Date().toISOString().slice(0, 10);
+  abrirModal('modal-pago');
+}
+async function guardarPago() {
+  const monto = document.getElementById('pago-monto').value;
+  if (!monto || +monto <= 0) { toast('Poné un monto', 'alert'); return; }
+  await api('/api/paciente/' + PID + '/pago', {
+    monto, fecha: document.getElementById('pago-fecha').value,
+    metodo: document.getElementById('pago-metodo').value,
+    concepto: document.getElementById('pago-concepto').value,
+  });
+  cerrarModal('modal-pago'); toast('Pago registrado ✓', 'ok'); cargarPagos();
+}
+async function borrarPago(id) {
+  if (!confirm('¿Borrar este pago?')) return;
+  await api('/api/pago/' + id + '/borrar'); cargarPagos();
+}
+async function guardarPrecio() {
+  await api('/api/paciente/' + PID + '/precio_sesion', { precio: document.getElementById('precio-ses').value });
+  toast('Precio guardado ✓', 'ok'); cargarPagos();
+}
+
+// ---- Archivos y fotos ----
+async function cargarAdjuntos() {
+  const box = document.getElementById('adjuntos-box');
+  const rows = await apiGet('/api/paciente/' + PID + '/adjuntos');
+  if (!rows.length) { box.innerHTML = '<div class="empty">Sin archivos.</div>'; return; }
+  box.innerHTML = '<div class="adj-grid">' + rows.map(a => `
+    <div class="adj-item">
+      <a href="/api/adjunto/${a.id}" target="_blank">${a.es_img
+        ? `<img class="adj-thumb" src="/api/adjunto/${a.id}">`
+        : `<div class="adj-file">${escapeHtml((a.nombre.split('.').pop() || 'FILE').toUpperCase().slice(0, 4))}</div>`}</a>
+      <div class="adj-nom" title="${escapeHtml(a.nombre)}">${escapeHtml(a.nombre)}</div>
+      <div class="adj-meta">${a.kb} KB · <a href="/api/adjunto/${a.id}?dl=1">bajar</a> · <a href="#" onclick="borrarAdjunto(${a.id});return false;">borrar</a></div>
+    </div>`).join('') + '</div>';
+}
+async function subirAdjunto(input) {
+  const f = input.files[0]; if (!f) return;
+  if (f.size > 8 * 1024 * 1024) { toast('El archivo supera 8 MB', 'alert'); input.value = ''; return; }
+  const fd = new FormData(); fd.append('archivo', f);
+  toast('Subiendo…', 'ok');
+  const r = await fetch('/api/paciente/' + PID + '/adjunto', { method: 'POST', body: fd });
+  input.value = '';
+  if (r.ok) { toast('Archivo subido ✓', 'ok'); cargarAdjuntos(); }
+  else { toast('No se pudo subir', 'alert'); }
+}
+async function borrarAdjunto(id) {
+  if (!confirm('¿Borrar este archivo?')) return;
+  await api('/api/adjunto/' + id + '/borrar'); cargarAdjuntos();
+}
+
+// ---- Consentimiento informado (firma) ----
+async function cargarConsent() {
+  const box = document.getElementById('consent-box');
+  const d = await apiGet('/api/paciente/' + PID + '/consentimiento');
+  if (d.firmado) {
+    box.innerHTML = `<div class="consent-ok"><b>Firmado</b> el ${escapeHtml(d.fecha)}${d.aclaracion ? ' · ' + escapeHtml(d.aclaracion) : ''}</div>
+      <img class="firma-img" src="/api/consentimiento/${d.id}/firma">
+      <div><button class="btn btn-line btn-sm" style="margin-top:8px;" onclick="abrirFirma()">Firmar de nuevo</button></div>`;
+  } else {
+    box.innerHTML = `<div class="empty" style="margin-bottom:8px;">Sin consentimiento firmado.</div>
+      <button class="btn btn-primary btn-sm" onclick="abrirFirma()">Firmar consentimiento</button>`;
+  }
+}
+let FIRMA_CTX = null, FIRMA_DIB = false, FIRMA_HAY = false;
+function abrirFirma() {
+  document.getElementById('firma-aclaracion').value = '';
+  abrirModal('modal-firma');
+  setTimeout(initFirma, 80);
+}
+function initFirma() {
+  const c = document.getElementById('firma-canvas');
+  const w = c.parentElement.getBoundingClientRect().width || 300;
+  c.width = w; c.height = 170;
+  FIRMA_CTX = c.getContext('2d');
+  FIRMA_CTX.lineWidth = 2.4; FIRMA_CTX.lineCap = 'round';
+  FIRMA_CTX.strokeStyle = '#0B1B33';
+  FIRMA_HAY = false;
+  const pos = e => { const r = c.getBoundingClientRect(); const t = e.touches ? e.touches[0] : e; return { x: t.clientX - r.left, y: t.clientY - r.top }; };
+  const down = e => { FIRMA_DIB = true; const p = pos(e); FIRMA_CTX.beginPath(); FIRMA_CTX.moveTo(p.x, p.y); e.preventDefault(); };
+  const move = e => { if (!FIRMA_DIB) return; const p = pos(e); FIRMA_CTX.lineTo(p.x, p.y); FIRMA_CTX.stroke(); FIRMA_HAY = true; e.preventDefault(); };
+  const up = () => { FIRMA_DIB = false; };
+  c.onmousedown = down; c.onmousemove = move; window.addEventListener('mouseup', up);
+  c.ontouchstart = down; c.ontouchmove = move; c.ontouchend = up;
+}
+function limpiarFirma() { if (FIRMA_CTX) { FIRMA_CTX.clearRect(0, 0, 9999, 9999); FIRMA_HAY = false; } }
+async function guardarFirma() {
+  if (!FIRMA_HAY) { toast('Firmá en el recuadro', 'alert'); return; }
+  const firma = document.getElementById('firma-canvas').toDataURL('image/png');
+  await api('/api/paciente/' + PID + '/consentimiento', { firma, aclaracion: document.getElementById('firma-aclaracion').value });
+  cerrarModal('modal-firma'); toast('Consentimiento guardado ✓', 'ok'); cargarConsent();
+}
+
+cargarPagos(); cargarAdjuntos(); cargarConsent();
 </script>
 {% endblock %}

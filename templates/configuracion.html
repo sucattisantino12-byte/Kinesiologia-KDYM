@@ -4,6 +4,14 @@
 {% block content %}
 <div class="page-title" style="margin-bottom:16px;">Configuración</div>
 
+<div class="section-title">Apariencia</div>
+<div class="card card-pad" style="margin-bottom:8px;">
+  <label class="sound-toggle" style="font-size:15px;">
+    <input type="checkbox" id="cfg-tema-oscuro"> Modo oscuro
+  </label>
+  <div class="hint" style="margin-top:6px;">Se guarda en este dispositivo.</div>
+</div>
+
 <div class="section-title">Alarma de los boxes</div>
 <div class="card card-pad" style="margin-bottom:8px;">
   <div class="field">
@@ -98,6 +106,11 @@ onchk.checked = (localStorage.getItem('kdym_alarma_on') !== '0');
 onchk.addEventListener('change', () => {
   localStorage.setItem('kdym_alarma_on', onchk.checked ? '1' : '0');
 });
+
+// Modo oscuro
+const temachk = document.getElementById('cfg-tema-oscuro');
+temachk.checked = temaEsOscuro();
+temachk.addEventListener('change', () => setTema(temachk.checked));
 
 // Horario del centro por día. CENTRO_HOR = {0:{a,c}, ...} sólo los días abiertos.
 let CENTRO_HOR = {};

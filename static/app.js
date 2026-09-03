@@ -1,5 +1,13 @@
 // Utilidades compartidas por todas las pantallas.
 
+// ---- Modo oscuro ----
+function temaEsOscuro() { return document.documentElement.dataset.theme === 'dark'; }
+function setTema(oscuro) {
+  document.documentElement.dataset.theme = oscuro ? 'dark' : '';
+  try { localStorage.setItem('kdym_tema', oscuro ? 'oscuro' : 'claro'); } catch (e) {}
+}
+function toggleTema() { setTema(!temaEsOscuro()); }
+
 // ---- Animación de inicio ----
 // Se muestra solo en una apertura "fresca" (no al navegar entre pestañas de la app
 // ni al volver de otra app). El #splash está oculto por CSS y sólo se muestra si acá

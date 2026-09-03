@@ -955,3 +955,89 @@ details.sala-sec[open] > summary::after { content: '▾'; }
 /* ============ Plantillas: vista lista (una columna) ============ */
 .pl-list { display: flex; flex-direction: column; gap: 10px; }
 .pl-list .pl-card { width: 100%; }
+
+/* ============ Reportes ============ */
+.rep-row { margin-bottom: 12px; }
+.rep-row:last-child { margin-bottom: 0; }
+.rep-row-top { display: flex; justify-content: space-between; font-size: 13px; font-weight: 700; margin-bottom: 5px; }
+.rep-bar { height: 9px; background: var(--gris-claro); border-radius: 999px; overflow: hidden; }
+.rep-bar span { display: block; height: 100%; border-radius: 999px; }
+.rep-cobro { display: flex; justify-content: space-between; align-items: center; padding: 9px 2px; border-bottom: 1px solid var(--borde2); font-weight: 700; }
+.rep-cobro:last-child { border-bottom: 0; }
+.rep-cobro.total { border-top: 2px solid var(--borde); color: var(--azul-oscuro); margin-top: 4px; }
+
+/* ============ Modo oscuro ============ */
+html[data-theme="dark"] {
+  --azul: #5A8AD8; --azul-oscuro: #A9C4EE; --azul-claro: #1B2A45; --azul-borde: #2E4269;
+  --navy: #0A1220; --texto: #E7EDF7; --gris: #9BAAC2; --gris2: #74849F;
+  --gris-claro: #1D2942; --borde: #2A3A57; --borde2: #223049; --blanco: #172235;
+  --verde-bg: #12311F; --rojo-bg: #3A1E20; --amarillo-bg: #35301A;
+  --sombra: 0 1px 3px rgba(0,0,0,.4); --sombra-md: 0 10px 26px rgba(0,0,0,.5);
+}
+html[data-theme="dark"] body { background: #0D1524; }
+html[data-theme="dark"] .main { background: #0D1524; }
+html[data-theme="dark"] .input,
+html[data-theme="dark"] select.input,
+html[data-theme="dark"] textarea.input,
+html[data-theme="dark"] input[type=time],
+html[data-theme="dark"] input[type=date],
+html[data-theme="dark"] .sem-hora-input {
+  background: #0F1B2E; color: var(--texto); border-color: var(--borde);
+}
+html[data-theme="dark"] .box.libre { background: #131f31; }
+html[data-theme="dark"] .cal-cell { background: var(--blanco); }
+html[data-theme="dark"] .cal-cell.otro { background: #101a2b; }
+html[data-theme="dark"] .seg { background: var(--gris-claro); }
+html[data-theme="dark"] .seg button.on { background: #27385a; color: var(--azul-oscuro); }
+html[data-theme="dark"] .btn-ghost { background: var(--gris-claro); color: var(--texto); }
+html[data-theme="dark"] .toast { background: #26344d; }
+html[data-theme="dark"] .mtop, html[data-theme="dark"] .mbot { background: #0A1220; }
+html[data-theme="dark"] .dia-menu, html[data-theme="dark"] .mas-sheet .card2 { background: var(--blanco); }
+html[data-theme="dark"] img.adj-thumb { background: #0F1B2E; }
+
+/* ============ Ficha: pagos, adjuntos, consentimiento ============ */
+.pago-resumen { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; padding-bottom: 12px; margin-bottom: 6px; border-bottom: 1px solid var(--borde2); }
+.pago-resumen .k { font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: .04em; color: var(--gris); margin-bottom: 4px; }
+.pago-resumen .v { font-size: 18px; font-weight: 800; color: var(--azul-oscuro); }
+.pago-resumen .v.pill { font-size: 15px; }
+.pr-precio { display: flex; gap: 6px; align-items: center; }
+.pago-item { display: flex; align-items: center; gap: 10px; padding: 9px 2px; border-bottom: 1px solid var(--borde2); }
+.pago-item:last-child { border-bottom: 0; }
+@media (max-width: 480px) { .pago-resumen { grid-template-columns: 1fr; gap: 8px; } }
+
+.adj-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(110px, 1fr)); gap: 12px; }
+.adj-item { text-align: center; }
+.adj-thumb { width: 100%; height: 90px; object-fit: cover; border-radius: 10px; border: 1px solid var(--borde); }
+.adj-file { height: 90px; border-radius: 10px; border: 1px solid var(--borde); background: var(--gris-claro);
+  display: flex; align-items: center; justify-content: center; font-weight: 800; color: var(--gris); }
+.adj-nom { font-size: 12px; font-weight: 700; margin-top: 5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.adj-meta { font-size: 11px; color: var(--gris); }
+.adj-meta a { color: var(--azul); font-weight: 700; }
+
+.firma-wrap { border: 1.5px dashed var(--azul-borde); border-radius: 12px; background: #fff; overflow: hidden; }
+.firma-canvas { display: block; width: 100%; height: 170px; touch-action: none; cursor: crosshair; }
+.firma-img { max-width: 260px; border: 1px solid var(--borde); border-radius: 10px; background: #fff; margin-top: 8px; }
+.consent-ok { font-size: 14px; }
+html[data-theme="dark"] .firma-wrap, html[data-theme="dark"] .firma-img { background: #0F1B2E; }
+
+/* ============ Agenda: buscador de paciente + resaltado violeta ============ */
+.agenda-buscar-wrap { position: relative; margin-bottom: 12px; max-width: 460px; }
+.ag-buscar-res { position: absolute; left: 0; right: 0; z-index: 30; background: #fff;
+  border: 1px solid var(--borde); border-radius: 12px; box-shadow: var(--sombra-md);
+  margin-top: 4px; overflow: hidden; }
+.ag-buscar-op { display: flex; justify-content: space-between; align-items: center; gap: 8px;
+  padding: 10px 12px; cursor: pointer; font-weight: 600; border-bottom: 1px solid var(--borde2); }
+.ag-buscar-op:last-child { border-bottom: 0; }
+.ag-buscar-op:hover { background: var(--azul-claro); }
+.ag-ses { font-size: 12px; font-weight: 800; color: var(--azul); background: var(--azul-claro); padding: 2px 8px; border-radius: 999px; }
+.ag-buscado { display: flex; align-items: center; gap: 10px; margin-top: 8px; padding: 9px 12px;
+  background: #EDE7FB; border: 1px solid #CBB6F2; border-radius: 12px; font-size: 14px; }
+.ag-hl-dot { width: 12px; height: 12px; border-radius: 50%; background: #7C3AED; flex: none; }
+.ag-ses-big { font-weight: 800; color: #6D28D9; background: #fff; border: 1px solid #CBB6F2; padding: 2px 10px; border-radius: 999px; }
+.ag-buscado a { margin-left: auto; color: #6D28D9; font-weight: 700; }
+/* Día del paciente buscado, resaltado en violeta */
+.cal-cell.pac-hl { border-color: #7C3AED; box-shadow: inset 0 0 0 2px #7C3AED; background: #F3EEFC; }
+.cal-cell.pac-hl .cal-num { color: #6D28D9; }
+html[data-theme="dark"] .ag-buscar-res { background: var(--blanco); }
+html[data-theme="dark"] .ag-buscado { background: #241B3A; border-color: #4A3A6E; }
+html[data-theme="dark"] .cal-cell.pac-hl { background: #241B3A; }

@@ -17,6 +17,13 @@
 <!-- Cambiar entre el calendario de Morón y Ramos -->
 <div class="agenda-sede-bar" id="agenda-sede-bar"></div>
 
+<!-- Buscar un paciente para resaltar sus días en el calendario -->
+<div class="agenda-buscar-wrap">
+  <input class="input" id="ag-buscar" placeholder="Buscar un paciente para ver sus días…" autocomplete="off">
+  <div id="ag-buscar-res" class="ag-buscar-res"></div>
+  <div id="ag-buscado" class="ag-buscado" style="display:none;"></div>
+</div>
+
 <div class="stats" id="stats"></div>
 
 <div class="split agenda-split" style="margin-top:8px;">
@@ -157,6 +164,7 @@ let VER_SEDE = window.SEDE_ACTUAL;   // sede cuyo calendario se está viendo
 let SEM_PUNTO = localStorage.getItem('kdym_sem_punto') === '1';  // mostrar además el puntito
 let HORA_FILTRO = localStorage.getItem('kdym_sem_hora') || '';   // horario a colorear ('' = ninguno)
 let CAL_ANIMADO = false;         // el calendario se anima UNA vez (al entrar), no al cambiar de día
+let PAC_BUSCADO = null;          // {id, nombre, usadas, totales} paciente resaltado en el calendario
 let PLAN_PAC = null;
 let PLAN_PICKER = null;
 let FALTO_TID = null;
@@ -321,6 +329,11 @@ function pintarCalendario() {
     if (esFeriado) {
       cls.push('feriado');
       feriadoTag = `<span class="cal-feriado" title="${escapeHtml(FERIADOS[key])}">⊘ Feriado</span>`;
+    }
+    // Resaltar en violeta los días del paciente buscado.
+    if (PAC_BUSCADO && (DATA[key] || []).some(t => t.paciente_id === PAC_BUSCADO.id
+        && t.estado !== 'ausente' && t.estado !== 'perdido')) {
+      cls.push('pac-hl');
     }
     html += `<div class="${cls.join(' ')}" onclick="diaMenu(event, '${key}')">
       <div class="cal-num">${d.getDate()}</div>${count}${semDot}${feriadoTag}</div>`;
@@ -619,6 +632,41 @@ function verSede(id) {
   VER_SEDE = id;
   pintarSedeBar();
   recargar();
+}
+
+// ---- Buscar un paciente y resaltar sus días en el calendario ----
+let _agbt = null;
+document.getElementById('ag-buscar').addEventListener('input', e => {
+  clearTimeout(_agbt);
+  const term = e.target.value.trim();
+  const res = document.getElementById('ag-buscar-res');
+  if (!term) { res.innerHTML = ''; return; }
+  _agbt = setTimeout(async () => {
+    const rows = await apiGet('/api/pacientes?q=' + encodeURIComponent(term));
+    res.innerHTML = rows.slice(0, 8).map(p =>
+      `<div class="ag-buscar-op" onclick='resaltarPaciente(${JSON.stringify({ id: p.id, nombre: p.nombre_completo, usadas: p.sesiones_usadas, totales: p.sesiones_totales })})'>
+        <span>${escapeHtml(p.nombre_completo)}</span>
+        <span class="ag-ses">${p.sesiones_usadas}/${p.sesiones_totales}</span>
+      </div>`).join('') || '<div class="ag-buscar-op muted">Sin resultados</div>';
+  }, 220);
+});
+function resaltarPaciente(p) {
+  PAC_BUSCADO = p;
+  document.getElementById('ag-buscar').value = p.nombre;
+  document.getElementById('ag-buscar-res').innerHTML = '';
+  const b = document.getElementById('ag-buscado');
+  b.style.display = '';
+  b.innerHTML = `<span class="ag-hl-dot"></span> <b>${escapeHtml(p.nombre)}</b>
+    <span class="ag-ses-big">${p.usadas}/${p.totales} sesiones</span>
+    <a href="#" onclick="quitarResaltado();return false;">quitar</a>`;
+  render();
+}
+function quitarResaltado() {
+  PAC_BUSCADO = null;
+  document.getElementById('ag-buscar').value = '';
+  document.getElementById('ag-buscar-res').innerHTML = '';
+  document.getElementById('ag-buscado').style.display = 'none';
+  render();
 }
 
 // ---- Feriados (días sin turnos) ----
