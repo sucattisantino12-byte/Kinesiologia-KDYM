@@ -49,10 +49,12 @@
           <div id="pl-pac-elegido" class="hint"></div>
         </div>
         <div id="pl-libre-wrap" style="display:none;">
-          <div class="grid2">
-            <div class="field"><label>Nombre *</label><input class="input" id="pl-nombre-libre" placeholder="Nombre y apellido"></div>
-            <div class="field"><label>Teléfono</label><input class="input" id="pl-tel-libre" inputmode="numeric" placeholder="Opcional"></div>
-          </div>
+          <div class="field"><label>Nombre *</label><input class="input" id="pl-nombre-libre" placeholder="Nombre y apellido"></div>
+        </div>
+        <div class="field">
+          <label>Teléfono / celular *</label>
+          <input class="input" id="pl-telefono" inputmode="numeric" placeholder="Ej: 1122334455">
+          <div class="hint" style="margin-top:4px;">Se usa para avisar por WhatsApp cuando la plantilla esté lista.</div>
         </div>
       </div>
 
@@ -227,7 +229,7 @@ function abrirNuevaPlantilla() {
   document.getElementById('pl-pac-buscar').value = '';
   document.getElementById('pl-pac-res').innerHTML = '';
   document.getElementById('pl-pac-elegido').textContent = '';
-  ['pl-nombre-libre', 'pl-tel-libre'].forEach(id => document.getElementById(id).value = '');
+  ['pl-nombre-libre', 'pl-telefono'].forEach(id => document.getElementById(id).value = '');
   poblarSelectSede('pl-sede');
   document.getElementById('pl-estado').value = 'pedida';
   ['pl-molde', 'pl-entrega', 'pl-precio', 'pl-senia', 'pl-notas'].forEach(id => document.getElementById(id).value = '');
@@ -247,6 +249,7 @@ function editarPlantilla(id) {
   document.getElementById('pl-precio').value = p.precio || '';
   document.getElementById('pl-senia').value = p.senia || '';
   document.getElementById('pl-notas').value = p.notas || '';
+  document.getElementById('pl-telefono').value = p.telefono || '';
   abrirModal('modal-plantilla');
 }
 
@@ -260,16 +263,20 @@ async function guardarPlantilla() {
     senia: document.getElementById('pl-senia').value.trim(),
     notas: document.getElementById('pl-notas').value.trim(),
   };
+  const tel = document.getElementById('pl-telefono').value.trim();
+  body.telefono_libre = tel;
   if (PL_EDIT) {
+    if (!tel) { toast('Poné el teléfono del paciente', 'alert'); return; }
     await api('/api/plantilla/' + PL_EDIT, body);
   } else if (PL_QUIEN === 'libre') {
     const nom = document.getElementById('pl-nombre-libre').value.trim();
     if (!nom) { toast('Escribí un nombre', 'alert'); return; }
+    if (!tel) { toast('Poné el teléfono / celular', 'alert'); return; }
     body.nombre_libre = nom;
-    body.telefono_libre = document.getElementById('pl-tel-libre').value.trim();
     await api('/api/plantilla', body);
   } else {
     if (!PL_PAC) { toast('Elegí un paciente', 'alert'); return; }
+    if (!tel) { toast('Poné el teléfono del paciente', 'alert'); return; }
     body.paciente_id = PL_PAC.id;
     await api('/api/plantilla', body);
   }
@@ -294,18 +301,21 @@ document.getElementById('pl-pac-buscar').addEventListener('input', e => {
     if (!term) { cont.innerHTML = ''; return; }
     const rows = await apiGet('/api/pacientes?q=' + encodeURIComponent(term));
     cont.innerHTML = rows.map(p => `
-      <div class="list-item" style="cursor:pointer;" onclick="elegirPacPlantilla(${p.id}, '${escapeJs(p.nombre_completo)}')">
+      <div class="list-item" style="cursor:pointer;" onclick="elegirPacPlantilla(${p.id}, '${escapeJs(p.nombre_completo)}', '${escapeJs(p.telefono || '')}')">
         <div class="avatar">${iniciales(p.nombre_completo)}</div>
         <div class="li-main"><div class="li-name">${escapeHtml(p.nombre_completo)}</div>
         <div class="li-sub">${p.sesiones_quedan} sesiones restantes</div></div>
       </div>`).join('') || '<div class="empty">Sin resultados</div>';
   }, 220);
 });
-function elegirPacPlantilla(id, nombre) {
+function elegirPacPlantilla(id, nombre, telefono) {
   PL_PAC = { id, nombre };
   document.getElementById('pl-pac-res').innerHTML = '';
   document.getElementById('pl-pac-buscar').value = nombre;
   document.getElementById('pl-pac-elegido').innerHTML = '✓ ' + escapeHtml(nombre) + ' seleccionado';
+  // Prellenar el teléfono con el del paciente (se puede completar/corregir).
+  const t = document.getElementById('pl-telefono');
+  if (t && telefono) t.value = telefono;
 }
 
 document.getElementById('pl-buscar').addEventListener('input', pintarPlantillas);

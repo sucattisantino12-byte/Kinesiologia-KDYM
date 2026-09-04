@@ -65,22 +65,23 @@
         <div id="at-manual-rows"></div>
         <button class="btn btn-line btn-sm" onclick="atAgregarFila()">+ Agregar otra fecha</button>
 
-        <!-- Horarios libres del día (para ofrecerle al paciente) -->
-        <div class="at-libres" style="margin-top:12px;">
-          <button type="button" class="at-libres-toggle" onclick="atToggleLibres()">
-            <span>Ver horarios libres para ofrecer</span><span id="at-libres-flecha">▾</span>
+        <!-- Ofrecer: buscar los próximos horarios libres para ofrecerle al paciente -->
+        <div class="at-libres" style="margin-top:14px;">
+          <button type="button" class="at-libres-toggle" onclick="atToggleOfrecer()">
+            <span>Ofrecer turno libre — ver próximos horarios</span><span id="at-of-flecha">▾</span>
           </button>
-          <div id="at-libres-panel" style="display:none;">
-            <div class="field" style="margin-bottom:8px;">
-              <label>Elegí un día para ver cómo está</label>
-              <input class="input" id="at-libres-fecha" type="date" onchange="atCargarLibres()">
+          <div id="at-of-panel" style="display:none;">
+            <div class="hint" style="margin-bottom:8px;">Elegí (opcional) qué días y/o a qué hora le queda cómodo. Te muestro los próximos lugares libres para ofrecerle; tocá uno para agregarlo.</div>
+            <div class="field">
+              <label>Días que le sirven (opcional)</label>
+              <div class="dias-chips" id="at-of-dias"></div>
             </div>
-            <div class="at-libres-leg">
-              <span><i class="dot verde"></i> Libre</span>
-              <span><i class="dot amar"></i> Casi lleno</span>
-              <span><i class="dot rojo"></i> Lleno</span>
+            <div class="field">
+              <label>Hora (opcional)</label>
+              <select class="input" id="at-of-hora"></select>
             </div>
-            <div id="at-libres-slots" class="at-libres-slots"></div>
+            <button type="button" class="btn btn-line btn-block btn-sm" onclick="atBuscarOfrecer()">Ver próximos libres</button>
+            <div id="at-of-res" style="margin-top:12px;"></div>
           </div>
         </div>
       </div>

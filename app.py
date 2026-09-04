@@ -2145,7 +2145,7 @@ def api_plantillas():
     for r in rows:
         if r["paciente_id"] and r["nombre"] is not None:
             nombre = f"{r['nombre']} {r['apellido']}"
-            tel = r["telefono"] or ""
+            tel = r["telefono"] or r["telefono_libre"] or ""
         else:
             nombre = (r["nombre_libre"] or "Sin nombre")
             tel = r["telefono_libre"] or ""

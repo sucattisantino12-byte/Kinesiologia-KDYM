@@ -9,7 +9,6 @@
   </div>
   <button class="btn btn-ghost btn-sm" onclick="abrirNuevoPaciente(elegirDesdeNuevo)">+ Paciente</button>
   <button class="btn btn-ghost btn-sm" onclick="abrirHuecos()">Buscar hueco</button>
-  <button class="btn btn-ghost btn-sm" onclick="abrirOfrecer()">Ofrecer turno libre</button>
   <button class="btn btn-ghost btn-sm" onclick="simularAgenda()" title="Llenar el mes con turnos de ejemplo">Simular agenda</button>
   <button class="btn btn-danger-soft btn-sm" onclick="limpiarSimulacion()" title="Borrar los turnos de ejemplo">Limpiar</button>
   <button class="btn btn-primary btn-sm" onclick="agAgregarTurnos()">Agregar turnos</button>
@@ -18,25 +17,22 @@
 <!-- Cambiar entre el calendario de Morón y Ramos -->
 <div class="agenda-sede-bar" id="agenda-sede-bar"></div>
 
-<!-- Buscar un paciente para resaltar sus días en el calendario -->
-<div class="agenda-buscar-wrap">
-  <input class="input" id="ag-buscar" placeholder="Buscar un paciente para ver sus días…" autocomplete="off">
-  <div id="ag-buscar-res" class="ag-buscar-res"></div>
-  <div id="ag-buscado" class="ag-buscado" style="display:none;"></div>
-</div>
-
-<!-- (Las estadísticas del día están en Recepción y Reportes; en la Agenda se sacan
-     para que entren más turnos sin scrollear.) -->
-
-<!-- Filtrar el calendario por día de la semana -->
-<div class="agenda-dias-filtro">
-  <span class="agenda-dias-lbl">Filtrar días:</span>
-  <div class="dias-chips" id="ag-dias-chips"></div>
-  <a href="#" id="ag-dias-limpiar" onclick="limpiarDiasFiltro();return false;" style="display:none;">ver todos</a>
-</div>
-
 <div class="split agenda-split" style="margin-top:8px;">
   <div class="col-main">
+    <!-- Buscar un paciente para resaltar sus días en el calendario -->
+    <div class="agenda-buscar-wrap">
+      <input class="input" id="ag-buscar" placeholder="Buscar un paciente para ver sus días…" autocomplete="off">
+      <div id="ag-buscar-res" class="ag-buscar-res"></div>
+      <div id="ag-buscado" class="ag-buscado" style="display:none;"></div>
+    </div>
+
+    <!-- Filtrar el calendario por día de la semana -->
+    <div class="agenda-dias-filtro">
+      <span class="agenda-dias-lbl">Filtrar días:</span>
+      <div class="dias-chips" id="ag-dias-chips"></div>
+      <a href="#" id="ag-dias-limpiar" onclick="limpiarDiasFiltro();return false;" style="display:none;">ver todos</a>
+    </div>
+
     <div class="cal-cols">
       <!-- Semáforo por horario: a la IZQUIERDA del calendario -->
       <aside class="sem-side">
@@ -156,28 +152,6 @@
   </div>
 </div>
 
-<!-- Modal: ofrecer los próximos turnos libres -->
-<div class="modal-bg" id="modal-ofrecer">
-  <div class="modal">
-    <div class="modal-head">
-      <h3>Ofrecer turno libre</h3>
-      <button class="x" onclick="cerrarModal('modal-ofrecer')">&times;</button>
-    </div>
-    <div class="modal-body">
-      <div class="hint" style="margin-bottom:8px;">Elegí (opcional) qué días y/o a qué hora le queda cómodo al paciente. Te muestro los próximos lugares libres para ofrecerle.</div>
-      <div class="field">
-        <label>Días que le sirven (opcional)</label>
-        <div class="dias-chips" id="of-dias"></div>
-      </div>
-      <div class="field">
-        <label>Hora (opcional)</label>
-        <select class="input" id="of-hora"></select>
-      </div>
-      <button class="btn btn-primary btn-block" onclick="buscarOfrecer()">Ver próximos libres</button>
-      <div id="of-res" style="margin-top:14px;"></div>
-    </div>
-  </div>
-</div>
 
 {% include "_paciente_modal.html" %}
 {% include "_agregar_turnos_modal.html" %}
@@ -622,52 +596,6 @@ async function buscarHuecos() {
   ).join('');
   document.getElementById('huecos-res').innerHTML =
     `<div class="hint" style="margin-bottom:8px;">${d.boxes} box(es) en total. Horarios de 08 a 20 hs:</div><div>${chips}</div>`;
-}
-
-// ---- Ofrecer los próximos turnos libres al paciente ----
-let OF_DIAS = new Set();
-function abrirOfrecer() {
-  OF_DIAS = new Set();
-  document.getElementById('of-dias').innerHTML = DIAS_ABBR.map((d, i) =>
-    `<button type="button" class="dia-chip" data-i="${i}" onclick="ofToggleDia(${i})">${d}</button>`).join('');
-  let opts = '<option value="">Cualquier hora</option>';
-  for (let m = 7 * 60; m <= 21 * 60; m += 15) {
-    const h = `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
-    opts += `<option value="${h}">${h}</option>`;
-  }
-  document.getElementById('of-hora').innerHTML = opts;
-  document.getElementById('of-res').innerHTML = '';
-  abrirModal('modal-ofrecer');
-}
-function ofToggleDia(i) {
-  if (OF_DIAS.has(i)) OF_DIAS.delete(i); else OF_DIAS.add(i);
-  const b = document.querySelector(`#of-dias .dia-chip[data-i="${i}"]`);
-  if (b) b.classList.toggle('on');
-}
-async function buscarOfrecer() {
-  const cont = document.getElementById('of-res');
-  const dias = [...OF_DIAS].join(',');
-  const hora = document.getElementById('of-hora').value;
-  cont.innerHTML = '<div class="hint">Buscando…</div>';
-  const d = await apiGet('/api/proximos_libres?sede=' + VER_SEDE +
-    (dias ? '&dias=' + dias : '') + (hora ? '&hora=' + hora : '') + '&limite=12');
-  if (!d.items.length) { cont.innerHTML = '<div class="empty">No hay lugares libres con ese filtro en los próximos días.</div>'; return; }
-  cont.innerHTML = d.items.map(it => {
-    let dd = new Date(it.fecha + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
-    dd = dd.charAt(0).toUpperCase() + dd.slice(1);
-    return `<div class="of-item"><div class="of-info"><b>${dd}</b><span>${it.hora} · ${it.libres} libre${it.libres > 1 ? 's' : ''}</span></div>
-      <button class="btn btn-primary btn-sm" onclick="ofAsignar('${it.fecha}','${it.hora}')">Asignar</button></div>`;
-  }).join('');
-}
-function ofAsignar(fecha, hora) {
-  cerrarModal('modal-ofrecer');
-  SEL = fecha;
-  abrirAgregarTurnos(null, '', recargar);
-  poblarSelectSede('at-sede', VER_SEDE);
-  atModo('manual');
-  document.getElementById('at-manual-rows').innerHTML = '';
-  atAgregarFila(fecha, hora);
-  const b = document.getElementById('at-buscar'); if (b) setTimeout(() => b.focus(), 150);
 }
 
 // ---- Acciones de asistencia ----

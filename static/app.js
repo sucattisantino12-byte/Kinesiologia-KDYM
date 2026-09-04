@@ -140,7 +140,6 @@ function crearDiasPicker(pickerId, rowsId) {
 
 // ---- Modal de paciente compartido ----
 let NP_CB = null;
-let NP_PICKER = null;
 function abrirNuevoPaciente(onSaved) {
   if (!document.getElementById('modal-paciente')) return;
   ['np-nombre', 'np-apellido', 'np-dni', 'np-telefono', 'np-obra',
@@ -149,9 +148,6 @@ function abrirNuevoPaciente(onSaved) {
   });
   document.getElementById('np-tot').value = '0';
   document.getElementById('np-usadas').value = '0';
-  const desde = document.getElementById('np-desde');
-  if (desde) desde.value = new Date().toISOString().slice(0, 10);
-  NP_PICKER = crearDiasPicker('np-dias-picker', 'np-dias-rows');
   NP_CB = onSaved || null;
   abrirModal('modal-paciente');
   setTimeout(() => document.getElementById('np-nombre').focus(), 100);
@@ -159,34 +155,25 @@ function abrirNuevoPaciente(onSaved) {
 
 async function guardarNuevoPaciente() {
   const v = id => (document.getElementById(id) || {}).value || '';
-  const plan = NP_PICKER ? NP_PICKER.getData() : { dias: [], horarios: {} };
   const body = {
     nombre: v('np-nombre'), apellido: v('np-apellido'), dni: v('np-dni'),
     telefono: v('np-telefono'), obra_social: v('np-obra'),
     diagnostico: v('np-diagnostico'), sesiones_totales: v('np-tot'),
-    sesiones_usadas: v('np-usadas'),
-    dias: plan.dias.map(i => DIAS_ABBR[i]).join(', '), notas: v('np-notas'),
+    sesiones_usadas: v('np-usadas'), notas: v('np-notas'),
   };
   if (!body.nombre.trim() || !body.apellido.trim()) {
     toast('Nombre y apellido son obligatorios', 'alert'); return;
   }
   const r = await api('/api/paciente', body);
-
-  // Si eligió días, genera los turnos automáticamente.
-  if (plan.dias.length) {
-    const tot = parseInt(v('np-tot'), 10) || 0;
-    const usadas = parseInt(v('np-usadas'), 10) || 0;
-    const cantidad = Math.max(0, tot - usadas);
-    if (cantidad > 0) {
-      await api('/api/plan', {
-        paciente_id: r.id, dias: plan.dias, horarios: plan.horarios,
-        desde: v('np-desde'), cantidad,
-      });
-    }
-  }
+  const nombre = (body.nombre + ' ' + body.apellido).trim();
   toast('Paciente guardado ✓', 'ok');
   cerrarModal('modal-paciente');
-  if (NP_CB) NP_CB(r.id, (body.nombre + ' ' + body.apellido).trim());
+  // Al guardar, se abre "Agregar turnos" para configurar días y horarios.
+  if (document.getElementById('modal-agturnos')) {
+    abrirAgregarTurnos(r.id, nombre, () => { if (NP_CB) NP_CB(r.id, nombre); });
+  } else if (NP_CB) {
+    NP_CB(r.id, nombre);
+  }
 }
 
 (function () {
@@ -818,41 +805,49 @@ async function atGenerar() {
   if (AT_ONDONE) AT_ONDONE();
 }
 
-// ---- Panel "horarios libres para ofrecer" ----
-function atToggleLibres() {
-  const p = document.getElementById('at-libres-panel');
+// ---- Ofrecer turno libre: próximos horarios libres (dentro de Agregar turnos) ----
+let AT_OF_DIAS = new Set();
+function atToggleOfrecer() {
+  const p = document.getElementById('at-of-panel');
   const abrir = p.style.display === 'none';
   p.style.display = abrir ? '' : 'none';
-  document.getElementById('at-libres-flecha').textContent = abrir ? '▴' : '▾';
-  if (abrir) {
-    const f = document.getElementById('at-libres-fecha');
-    if (!f.value) {
-      // por defecto: la fecha del primer turno manual, o hoy.
-      const prim = document.querySelector('#at-manual-rows input[type=date]');
-      f.value = (prim && prim.value) || new Date().toISOString().slice(0, 10);
+  document.getElementById('at-of-flecha').textContent = abrir ? '▴' : '▾';
+  if (abrir && !document.getElementById('at-of-dias').children.length) {
+    AT_OF_DIAS = new Set();
+    document.getElementById('at-of-dias').innerHTML = DIAS_ABBR.map((d, i) =>
+      `<button type="button" class="dia-chip" data-i="${i}" onclick="atOfToggleDia(${i})">${d}</button>`).join('');
+    let opts = '<option value="">Cualquier hora</option>';
+    for (let m = 7 * 60; m <= 21 * 60; m += 15) {
+      const h = `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
+      opts += `<option value="${h}">${h}</option>`;
     }
-    atCargarLibres();
+    document.getElementById('at-of-hora').innerHTML = opts;
   }
 }
-async function atCargarLibres() {
-  const cont = document.getElementById('at-libres-slots');
-  const fecha = document.getElementById('at-libres-fecha').value;
-  if (!fecha) { cont.innerHTML = ''; return; }
-  const sede = atSedeElegida();
-  const d = await apiGet('/api/horarios_libres?fecha=' + fecha + '&sede=' + sede);
-  if (d.feriado) { cont.innerHTML = '<div class="hint">Ese día es feriado — no se dan turnos.</div>'; return; }
-  if (!d.abierto) { cont.innerHTML = '<div class="hint">El centro no abre ese día.</div>'; return; }
-  cont.innerHTML = d.slots.map(s => {
-    const cls = s.libres <= 0 ? 'lleno' : (s.libres === 1 ? 'casi' : 'libre');
-    const txt = s.libres <= 0 ? 'lleno' : (s.libres + ' libre' + (s.libres > 1 ? 's' : ''));
-    return `<button type="button" class="at-slot ${cls}" ${s.libres <= 0 ? 'disabled' : ''}
-      onclick="atElegirLibre('${fecha}','${s.hora}')">${s.hora}<small>${txt}</small></button>`;
-  }).join('') || '<div class="hint">Sin horarios configurados.</div>';
+function atOfToggleDia(i) {
+  if (AT_OF_DIAS.has(i)) AT_OF_DIAS.delete(i); else AT_OF_DIAS.add(i);
+  const b = document.querySelector(`#at-of-dias .dia-chip[data-i="${i}"]`);
+  if (b) b.classList.toggle('on');
 }
-// Elegir un horario libre: lo agrega a la lista (modo manual) listo para confirmar.
-function atElegirLibre(fecha, hora) {
-  atModo('manual');
+async function atBuscarOfrecer() {
+  const cont = document.getElementById('at-of-res');
+  const dias = [...AT_OF_DIAS].join(',');
+  const hora = document.getElementById('at-of-hora').value;
+  const sede = atSedeElegida();
+  cont.innerHTML = '<div class="hint">Buscando…</div>';
+  const d = await apiGet('/api/proximos_libres?sede=' + sede +
+    (dias ? '&dias=' + dias : '') + (hora ? '&hora=' + hora : '') + '&limite=12');
+  if (!d.items.length) { cont.innerHTML = '<div class="empty">No hay lugares libres con ese filtro en los próximos días.</div>'; return; }
+  cont.innerHTML = d.items.map(it => {
+    let dd = new Date(it.fecha + 'T12:00:00').toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
+    dd = dd.charAt(0).toUpperCase() + dd.slice(1);
+    return `<div class="of-item"><div class="of-info"><b>${dd}</b><span>${it.hora} · ${it.libres} libre${it.libres > 1 ? 's' : ''}</span></div>
+      <button type="button" class="btn btn-primary btn-sm" onclick="atAgregarOfrecido('${it.fecha}','${it.hora}')">Agregar</button></div>`;
+  }).join('');
+}
+// Agrega el horario elegido a la lista manual, listo para confirmar.
+function atAgregarOfrecido(fecha, hora) {
   atAgregarFila(fecha, hora);
   atError('');
-  toast('Agregado a la lista: ' + fecha + ' ' + hora + ' ✓', 'ok');
+  toast('Agregado: ' + fecha + ' ' + hora + ' ✓', 'ok');
 }
