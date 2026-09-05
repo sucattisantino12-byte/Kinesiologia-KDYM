@@ -37,6 +37,8 @@
 
 {% block scripts %}
 <script>
+// Animación de entrada de la pestaña.
+document.querySelector('main.wrap')?.classList.add('page-enter');
 async function cargar() {
   const cat = await apiGet('/api/catalogo');
   const cats = Object.keys(cat);

@@ -362,6 +362,7 @@ function probarAlarma() { sonarContinuo(); setTimeout(pararSonido, 3000); toast(
 let AT_PID = null, AT_PICKER = null, AT_MODO = 'auto', AT_ONDONE = null;
 let AT_DIAS = new Set();          // días de la semana elegidos (0=Lun)
 let AT_HORAS = {};                // hora por día de la semana {wd: "HH:MM"}
+let AT_ESTRATEGIA = 'hora';       // 'hora' | 'mejor_hora' | 'recomendado'
 let AT_PLAN_MODO = 'nuevo';       // 'nuevo' | 'extender'
 let AT_PROP = null;               // última propuesta mostrada (filas)
 let AT_PROP_ABIERTA = false;      // si el panel de propuesta está desplegado
@@ -406,6 +407,7 @@ function abrirAgregarTurnos(pid, nombre, onDone) {
   AT_PROP_VISTA = 'lista'; AT_QUEDAN = 0;
   atPlanModo('nuevo');
   atRenderDiasChips();
+  atEstrategia('hora');
   atRenderHorasRows();
   document.getElementById('at-plan-info').textContent = '';
   poblarSelectSede('at-sede');
@@ -502,13 +504,33 @@ function atToggleDiaChip(i) {
   atInvalidarPropuesta();
 }
 
-// Un input de hora por cada día elegido (pueden ser distintos).
+// Estrategia para armar los turnos.
+function atEstrategia(e) {
+  AT_ESTRATEGIA = e;
+  document.getElementById('at-es-hora').classList.toggle('on', e === 'hora');
+  document.getElementById('at-es-mejor').classList.toggle('on', e === 'mejor_hora');
+  document.getElementById('at-es-recom').classList.toggle('on', e === 'recomendado');
+  // En "recomendado" la app elige los días: se ocultan los chips de días.
+  const diasField = document.getElementById('at-dias-field');
+  if (diasField) diasField.style.display = e === 'recomendado' ? 'none' : '';
+  const hints = {
+    hora: 'Elegís los días y ponés el horario de cada uno.',
+    mejor_hora: 'Elegís los días y la app pone en cada uno el horario con menos gente.',
+    recomendado: 'La app elige los días y horarios con menos gente. No hace falta elegir nada.',
+  };
+  const h = document.getElementById('at-es-hint');
+  if (h) h.textContent = hints[e] || '';
+  atRenderHorasRows();
+  atInvalidarPropuesta();
+}
+
+// Un input de hora por cada día elegido (sólo en la estrategia "a la hora que elijo").
 function atRenderHorasRows() {
   const wrap = document.getElementById('at-horas-wrap');
   const rows = document.getElementById('at-horas-rows');
   if (!rows) return;
   const dias = [...AT_DIAS].sort((a, b) => a - b);
-  if (wrap) wrap.style.display = dias.length ? '' : 'none';
+  if (wrap) wrap.style.display = (AT_ESTRATEGIA === 'hora' && dias.length) ? '' : 'none';
   rows.innerHTML = dias.map(i =>
     `<div class="dia-hora-row"><span class="dia-hora-lbl">${DIAS_ABBR[i]}</span>
        <input type="time" step="900" class="input at-hora-dia" data-i="${i}" value="${AT_HORAS[i] || ''}"></div>`
@@ -557,13 +579,18 @@ async function atProponer() {
   }
   atError('');
   if (!AT_PID) { toast('Elegí un paciente', 'alert'); return; }
-  if (!AT_DIAS.size) { atError('Elegí al menos un día de la semana.'); return; }
+  if (AT_ESTRATEGIA !== 'recomendado' && !AT_DIAS.size) {
+    atError('Elegí al menos un día de la semana.'); return;
+  }
   const horarios = {};
   for (const i of AT_DIAS) { if (AT_HORAS[i]) horarios[i] = AT_HORAS[i]; }
-  if ([...AT_DIAS].some(i => !horarios[i])) { atError('Poné el horario de cada día elegido.'); return; }
+  if (AT_ESTRATEGIA === 'hora' && [...AT_DIAS].some(i => !horarios[i])) {
+    atError('Poné el horario de cada día elegido.'); return;
+  }
   cont.innerHTML = '<div class="hint">Armando la propuesta…</div>';
   const body = {
     paciente_id: AT_PID, dias: [...AT_DIAS], horarios,
+    estrategia: AT_ESTRATEGIA,
     desde: document.getElementById('at-desde').value,
     modo: AT_PLAN_MODO, sede_id: atSedeElegida(),
   };

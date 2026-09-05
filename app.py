@@ -600,8 +600,8 @@ def _hm_a_min(s, dv=0):
 
 
 def _slots_dia(sede_id, fecha):
-    """Slots de 30' de ese día con lugares libres, según el horario del centro
-    y el tope de la sede. Devuelve [(hora, libres), ...]; [] si el centro cierra."""
+    """Slots de 30' de ese día, según el horario del centro y el tope de la sede.
+    Devuelve [(hora, libres, ocupados), ...]; [] si el centro cierra ese día."""
     cfg = get_config()
     tope = tope_de_sede(sede_id) or 0
     try:
@@ -625,19 +625,31 @@ def _slots_dia(sede_id, fecha):
     out = []
     for m in range(m0, m1, 30):
         h = f"{m // 60:02d}:{m % 60:02d}"
-        libres = (max(0, tope - counts.get(h, 0)) if tope else 99)
-        out.append((h, libres))
+        oc = counts.get(h, 0)
+        libres = (max(0, tope - oc) if tope else 99)
+        out.append((h, libres, oc))
     return out
 
 
 def _alternativa_hora(sede_id, fecha, hora):
     """La hora libre más cercana a `hora` ese día (para sugerir si está llena)."""
-    libres = [(h, lib) for h, lib in _slots_dia(sede_id, fecha) if lib > 0]
+    libres = [(h, lib) for h, lib, oc in _slots_dia(sede_id, fecha) if lib > 0]
     if not libres:
         return None
     base = _hm_a_min(hora, 0)
     libres.sort(key=lambda x: abs(_hm_a_min(x[0], 0) - base))
     return libres[0][0]
+
+
+def _mejor_slot(sede_id, fecha):
+    """El horario con menos gente de ese día (para 'mejores horas'/'recomendados').
+    Devuelve (hora, libres) o None si el centro no abre ese día."""
+    slots = _slots_dia(sede_id, fecha)
+    if not slots:
+        return None
+    # Menos ocupados primero; a igualdad, el más temprano.
+    best = min(slots, key=lambda x: (x[2], _hm_a_min(x[0], 0)))
+    return (best[0], best[1])
 
 
 @app.context_processor
@@ -1460,6 +1472,9 @@ def api_plan_propuesta():
     dias = sorted(set(int(x) for x in (d.get("dias") or [])))
     hora = (d.get("hora") or "").strip()          # hora por defecto (compat)
     horarios = d.get("horarios") or {}            # {"0":"10:00","3":"15:00",...}
+    # estrategia: "hora" (yo elijo la hora), "mejor_hora" (la app pone la hora con
+    # menos gente en los días elegidos), "recomendado" (la app elige días y horas).
+    estrategia = d.get("estrategia") or "hora"
     sede = _sede_de_request(d)
     tope = tope_de_sede(sede) or 0
 
@@ -1468,9 +1483,9 @@ def api_plan_propuesta():
 
     if not pid:
         return jsonify(ok=False, error="Falta el paciente"), 400
-    if not dias:
+    if estrategia != "recomendado" and not dias:
         return jsonify(ok=False, error="Elegí al menos un día de la semana"), 400
-    if not any(hora_de(wd) for wd in dias):
+    if estrategia == "hora" and not any(hora_de(wd) for wd in dias):
         return jsonify(ok=False, error="Elegí el horario de cada día"), 400
     p = q1("SELECT * FROM pacientes WHERE id=?", (pid,))
     if not p:
@@ -1491,6 +1506,8 @@ def api_plan_propuesta():
                        error="No hay sesiones para agendar. Revisá las sesiones del paciente."), 400
 
     cur = date.fromisoformat(d.get("desde") or date.today().isoformat())
+    # En "recomendado" no filtro por días: uso todos los que el centro abre.
+    filtra_dias = estrategia != "recomendado"
     items = []
     puestos = 0
     guard = 0
@@ -1498,27 +1515,42 @@ def api_plan_propuesta():
         guard += 1
         wd = cur.weekday()
         f = cur.isoformat()
-        if wd in dias:
-            if _es_feriado(f):
-                # Feriado: se avisa y se salta (no cuenta; se reprograma solo).
+        cur += timedelta(days=1)
+        if filtra_dias and wd not in dias:
+            continue
+        if _es_feriado(f):
+            if filtra_dias:   # sólo aviso el feriado si el paciente pidió ese día
                 items.append({"fecha": f, "dia": DIAS_FULL[wd], "hora": "",
                               "estado": "feriado", "alternativa": None, "libres": 0})
-            elif not _slots_dia(sede, f):
-                pass   # el centro no abre ese día: se ignora sin avisar
+            continue
+        slots = _slots_dia(sede, f)
+        if not slots:
+            continue   # el centro no abre ese día
+        if estrategia == "hora":
+            h = hora_de(wd)
+            oc = _slot_ocupado(sede, f, h)
+            libres = (max(0, tope - oc) if tope else 99)
+            if tope and libres <= 0:
+                items.append({"fecha": f, "dia": DIAS_FULL[wd], "hora": h,
+                              "estado": "lleno",
+                              "alternativa": _alternativa_hora(sede, f, h),
+                              "libres": 0})
             else:
-                h = hora_de(wd)
-                oc = _slot_ocupado(sede, f, h)
-                libres = (max(0, tope - oc) if tope else 99)
-                if tope and libres <= 0:
-                    items.append({"fecha": f, "dia": DIAS_FULL[wd], "hora": h,
-                                  "estado": "lleno",
-                                  "alternativa": _alternativa_hora(sede, f, h),
-                                  "libres": 0})
-                else:
-                    items.append({"fecha": f, "dia": DIAS_FULL[wd], "hora": h,
-                                  "estado": "ok", "alternativa": None, "libres": libres})
-                puestos += 1
-        cur += timedelta(days=1)
+                items.append({"fecha": f, "dia": DIAS_FULL[wd], "hora": h,
+                              "estado": "ok", "alternativa": None, "libres": libres})
+            puestos += 1
+        else:
+            # "mejor_hora" y "recomendado": la app elige el horario con menos gente.
+            best = _mejor_slot(sede, f)
+            if not best or (tope and best[1] <= 0):
+                if filtra_dias:   # día lleno (sólo importa si lo pidió)
+                    items.append({"fecha": f, "dia": DIAS_FULL[wd], "hora": "",
+                                  "estado": "lleno", "alternativa": None, "libres": 0})
+                    puestos += 1
+                continue
+            items.append({"fecha": f, "dia": DIAS_FULL[wd], "hora": best[0],
+                          "estado": "ok", "alternativa": None, "libres": best[1]})
+            puestos += 1
 
     resumen = {"ok": sum(1 for i in items if i["estado"] == "ok"),
                "llenos": sum(1 for i in items if i["estado"] == "lleno"),

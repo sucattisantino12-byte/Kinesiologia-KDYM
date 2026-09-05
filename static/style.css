@@ -344,14 +344,27 @@ a { color: inherit; text-decoration: none; }
 /* Plan de sesiones: toggle chico nuevo/extender */
 .seg.seg-sm button { padding: 7px 10px; font-size: 13px; }
 
-/* Animación de entrada de Recepción (sólo al entrar desde el hub) */
-.recep-enter > * { animation: recepUp .55s cubic-bezier(.2,.8,.3,1) both; }
-.recep-enter > *:nth-child(1) { animation-delay: .04s; }
-.recep-enter > *:nth-child(2) { animation-delay: .14s; }
-.recep-enter > *:nth-child(3) { animation-delay: .24s; }
-.recep-enter > *:nth-child(4) { animation-delay: .34s; }
+/* Animación de entrada escalonada (Recepción desde el hub, y otras pestañas) */
+.recep-enter > *, .page-enter > * { animation: recepUp .55s cubic-bezier(.2,.8,.3,1) both; }
+.recep-enter > *:nth-child(1), .page-enter > *:nth-child(1) { animation-delay: .04s; }
+.recep-enter > *:nth-child(2), .page-enter > *:nth-child(2) { animation-delay: .14s; }
+.recep-enter > *:nth-child(3), .page-enter > *:nth-child(3) { animation-delay: .24s; }
+.recep-enter > *:nth-child(4), .page-enter > *:nth-child(4) { animation-delay: .34s; }
+.recep-enter > *:nth-child(5), .page-enter > *:nth-child(5) { animation-delay: .44s; }
 @keyframes recepUp { from { transform: translateY(18px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-@media (prefers-reduced-motion: reduce) { .recep-enter > * { animation-duration: .01ms !important; } }
+@media (prefers-reduced-motion: reduce) {
+  .recep-enter > *, .page-enter > * { animation-duration: .01ms !important; }
+}
+
+/* Selector de estrategia para armar los turnos */
+.at-estrategia { display: flex; flex-wrap: wrap; gap: 8px; }
+.at-estrategia button {
+  border: 1.5px solid var(--borde); background: #fff; color: var(--texto);
+  border-radius: 999px; padding: 7px 13px; font-family: inherit; font-weight: 700;
+  font-size: 12.5px; cursor: pointer; transition: background .12s, border-color .12s, color .12s;
+}
+.at-estrategia button.on { background: var(--azul); border-color: var(--azul); color: #fff; }
+html[data-theme="dark"] .at-estrategia button { background: #0F1B2E; }
 
 /* Horas por día (un input por día elegido) */
 .at-horas-rows { display: flex; flex-direction: column; gap: 8px; }

@@ -32,6 +32,8 @@
 
 {% block scripts %}
 <script>
+// Animación de entrada de la pestaña.
+document.querySelector('main.wrap')?.classList.add('page-enter');
 function barra(label, valor, max, color) {
   const pct = max ? Math.round(100 * valor / max) : 0;
   return `<div class="rep-row">

@@ -45,7 +45,18 @@
           <div class="field"><label>Empezar desde</label><input class="input" id="at-desde" type="date"></div>
         </div>
 
+        <!-- Cómo armar los turnos (estrategia) -->
         <div class="field">
+          <label>¿Cómo armar los turnos?</label>
+          <div class="at-estrategia">
+            <button type="button" id="at-es-hora" class="on" onclick="atEstrategia('hora')">A la hora que elijo</button>
+            <button type="button" id="at-es-mejor" onclick="atEstrategia('mejor_hora')">Mejores horas</button>
+            <button type="button" id="at-es-recom" onclick="atEstrategia('recomendado')">Recomendados (menos gente)</button>
+          </div>
+          <div class="hint" id="at-es-hint" style="margin-top:6px;"></div>
+        </div>
+
+        <div class="field" id="at-dias-field">
           <label>¿Qué días viene?</label>
           <div class="dias-chips" id="at-dias-chips"></div>
         </div>
