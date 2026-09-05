@@ -7,11 +7,15 @@
     <div class="page-title" style="margin-bottom:2px;">Plantillas ortopédicas</div>
     <div class="muted">Pedidos de plantillas RPG — de todas las sedes</div>
   </div>
+  <div class="seg" id="pl-view">
+    <button data-v="grid" onclick="cambiarVistaPl('grid')" title="Ver en tarjetas">▦ Tarjetas</button>
+    <button data-v="list" onclick="cambiarVistaPl('list')" title="Ver en lista">☰ Lista</button>
+  </div>
   <button class="btn btn-primary" onclick="abrirNuevaPlantilla()">+ Nueva plantilla</button>
 </div>
 
 <div class="field" style="margin-top:12px;">
-  <input class="input" id="pl-buscar" placeholder="🔍  Buscar por paciente…" autocomplete="off">
+  <input class="input" id="pl-buscar" placeholder="Buscar por paciente…" autocomplete="off">
 </div>
 
 <div class="seg" id="pl-filtros" style="margin-bottom:14px;">
@@ -32,12 +36,26 @@
       <button class="x" onclick="cerrarModal('modal-plantilla')">&times;</button>
     </div>
     <div class="modal-body">
-      <!-- Buscador de paciente (sólo al crear) -->
-      <div class="field" id="pl-buscar-wrap">
-        <label>Paciente *</label>
-        <input class="input" id="pl-pac-buscar" placeholder="Buscar paciente…" autocomplete="off">
-        <div id="pl-pac-res"></div>
-        <div id="pl-pac-elegido" class="hint"></div>
+      <!-- ¿Es un paciente cargado o cualquier persona? (sólo al crear) -->
+      <div id="pl-quien-wrap">
+        <div class="seg" style="margin-bottom:12px;">
+          <button id="pl-tab-pac" class="on" onclick="plQuien('paciente')">Paciente cargado</button>
+          <button id="pl-tab-libre" onclick="plQuien('libre')">Otra persona</button>
+        </div>
+        <div class="field" id="pl-buscar-wrap">
+          <label>Paciente *</label>
+          <input class="input" id="pl-pac-buscar" placeholder="Buscar paciente…" autocomplete="off">
+          <div id="pl-pac-res"></div>
+          <div id="pl-pac-elegido" class="hint"></div>
+        </div>
+        <div id="pl-libre-wrap" style="display:none;">
+          <div class="field"><label>Nombre *</label><input class="input" id="pl-nombre-libre" placeholder="Nombre y apellido"></div>
+        </div>
+        <div class="field">
+          <label>Teléfono / celular *</label>
+          <input class="input" id="pl-telefono" inputmode="numeric" placeholder="Ej: 1122334455">
+          <div class="hint" style="margin-top:4px;">Se usa para avisar por WhatsApp cuando la plantilla esté lista.</div>
+        </div>
       </div>
 
       <div class="grid2">
@@ -88,6 +106,15 @@ let PLANTILLAS = [];
 let PL_FILTRO = 'todas';
 let PL_EDIT = null;      // id de la plantilla en edición (o null = nueva)
 let PL_PAC = null;       // {id, nombre} paciente elegido para nueva plantilla
+let PL_QUIEN = 'paciente';   // 'paciente' (cargado) o 'libre' (cualquier persona)
+
+function plQuien(m) {
+  PL_QUIEN = m;
+  document.getElementById('pl-tab-pac').classList.toggle('on', m === 'paciente');
+  document.getElementById('pl-tab-libre').classList.toggle('on', m === 'libre');
+  document.getElementById('pl-buscar-wrap').style.display = m === 'paciente' ? '' : 'none';
+  document.getElementById('pl-libre-wrap').style.display = m === 'libre' ? '' : 'none';
+}
 
 const PL_EST = {
   pedida:     { txt: 'Pedida',        cls: '' },
@@ -95,6 +122,21 @@ const PL_EST = {
   lista:      { txt: 'Lista',         cls: 'ok' },
   entregada:  { txt: 'Entregada',     cls: 'muted-pill' },
 };
+
+let PL_CONFIG = {};
+apiGet('/api/config').then(c => { PL_CONFIG = c || {}; }).catch(() => {});
+
+// Avisar por WhatsApp que las plantillas están listas para retirar.
+function avisarPlantilla(tel, nombre) {
+  tel = (tel || '').replace(/[^0-9]/g, '');
+  if (!tel) { toast('Esa persona no tiene teléfono cargado', 'alert'); return; }
+  const nom = (nombre || '').split(' ')[0];
+  let msg = `Hola ${nom}, ya podés retirar tus plantillas en KDYM.`;
+  if (PL_CONFIG.retiro_horario) msg += ` Horario de retiro: ${PL_CONFIG.retiro_horario}.`;
+  if (PL_CONFIG.retiro_direccion) msg += ` Dirección: ${PL_CONFIG.retiro_direccion}.`;
+  msg += ' ¡Te esperamos!';
+  window.open('https://wa.me/' + tel + '?text=' + encodeURIComponent(msg), '_blank');
+}
 
 function fMoneda(v) { return v ? ('$' + v) : ''; }
 function fFecha(s) {
@@ -137,10 +179,14 @@ function pintarPlantillas() {
       <div class="pl-top">
         <div class="avatar">${iniciales(p.paciente)}</div>
         <div class="li-main">
-          <a href="/paciente/${p.paciente_id}" class="li-name">${escapeHtml(p.paciente)}</a>
+          ${p.es_paciente
+            ? `<a href="/paciente/${p.paciente_id}" class="li-name">${escapeHtml(p.paciente)}</a>`
+            : `<span class="li-name">${escapeHtml(p.paciente)}</span>`}
           <div class="li-sub">
             <span class="pill">${escapeHtml(p.sede_nombre)}</span>
             <span class="pill ${est.cls}">${est.txt}</span>
+            ${!p.es_paciente ? '<span class="pill muted-pill">Sin ficha</span>' : ''}
+            ${p.telefono ? `<span class="muted" style="font-size:12px;">Tel ${escapeHtml(p.telefono)}</span>` : ''}
             ${fechas ? `<span class="muted" style="font-size:12px;">${escapeHtml(fechas)}</span>` : ''}
           </div>
         </div>
@@ -151,7 +197,8 @@ function pintarPlantillas() {
         <select class="input pl-estado-sel" onchange="cambiarEstado(${p.id}, this.value)">
           ${Object.keys(PL_EST).map(k => `<option value="${k}" ${k === p.estado ? 'selected' : ''}>${PL_EST[k].txt}</option>`).join('')}
         </select>
-        <button class="btn btn-line btn-sm" onclick="agTurnosPlantilla(${p.paciente_id}, '${escapeJs(p.paciente)}')">📅 Agregar turnos</button>
+        ${p.es_paciente ? `<button class="btn btn-line btn-sm" onclick="agTurnosPlantilla(${p.paciente_id}, '${escapeJs(p.paciente)}')">Agregar turnos</button>` : ''}
+        ${p.telefono ? `<button class="btn btn-sm ${p.estado === 'lista' ? 'btn-wa' : 'btn-line'}" onclick="avisarPlantilla('${escapeJs(p.telefono)}', '${escapeJs(p.paciente)}')">Avisar por WhatsApp</button>` : ''}
         <button class="btn btn-ghost btn-sm" onclick="editarPlantilla(${p.id})">✎ Editar</button>
         <button class="btn btn-danger-soft btn-sm" onclick="borrarPlantilla(${p.id})">✕</button>
       </div>
@@ -177,10 +224,12 @@ function agTurnosPlantilla(pid, nombre) {
 function abrirNuevaPlantilla() {
   PL_EDIT = null; PL_PAC = null;
   document.getElementById('pl-modal-tit').textContent = 'Nueva plantilla';
-  document.getElementById('pl-buscar-wrap').style.display = '';
+  document.getElementById('pl-quien-wrap').style.display = '';
+  plQuien('paciente');
   document.getElementById('pl-pac-buscar').value = '';
   document.getElementById('pl-pac-res').innerHTML = '';
   document.getElementById('pl-pac-elegido').textContent = '';
+  ['pl-nombre-libre', 'pl-telefono'].forEach(id => document.getElementById(id).value = '');
   poblarSelectSede('pl-sede');
   document.getElementById('pl-estado').value = 'pedida';
   ['pl-molde', 'pl-entrega', 'pl-precio', 'pl-senia', 'pl-notas'].forEach(id => document.getElementById(id).value = '');
@@ -192,7 +241,7 @@ function editarPlantilla(id) {
   if (!p) return;
   PL_EDIT = id; PL_PAC = { id: p.paciente_id, nombre: p.paciente };
   document.getElementById('pl-modal-tit').textContent = 'Editar — ' + p.paciente;
-  document.getElementById('pl-buscar-wrap').style.display = 'none';
+  document.getElementById('pl-quien-wrap').style.display = 'none';
   poblarSelectSede('pl-sede', p.sede_id);
   document.getElementById('pl-estado').value = p.estado;
   document.getElementById('pl-molde').value = p.fecha_molde || '';
@@ -200,6 +249,7 @@ function editarPlantilla(id) {
   document.getElementById('pl-precio').value = p.precio || '';
   document.getElementById('pl-senia').value = p.senia || '';
   document.getElementById('pl-notas').value = p.notas || '';
+  document.getElementById('pl-telefono').value = p.telefono || '';
   abrirModal('modal-plantilla');
 }
 
@@ -213,10 +263,20 @@ async function guardarPlantilla() {
     senia: document.getElementById('pl-senia').value.trim(),
     notas: document.getElementById('pl-notas').value.trim(),
   };
+  const tel = document.getElementById('pl-telefono').value.trim();
+  body.telefono_libre = tel;
   if (PL_EDIT) {
+    if (!tel) { toast('Poné el teléfono del paciente', 'alert'); return; }
     await api('/api/plantilla/' + PL_EDIT, body);
+  } else if (PL_QUIEN === 'libre') {
+    const nom = document.getElementById('pl-nombre-libre').value.trim();
+    if (!nom) { toast('Escribí un nombre', 'alert'); return; }
+    if (!tel) { toast('Poné el teléfono / celular', 'alert'); return; }
+    body.nombre_libre = nom;
+    await api('/api/plantilla', body);
   } else {
     if (!PL_PAC) { toast('Elegí un paciente', 'alert'); return; }
+    if (!tel) { toast('Poné el teléfono del paciente', 'alert'); return; }
     body.paciente_id = PL_PAC.id;
     await api('/api/plantilla', body);
   }
@@ -241,21 +301,35 @@ document.getElementById('pl-pac-buscar').addEventListener('input', e => {
     if (!term) { cont.innerHTML = ''; return; }
     const rows = await apiGet('/api/pacientes?q=' + encodeURIComponent(term));
     cont.innerHTML = rows.map(p => `
-      <div class="list-item" style="cursor:pointer;" onclick="elegirPacPlantilla(${p.id}, '${escapeJs(p.nombre_completo)}')">
+      <div class="list-item" style="cursor:pointer;" onclick="elegirPacPlantilla(${p.id}, '${escapeJs(p.nombre_completo)}', '${escapeJs(p.telefono || '')}')">
         <div class="avatar">${iniciales(p.nombre_completo)}</div>
         <div class="li-main"><div class="li-name">${escapeHtml(p.nombre_completo)}</div>
         <div class="li-sub">${p.sesiones_quedan} sesiones restantes</div></div>
       </div>`).join('') || '<div class="empty">Sin resultados</div>';
   }, 220);
 });
-function elegirPacPlantilla(id, nombre) {
+function elegirPacPlantilla(id, nombre, telefono) {
   PL_PAC = { id, nombre };
   document.getElementById('pl-pac-res').innerHTML = '';
   document.getElementById('pl-pac-buscar').value = nombre;
   document.getElementById('pl-pac-elegido').innerHTML = '✓ ' + escapeHtml(nombre) + ' seleccionado';
+  // Prellenar el teléfono con el del paciente (se puede completar/corregir).
+  const t = document.getElementById('pl-telefono');
+  if (t && telefono) t.value = telefono;
 }
 
 document.getElementById('pl-buscar').addEventListener('input', pintarPlantillas);
+
+// ---- Alternar vista tarjetas / lista ----
+function cambiarVistaPl(v) {
+  const cont = document.getElementById('pl-lista');
+  cont.classList.toggle('pl-grid', v === 'grid');
+  cont.classList.toggle('pl-list', v === 'list');
+  document.querySelectorAll('#pl-view button').forEach(b => b.classList.toggle('on', b.dataset.v === v));
+  localStorage.setItem('kdym_pl_view', v);
+}
+cambiarVistaPl(localStorage.getItem('kdym_pl_view') || 'grid');
+
 cargarPlantillas();
 </script>
 {% endblock %}

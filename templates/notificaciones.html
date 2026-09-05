@@ -9,7 +9,7 @@
   </div>
 </div>
 
-<div class="section-title">⚠️ Últimas sesiones — por renovar bono/autorización</div>
+<div class="section-title">Últimas sesiones — por renovar bono/autorización</div>
 <div id="notif-alertas"></div>
 {% endblock %}
 
@@ -19,7 +19,7 @@ async function cargar() {
   const d = await apiGet('/api/notificaciones');
   const alertas = d.alertas || [];
   document.getElementById('notif-sub').textContent =
-    alertas.length ? alertas.length + ' paciente(s) por renovar' : 'Todo al día 🙌';
+    alertas.length ? alertas.length + ' paciente(s) por renovar' : 'Todo al día';
 
   const ca = document.getElementById('notif-alertas');
   ca.innerHTML = alertas.length ? alertas.map(a => `
@@ -29,7 +29,7 @@ async function cargar() {
         <div class="li-sub">${a.obra_social ? escapeHtml(a.obra_social) + ' · ' : ''}<b>${a.quedan > 0 ? a.quedan + ' sesión(es) restante(s)' : 'sin sesiones'}</b></div>
       </div>
       <button class="x" onclick="cerrarAlerta(${a.paciente_id})" title="Cerrar">&times;</button>
-    </div>`).join('') : '<div class="card"><div class="empty">No hay pacientes por renovar 🙌</div></div>';
+    </div>`).join('') : '<div class="card"><div class="empty">No hay pacientes por renovar</div></div>';
 }
 
 async function cerrarAlerta(pid) { await api('/api/notificaciones/alerta/' + pid + '/cerrar'); cargar(); actualizarBadgeNotif(); }

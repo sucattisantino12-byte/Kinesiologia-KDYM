@@ -1,0 +1,82 @@
+{% extends "base.html" %}
+{% block title %}Reportes — KDYM{% endblock %}
+
+{% block content %}
+<div class="row" style="align-items:center; margin-bottom:14px;">
+  <div class="grow">
+    <div class="page-title" style="margin-bottom:2px;">Reportes</div>
+    <div class="muted">Asistencia, turnos y cobros del mes</div>
+  </div>
+  <div class="field" style="margin:0;">
+    <input class="input" id="rep-mes" type="month">
+  </div>
+</div>
+
+<div class="stats" id="rep-stats"></div>
+
+<div class="split" style="margin-top:14px;">
+  <div class="col-main">
+    <div class="section-title">Turnos por obra social</div>
+    <div class="card card-pad" id="rep-os"><div class="empty">Cargando…</div></div>
+
+    <div class="section-title">Cobros pendientes por obra social</div>
+    <div class="card card-pad" id="rep-cobros"><div class="empty">Cargando…</div></div>
+  </div>
+  <div class="col-side">
+    <div class="section-title" style="margin-top:6px;">Turnos por sede</div>
+    <div class="card card-pad" id="rep-sede"><div class="empty">Cargando…</div></div>
+    <div class="hint" style="margin-top:14px;">Los reportes "por kinesiólogo" van a estar cuando se sumen los profesionales a la app.</div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+// Animación de entrada de la pestaña.
+document.querySelector('main.wrap')?.classList.add('page-enter');
+function barra(label, valor, max, color) {
+  const pct = max ? Math.round(100 * valor / max) : 0;
+  return `<div class="rep-row">
+    <div class="rep-row-top"><span>${escapeHtml(label)}</span><b>${valor}</b></div>
+    <div class="rep-bar"><span style="width:${pct}%; background:${color || 'var(--azul)'};"></span></div>
+  </div>`;
+}
+function money(n) { return '$' + (Math.round(n)).toLocaleString('es-AR'); }
+
+async function cargarReportes() {
+  const mes = document.getElementById('rep-mes').value || new Date().toISOString().slice(0, 7);
+  const d = await apiGet('/api/reportes?mes=' + mes);
+
+  document.getElementById('rep-stats').innerHTML = [
+    [d.asistencia_pct + '%', 'Asistencia'],
+    [d.total, 'Turnos del mes'],
+    [d.vinieron, 'Vinieron'],
+    [d.ausentes, 'No vinieron'],
+  ].map(([n, l]) => `<div class="stat"><div class="n">${n}</div><div class="l">${l}</div></div>`).join('');
+
+  const maxOs = Math.max(1, ...d.por_obra_social.map(x => x.cant));
+  document.getElementById('rep-os').innerHTML = d.por_obra_social.length
+    ? d.por_obra_social.map(x => barra(x.obra_social, x.cant, maxOs)).join('')
+    : '<div class="empty">Sin turnos este mes.</div>';
+
+  const maxSede = Math.max(1, ...d.por_sede.map(x => x.cant));
+  document.getElementById('rep-sede').innerHTML = d.por_sede.length
+    ? d.por_sede.map(x => barra(x.sede, x.cant, maxSede, 'var(--verde)')).join('')
+    : '<div class="empty">—</div>';
+
+  const cont = document.getElementById('rep-cobros');
+  if (!d.cobros_pendientes.length) {
+    cont.innerHTML = '<div class="empty">Sin cobros pendientes. (Cargá el precio por sesión en la ficha de cada paciente.)</div>';
+  } else {
+    const tot = d.cobros_pendientes.reduce((a, x) => a + x.saldo, 0);
+    cont.innerHTML = d.cobros_pendientes.map(x => `
+      <div class="rep-cobro"><span>${escapeHtml(x.obra_social)}</span><b>${money(x.saldo)}</b></div>`).join('')
+      + `<div class="rep-cobro total"><span>Total pendiente</span><b>${money(tot)}</b></div>`;
+  }
+}
+
+document.getElementById('rep-mes').value = new Date().toISOString().slice(0, 7);
+document.getElementById('rep-mes').addEventListener('change', cargarReportes);
+cargarReportes();
+</script>
+{% endblock %}

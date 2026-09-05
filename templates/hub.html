@@ -8,29 +8,103 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ asset_v('style.css') }}">
 </head>
 <body class="hub-body">
+  <!-- Bienvenida: aparece antes del hub -->
+  <div class="hub-splash" id="hub-splash">
+    <div class="hub-splash-inner">
+      <div class="hub-splash-mark">
+        <span class="hub-splash-ring"></span>
+        {% include "_logo_svg.html" %}
+      </div>
+      <div class="hub-splash-nom"><span>K</span><span>D</span><span>Y</span><span>M</span></div>
+      <div class="hub-splash-sub">Kinesiología y rehabilitación</div>
+    </div>
+  </div>
+
+  <!-- Transición al entrar a una sede -->
+  <div class="hub-go" id="hub-go">
+    <span class="hub-go-circle" id="hub-go-circle"></span>
+    <div class="hub-go-inner">
+      <div class="hub-go-pin">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6.5-5.2-6.5-10A6.5 6.5 0 0112 4.5 6.5 6.5 0 0118.5 11c0 4.8-6.5 10-6.5 10z"/><circle cx="12" cy="11" r="2.4"/></svg>
+      </div>
+      <div class="hub-go-txt">Accediendo a la sede</div>
+      <div class="hub-go-sede" id="hub-go-sede"></div>
+      <div class="hub-go-dots"><span></span><span></span><span></span></div>
+    </div>
+  </div>
+
   <div class="hub-wrap">
     <div class="hub-brand">
       <span class="hub-mark">{% include "_logo_svg.html" %}</span>
-      <div class="hub-nom">KDYM</div>
-      <div class="hub-sub">Kinesiología y rehabilitación</div>
+      <div>
+        <div class="hub-nom">KDYM</div>
+        <div class="hub-sub">Kinesiología y rehabilitación</div>
+      </div>
     </div>
 
-    <div class="hub-title">¿En qué sede estás?</div>
-    <div class="hub-hint">Elegí la sede. Vas a ver sus boxes, turnos y agenda por separado.</div>
+    <div class="hub-title">¿En qué sede vas a trabajar?</div>
+    <div class="hub-hint">Elegí una sede. Cada una tiene sus boxes, turnos y agenda por separado.</div>
 
     <div class="hub-cards">
       {% for s in sedes %}
-      <a class="hub-card" href="{{ url_for('elegir_sede', sid=s.id) }}">
-        <span class="hub-pin">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6.5-5.2-6.5-10A6.5 6.5 0 0112 4.5 6.5 6.5 0 0118.5 11c0 4.8-6.5 10-6.5 10z"/><circle cx="12" cy="11" r="2.4"/></svg>
-        </span>
-        <span class="hub-card-nom">{{ s.nombre }}</span>
-        <span class="hub-card-go">Entrar →</span>
+      <a class="hub-card" href="{{ url_for('elegir_sede', sid=s.id) }}" data-sede-nombre="{{ s.nombre }}" onclick="accederSede(event, this)">
+        <div class="hub-card-top">
+          <span class="hub-pin">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6.5-5.2-6.5-10A6.5 6.5 0 0112 4.5 6.5 6.5 0 0118.5 11c0 4.8-6.5 10-6.5 10z"/><circle cx="12" cy="11" r="2.4"/></svg>
+          </span>
+          <span class="hub-card-nom">{{ s.nombre }}</span>
+        </div>
+        <div class="hub-card-datos">
+          <div class="hub-dato"><span class="n">{{ s.boxes }}</span><span class="l">box{{ 'es' if s.boxes != 1 else '' }}</span></div>
+          <div class="hub-dato"><span class="n">{{ s.turnos_hoy }}</span><span class="l">turnos hoy</span></div>
+        </div>
+        <div class="hub-card-go">Entrar a {{ s.nombre }}</div>
       </a>
       {% else %}
       <div class="empty">No hay sedes cargadas.</div>
       {% endfor %}
     </div>
   </div>
+
+  <script>
+    // Colores por posición de la sede (igual que las tarjetas del hub).
+    const HUB_COLORS = [
+      { base: '#2F5FB0', dark: '#1E4483' },  // azul
+      { base: '#12A150', dark: '#0C7C3D' },  // verde
+      { base: '#C8891B', dark: '#9C6A12' },  // amarillo
+      { base: '#7A5BD8', dark: '#5B3FB0' },  // violeta
+    ];
+    // Sacar la bienvenida y revelar el hub (las tarjetas entran solas por CSS).
+    document.documentElement.classList.add('hub-cargando');
+    window.addEventListener('load', () => {
+      setTimeout(() => {
+        const sp = document.getElementById('hub-splash');
+        sp?.classList.add('fuera');
+        document.documentElement.classList.remove('hub-cargando');
+        document.documentElement.classList.add('hub-listo');
+        // Sacarlo del DOM al terminar el fundido (corta sus animaciones).
+        setTimeout(() => { if (sp) sp.style.display = 'none'; }, 750);
+      }, 1600);
+    });
+    // Al elegir sede: círculo del color de la sede que se abre desde la tarjeta.
+    function accederSede(ev, el) {
+      ev.preventDefault();
+      const cards = [...document.querySelectorAll('.hub-card')];
+      const c = HUB_COLORS[cards.indexOf(el) % HUB_COLORS.length];
+      const r = el.getBoundingClientRect();
+      const go = document.getElementById('hub-go');
+      const circ = document.getElementById('hub-go-circle');
+      // Origen del círculo = centro de la tarjeta tocada.
+      circ.style.left = (r.left + r.width / 2) + 'px';
+      circ.style.top = (r.top + r.height / 2) + 'px';
+      go.style.setProperty('--go-color', c.base);
+      go.style.setProperty('--go-dark', c.dark);
+      document.getElementById('hub-go-sede').textContent = el.dataset.sedeNombre || '';
+      go.classList.add('activo');
+      // Marca para que Recepción haga su animación de entrada esta única vez.
+      try { sessionStorage.setItem('kdym_bienvenida', '1'); } catch (e) {}
+      setTimeout(() => { location.href = el.getAttribute('href'); }, 1050);
+    }
+  </script>
 </body>
 </html>

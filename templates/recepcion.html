@@ -7,7 +7,7 @@
     <div class="page-title" style="margin-bottom:2px;">Recepción</div>
     <div class="muted" id="fecha-hoy"></div>
   </div>
-  <a class="btn btn-ghost btn-sm" href="{{ url_for('configuracion_page') }}" title="Configuración">⚙ Configuración</a>
+  <a class="btn btn-ghost btn-sm" href="{{ url_for('configuracion_page') }}" title="Configuración">Configuración</a>
 </div>
 
 <div class="stats" id="stats"></div>
@@ -100,7 +100,7 @@
       <div class="hint" style="margin-bottom:8px;">Sólo aparecen los pacientes presentes (que ya marcaste ✓ Vino en la sala).</div>
       <div id="abox-resultados"></div>
       <div style="margin-top:14px; border-top:1px solid var(--borde); padding-top:12px;">
-        <button class="btn btn-ghost btn-block" onclick="probarDesdeAbox()">🧪 Probar alarma en este box (10 segundos)</button>
+        <button class="btn btn-ghost btn-block" onclick="probarDesdeAbox()">Probar alarma en este box (10 segundos)</button>
       </div>
     </div>
   </div>
@@ -117,7 +117,7 @@
       <p id="novino-nombre" style="margin:0 0 6px; font-weight:600;"></p>
       <div class="hint" id="novino-horarios" style="margin-bottom:14px;"></div>
       <button class="btn btn-primary btn-block" style="margin-bottom:10px;" onclick="reprogNovino()">
-        📅 Reprogramar al próximo turno disponible
+        Reprogramar al próximo turno disponible
       </button>
       <div class="field">
         <label>O elegir una fecha puntual</label>
@@ -178,5 +178,17 @@
 {% endblock %}
 
 {% block scripts %}
+<script>
+// Animación de entrada de Recepción: sólo la primera vez, al entrar desde el hub.
+(function () {
+  try {
+    if (sessionStorage.getItem('kdym_bienvenida')) {
+      sessionStorage.removeItem('kdym_bienvenida');
+      const m = document.querySelector('main.wrap');
+      if (m) m.classList.add('recep-enter');
+    }
+  } catch (e) {}
+})();
+</script>
 <script src="{{ url_for('static', filename='recepcion.js') }}?v={{ asset_v('recepcion.js') }}"></script>
 {% endblock %}

@@ -24,15 +24,8 @@
         <div class="field"><label>Sesiones ya hechas</label><input class="input" id="np-usadas" type="number" min="0" value="0"></div>
       </div>
 
-      <div class="field">
-        <label>Días que viene <span class="muted" style="font-weight:500;">(con horario de cada día)</span></label>
-        <div class="dias-picker" id="np-dias-picker"></div>
-        <div class="dias-horas" id="np-dias-rows"></div>
-      </div>
-      <div class="field"><label>Empezar desde</label><input class="input" id="np-desde" type="date"></div>
-      <div class="hint">Si elegís días, se generan los turnos automáticamente según las sesiones que le quedan.</div>
-
       <div class="field"><label>Notas</label><textarea id="np-notas"></textarea></div>
+      <div class="hint">Al guardar, se abre “Agregar turnos” para configurar los días y horarios.</div>
     </div>
     <div class="modal-foot">
       <button class="btn btn-ghost" onclick="cerrarModal('modal-paciente')">Cancelar</button>

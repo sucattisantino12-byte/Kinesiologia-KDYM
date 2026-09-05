@@ -15,14 +15,23 @@
 </div>
 
 <div class="field">
-  <input class="input" id="buscar" placeholder="🔍  Buscar por nombre, apellido o DNI…" autocomplete="off">
+  <input class="input" id="buscar" placeholder=" Buscar por nombre, apellido o DNI…" autocomplete="off">
 </div>
+
+{% if sedes and sedes|length > 1 %}
+<div class="pac-sede-filtro" id="pac-sede-filtro">
+  <button class="dia-chip on" data-sede="todas" onclick="filtrarSede('todas')">Ambas sedes</button>
+  {% for s in sedes %}
+  <button class="dia-chip" data-sede="{{ s.id }}" onclick="filtrarSede('{{ s.id }}')">{{ s.nombre }}</button>
+  {% endfor %}
+</div>
+{% endif %}
 
 <div class="pac-grid stagger-in" id="lista">
   {% for p in pacientes %}
-  {% if loop.first and p.hoy %}<div class="pac-sep">📌 Con turno hoy</div>{% endif %}
+  {% if loop.first and p.hoy %}<div class="pac-sep">Con turno hoy</div>{% endif %}
   {% if pacientes[0].hoy and not p.hoy and pacientes[loop.index0 - 1].hoy %}<div class="pac-sep">Todos los pacientes</div>{% endif %}
-  <a href="{{ url_for('ficha', pid=p.id) }}" class="pac-card {{ 'row-hoy' if p.hoy }}" data-nombre="{{ (p.nombre_completo ~ ' ' ~ p.dni ~ ' ' ~ p.obra_social)|lower }}">
+  <a href="{{ url_for('ficha', pid=p.id) }}" class="pac-card {{ 'row-hoy' if p.hoy }}" data-nombre="{{ (p.nombre_completo ~ ' ' ~ p.dni ~ ' ' ~ p.obra_social)|lower }}" data-sedes="{{ p.sedes|join(',') }}">
     <div class="avatar">{{ (p.nombre[:1] ~ p.apellido[:1])|upper }}</div>
     <div class="li-main grow">
       <div class="li-name">{{ p.nombre_completo }}{% if p.hoy %} <span class="pill ok" style="margin-left:4px;">Hoy</span>{% endif %}</div>
@@ -40,16 +49,28 @@
 </div>
 
 {% include "_paciente_modal.html" %}
+{% include "_agregar_turnos_modal.html" %}
 {% endblock %}
 
 {% block scripts %}
 <script>
-document.getElementById('buscar').addEventListener('input', e => {
-  const t = e.target.value.trim().toLowerCase();
+let PAC_SEDE = 'todas';
+function aplicarFiltros() {
+  const t = (document.getElementById('buscar').value || '').trim().toLowerCase();
   document.querySelectorAll('#lista .pac-card').forEach(it => {
-    it.style.display = it.dataset.nombre.includes(t) ? '' : 'none';
+    const okTexto = it.dataset.nombre.includes(t);
+    const sedes = (it.dataset.sedes || '').split(',').filter(Boolean);
+    const okSede = PAC_SEDE === 'todas' || sedes.includes(PAC_SEDE);
+    it.style.display = (okTexto && okSede) ? '' : 'none';
   });
-});
+}
+function filtrarSede(id) {
+  PAC_SEDE = id;
+  document.querySelectorAll('#pac-sede-filtro .dia-chip').forEach(b =>
+    b.classList.toggle('on', b.dataset.sede === id));
+  aplicarFiltros();
+}
+document.getElementById('buscar').addEventListener('input', aplicarFiltros);
 function irAFicha(id) { setTimeout(() => location.href = '/paciente/' + id, 400); }
 
 // ---- Alternar vista tarjetas / lista ----

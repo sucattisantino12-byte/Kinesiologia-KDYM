@@ -8,20 +8,35 @@
     <div class="muted" id="fecha-hoy"></div>
   </div>
   <button class="btn btn-ghost btn-sm" onclick="abrirNuevoPaciente(elegirDesdeNuevo)">+ Paciente</button>
-  <button class="btn btn-ghost btn-sm" onclick="abrirHuecos()">🔍 Buscar hueco</button>
-  <button class="btn btn-ghost btn-sm" onclick="simularAgenda()" title="Llenar el mes con turnos de ejemplo">🎲 Simular agenda</button>
-  <button class="btn btn-danger-soft btn-sm" onclick="limpiarSimulacion()" title="Borrar los turnos de ejemplo">🧹 Limpiar</button>
-  <button class="btn btn-primary btn-sm" onclick="abrirAgregarTurnos(null, '', recargar)">📅 Agregar turnos</button>
+  <button class="btn btn-ghost btn-sm" onclick="abrirHuecos()">Buscar hueco</button>
+  <button class="btn btn-ghost btn-sm" onclick="simularAgenda()" title="Llenar el mes con turnos de ejemplo">Simular agenda</button>
+  <button class="btn btn-danger-soft btn-sm" onclick="limpiarSimulacion()" title="Borrar los turnos de ejemplo">Limpiar</button>
+  <button class="btn btn-primary btn-sm" onclick="agAgregarTurnos()">Agregar turnos</button>
 </div>
 
-<div class="stats" id="stats"></div>
+<!-- Cambiar entre el calendario de Morón y Ramos -->
+<div class="agenda-sede-bar" id="agenda-sede-bar"></div>
 
 <div class="split agenda-split" style="margin-top:8px;">
   <div class="col-main">
+    <!-- Buscar un paciente para resaltar sus días en el calendario -->
+    <div class="agenda-buscar-wrap">
+      <input class="input" id="ag-buscar" placeholder="Buscar un paciente para ver sus días…" autocomplete="off">
+      <div id="ag-buscar-res" class="ag-buscar-res"></div>
+      <div id="ag-buscado" class="ag-buscado" style="display:none;"></div>
+    </div>
+
+    <!-- Filtrar el calendario por día de la semana -->
+    <div class="agenda-dias-filtro">
+      <span class="agenda-dias-lbl">Filtrar días:</span>
+      <div class="dias-chips" id="ag-dias-chips"></div>
+      <a href="#" id="ag-dias-limpiar" onclick="limpiarDiasFiltro();return false;" style="display:none;">ver todos</a>
+    </div>
+
     <div class="cal-cols">
       <!-- Semáforo por horario: a la IZQUIERDA del calendario -->
       <aside class="sem-side">
-        <div class="sem-side-h">🕐 Semáforo<br>por horario</div>
+        <div class="sem-side-h">Semáforo<br>por horario</div>
         <select id="sem-hora" class="sem-hora-input"></select>
         <div class="sem-side-chips">
           <span class="sem-chip"><span class="sem-dot verde"></span> Libre</span>
@@ -61,6 +76,9 @@
   </div>
 </div>
 
+<!-- Menú al hacer clic en un día del calendario -->
+<div id="dia-menu" class="dia-menu" style="display:none;"></div>
+
 <!-- Modal "no asistió" -->
 <div class="modal-bg" id="modal-falto">
   <div class="modal">
@@ -71,7 +89,7 @@
     <div class="modal-body">
       <p id="falto-nombre" style="margin:0 0 14px; font-weight:600;"></p>
       <button class="btn btn-primary btn-block" style="margin-bottom:8px;" onclick="reprogramar()">
-        📅 Reprogramar a la próxima fecha disponible
+        Reprogramar a la próxima fecha disponible
       </button>
       <div class="hint" style="margin:-2px 0 12px;">Agrega el turno después de su última sesión, respetando sus días.</div>
       <button class="btn btn-danger-soft btn-block" onclick="darPerdido()">✕ Dar el turno por perdido</button>
@@ -89,16 +107,16 @@
     <div class="modal-body">
       <div class="grid2">
         <div class="field"><label>Fecha</label><input class="input" id="turno-fecha" type="date"></div>
-        <div class="field"><label>Hora</label><input class="input" id="turno-hora" type="time"></div>
+        <div class="field"><label>Hora</label><input class="input" id="turno-hora" type="time" step="900"></div>
       </div>
       <div class="field"><label>Duración (minutos)</label><input class="input" id="turno-dur" type="number" min="5"></div>
       <div class="hint" style="margin:-4px 0 8px;">Para cambiarlo a mano (un día puntual), editá la fecha/hora y tocá “Guardar cambios”.</div>
-      <button class="btn btn-line btn-block" onclick="recordarWa()">📲 Recordar por WhatsApp al paciente</button>
+      <button class="btn btn-line btn-block" onclick="recordarWa()">Recordar por WhatsApp al paciente</button>
 
       <div style="margin-top:14px; border-top:1px solid var(--borde); padding-top:12px;">
         <div class="hint" style="margin-bottom:6px; font-weight:700; color:#334155;">Cancelar este turno</div>
         <div class="hint" id="turno-repro-info" style="margin-bottom:8px;"></div>
-        <button class="btn btn-primary btn-block" style="margin-bottom:8px;" onclick="reprogramarTurnoSel()">📅 Reprogramar al día más cercano según sus horarios</button>
+        <button class="btn btn-primary btn-block" style="margin-bottom:8px;" onclick="reprogramarTurnoSel()">Reprogramar al día más cercano según sus horarios</button>
         <button class="btn btn-danger-soft btn-block" onclick="perderTurnoSel()">✕ Dar por perdido</button>
       </div>
     </div>
@@ -134,6 +152,7 @@
   </div>
 </div>
 
+
 {% include "_paciente_modal.html" %}
 {% include "_agregar_turnos_modal.html" %}
 {% endblock %}
@@ -146,8 +165,14 @@ let SEM = null;                  // lunes de la semana visible
 let SEL = ymd(new Date());       // fecha seleccionada
 let DATA = {};                   // {fecha: [turnos]} del rango visible
 let TOPE = 0;                    // tope de turnos por horario (sede activa)
+let FERIADOS = {};               // {fecha: nombre} días marcados como feriado
+let VER_SEDE = window.SEDE_ACTUAL;   // sede cuyo calendario se está viendo
 let SEM_PUNTO = localStorage.getItem('kdym_sem_punto') === '1';  // mostrar además el puntito
 let HORA_FILTRO = localStorage.getItem('kdym_sem_hora') || '';   // horario a colorear ('' = ninguno)
+let CAL_ANIMADO = false;         // el calendario se anima UNA vez (al entrar), no al cambiar de día
+let PAC_BUSCADO = null;          // {id, nombre, usadas, totales} paciente resaltado en el calendario
+let DIAS_FILTRO = new Set();     // días de la semana a mostrar (vacío = todos)
+let VER_DIA = false;             // mostrar "cómo está este día" (horarios libres) en el panel
 let PLAN_PAC = null;
 let PLAN_PICKER = null;
 let FALTO_TID = null;
@@ -166,9 +191,11 @@ function pintarFecha() {
 
 // ---- Stats ----
 async function cargarStats() {
-  const est = await apiGet('/api/estado');
+  const cont = document.getElementById('stats');
+  if (!cont) return;   // en la agenda ya no se muestran las stats
+  const est = await apiGet('/api/estado?sede=' + VER_SEDE);
   const s = est.stats;
-  document.getElementById('stats').innerHTML = [
+  cont.innerHTML = [
     [s.total, 'Turnos hoy'], [s.atendidos, 'Vinieron'],
     [s.presentes + s.en_curso, 'En el centro'], [s.pendientes, 'Por venir'],
     [s.ausentes, 'No vinieron'],
@@ -191,9 +218,10 @@ async function cargarDatos() {
   } else {
     ini = new Date(SEM); fin = new Date(SEM); fin.setDate(fin.getDate() + 6);
   }
-  const resp = await apiGet('/api/agenda_rango?desde=' + ymd(ini) + '&hasta=' + ymd(fin));
+  const resp = await apiGet('/api/agenda_rango?desde=' + ymd(ini) + '&hasta=' + ymd(fin) + '&sede=' + VER_SEDE);
   DATA = resp.por_fecha || {};
   TOPE = resp.tope || 0;
+  FERIADOS = resp.feriados || {};
   render();
 }
 
@@ -296,27 +324,85 @@ function pintarCalendario() {
     if (otro) cls.push('otro');
     if (key === hoy) cls.push('hoy');
     if (key === SEL) cls.push('sel');
-    const count = turnos.length
+    // Filtro por día de la semana (Lun=0): oculta los no seleccionados.
+    if (DIAS_FILTRO.size && !DIAS_FILTRO.has((d.getDay() + 6) % 7)) cls.push('cal-oculto');
+    const esFeriado = !!FERIADOS[key];
+    const count = (turnos.length && !esFeriado)
       ? `<span class="cal-count">${turnos.length}</span>` : '';
-    const sem = otro ? null : semaforoDia(DATA[key]);
+    // Los feriados no llevan semáforo (no se dan turnos).
+    const sem = (otro || esFeriado) ? null : semaforoDia(DATA[key]);
     const titSem = sem === 'rojo' ? 'Lleno' : (sem === 'amar' ? 'Falta 1' : 'Hay lugar');
-    // El puntito y el relleno son EXCLUYENTES: con puntito activo, sólo punto
-    // (sin color de fondo); sin puntito, se rellena el cuadro con el color.
     let semDot = '';
     if (sem) {
       if (SEM_PUNTO) semDot = `<span class="sem-dot ${sem}" title="${titSem}"></span>`;
       else cls.push('sf-' + sem);
     }
-    html += `<div class="${cls.join(' ')}" onclick="seleccionar('${key}')">
-      <div class="cal-num">${d.getDate()}</div>${count}${semDot}</div>`;
+    let feriadoTag = '';
+    if (esFeriado) {
+      cls.push('feriado');
+      feriadoTag = `<span class="cal-feriado" title="${escapeHtml(FERIADOS[key])}">⊘ Feriado</span>`;
+    }
+    // Resaltar en violeta los días del paciente buscado.
+    if (PAC_BUSCADO && (DATA[key] || []).some(t => t.paciente_id === PAC_BUSCADO.id
+        && t.estado !== 'ausente' && t.estado !== 'perdido')) {
+      cls.push('pac-hl');
+    }
+    html += `<div class="${cls.join(' ')}" onclick="diaMenu(event, '${key}')">
+      <div class="cal-num">${d.getDate()}</div>${count}${semDot}${feriadoTag}</div>`;
   }
   const grid = document.getElementById('cal-grid');
   grid.innerHTML = html;
-  // Animación de entrada de las celdas al renderizar.
-  grid.classList.remove('cal-anim'); void grid.offsetWidth; grid.classList.add('cal-anim');
+  // La animación de las celdas es SOLO al entrar a la agenda; cambiar de día (o
+  // de mes) NO re-anima el calendario. La de los nombres (dia-anim) sí, siempre.
+  if (!CAL_ANIMADO) {
+    grid.classList.remove('cal-anim'); void grid.offsetWidth; grid.classList.add('cal-anim');
+    CAL_ANIMADO = true;
+  } else {
+    grid.classList.remove('cal-anim');
+  }
 }
 
 function seleccionar(key) { SEL = key; render(); }
+
+// Menú rápido al hacer clic izquierdo en un día del calendario:
+// dar turno o marcar/quitar feriado, ahí mismo.
+function diaMenu(ev, key) {
+  // Capturar la posición de la celda ANTES de renderizar (seleccionar re-dibuja
+  // el calendario y destruiría la celda, dejando el menú en 0,0 = arriba izq).
+  const cell = ev.currentTarget.getBoundingClientRect();
+  seleccionar(key);
+  const menu = document.getElementById('dia-menu');
+  if (!menu) return;
+  const esF = !!FERIADOS[key];
+  const d = new Date(key + 'T12:00:00');
+  let tit = d.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
+  tit = tit.charAt(0).toUpperCase() + tit.slice(1);
+  menu.innerHTML = `<div class="dia-menu-tit">${tit}</div>` + (esF
+    ? `<div class="dia-menu-info">Feriado — no se dan turnos</div>
+       <button class="btn btn-line btn-block btn-sm" onclick="cerrarDiaMenu(); quitarFeriado()">✓ Quitar feriado</button>`
+    : `<button class="btn btn-primary btn-block btn-sm" onclick="cerrarDiaMenu(); darTurnoEsteDia()">+ Dar turno</button>
+       <button class="btn btn-ghost btn-block btn-sm" style="margin-top:6px;" onclick="cerrarDiaMenu(); marcarFeriado()">⊘ Marcar feriado</button>`);
+  // Posicionar cerca de la celda tocada.
+  menu.style.display = 'block';
+  const mw = menu.offsetWidth, mh = menu.offsetHeight;
+  let left = cell.left, top = cell.bottom + 4;
+  if (left + mw > window.innerWidth - 8) left = window.innerWidth - mw - 8;
+  if (left < 8) left = 8;
+  if (top + mh > window.innerHeight - 8) top = Math.max(8, cell.top - mh - 4);
+  menu.style.left = left + 'px';
+  menu.style.top = top + 'px';
+}
+function cerrarDiaMenu() {
+  const m = document.getElementById('dia-menu');
+  if (m) m.style.display = 'none';
+}
+document.addEventListener('click', function (e) {
+  const m = document.getElementById('dia-menu');
+  if (!m || m.style.display === 'none') return;
+  if (!m.contains(e.target) && !e.target.closest('.cal-cell')) cerrarDiaMenu();
+});
+window.addEventListener('scroll', cerrarDiaMenu, true);
+
 function irHoy() {
   MES = new Date(); MES.setDate(1);
   SEM = inicioGrid(new Date());
@@ -334,20 +420,45 @@ function pintarDia() {
   const cont = document.getElementById('dia-detalle');
   // Animación simple cada vez que se despliega la lista del día.
   const animar = () => { cont.classList.remove('dia-anim'); void cont.offsetWidth; cont.classList.add('dia-anim'); };
-  // Botón para dar/agendar turno en esta fecha (arriba de los nombres).
-  const addBtn = `<div class="dia-add">
-      <button class="btn btn-primary btn-block" onclick="darTurnoEsteDia()">➕ Dar turno este día</button>
-      <div class="hint" style="margin-top:6px;">Podés elegir un paciente ya cargado o crear uno nuevo.</div>
-    </div>`;
-  if (!turnos.length) {
-    cont.innerHTML = addBtn + '<div class="empty">Sin turnos este día.</div>';
-    animar();
-    return;
+
+  const esFeriado = !!FERIADOS[SEL];
+  let addBtn = '';
+  // Si hay un paciente buscado y viene este día, se muestra su nombre en violeta.
+  if (PAC_BUSCADO && (DATA[SEL] || []).some(t => t.paciente_id === PAC_BUSCADO.id && !['ausente', 'perdido'].includes(t.estado))) {
+    addBtn += `<div class="dia-pac-hl"><span class="ag-hl-dot"></span> <b>${escapeHtml(PAC_BUSCADO.nombre)}</b> viene este día
+      <span class="ag-ses-big">${PAC_BUSCADO.usadas}/${PAC_BUSCADO.totales}</span></div>`;
   }
-  // Separar por turno (franja horaria).
+  if (esFeriado) {
+    addBtn += `<div class="feriado-aviso">Feriado — no se dan turnos este día${FERIADOS[SEL] && FERIADOS[SEL] !== 'Feriado' ? ' (' + escapeHtml(FERIADOS[SEL]) + ')' : ''}.</div>`;
+  } else {
+    // Asignar turno directo + ver cómo está el día (persiste al cambiar de día).
+    addBtn += `<div class="dia-add">
+      <button class="btn btn-primary btn-block" onclick="darTurnoEsteDia()">Asignar turno de paciente</button>
+      <button class="btn btn-line btn-block btn-sm" style="margin-top:6px;" onclick="verDiaToggle()">${VER_DIA ? 'Ocultar cómo está el día' : 'Ver cómo está este día'}</button>
+    </div>`;
+    if (VER_DIA) addBtn += `<div id="dia-libres" class="dia-libres"><div class="hint">Cargando…</div></div>`;
+  }
+  // Separar por franja horaria.
   const grupos = {};
   turnos.forEach(t => { const h = t.hora || 'Sin hora'; (grupos[h] = grupos[h] || []).push(t); });
-  cont.innerHTML = addBtn + Object.keys(grupos).sort().map(h => {
+
+  // Si hay un horario elegido en el semáforo, mostrar SOLO ese horario.
+  let horasOrden = Object.keys(grupos).sort();
+  let filtroNota = '';
+  if (HORA_FILTRO) {
+    horasOrden = grupos[HORA_FILTRO] ? [HORA_FILTRO] : [];
+    filtroNota = `<div class="dia-filtro">Mostrando solo las <b>${HORA_FILTRO}</b> ·
+      <a href="#" onclick="limpiarHoraFiltro();return false;">ver todos los horarios</a></div>`;
+  }
+
+  if (!horasOrden.length) {
+    const vacio = HORA_FILTRO ? ('Sin turnos a las ' + HORA_FILTRO + ' este día.') : 'Sin turnos este día.';
+    cont.innerHTML = addBtn + filtroNota + '<div class="empty">' + vacio + '</div>';
+    animar();
+    if (VER_DIA && !esFeriado) cargarDiaLibres();
+    return;
+  }
+  cont.innerHTML = addBtn + filtroNota + horasOrden.map(h => {
     return `
     <div class="hora-block">
       <div class="hora-head">
@@ -358,12 +469,39 @@ function pintarDia() {
     </div>`;
   }).join('');
   animar();
+  if (VER_DIA && !esFeriado) cargarDiaLibres();
+}
+// "Ver cómo está este día": muestra los horarios libres del día en el panel y
+// NO desaparece al cambiar de día (se acuerda que está abierto).
+function verDiaToggle() { VER_DIA = !VER_DIA; pintarDia(); }
+async function cargarDiaLibres() {
+  const box = document.getElementById('dia-libres');
+  if (!box) return;
+  const cab = '<div class="dia-libres-cab"><span>Cómo está el día</span>' +
+    '<button class="x" onclick="verDiaToggle()" title="Cerrar">&times;</button></div>';
+  const d = await apiGet('/api/horarios_libres?fecha=' + SEL + '&sede=' + VER_SEDE);
+  if (d.feriado) { box.innerHTML = cab + '<div class="hint">Feriado — no se dan turnos.</div>'; return; }
+  if (!d.abierto) { box.innerHTML = cab + '<div class="hint">El centro no abre este día.</div>'; return; }
+  box.innerHTML = cab + '<div class="dia-libres-slots">' + d.slots.map(s => {
+    const cls = s.libres <= 0 ? 'lleno' : (s.libres === 1 ? 'casi' : 'libre');
+    const txt = s.libres <= 0 ? 'lleno' : (s.libres + ' libre' + (s.libres > 1 ? 's' : ''));
+    return `<div class="at-slot ${cls}" style="cursor:default;">${s.hora}<small>${txt}</small></div>`;
+  }).join('') + '</div>';
+}
+function limpiarHoraFiltro() {
+  HORA_FILTRO = '';
+  localStorage.setItem('kdym_sem_hora', '');
+  const sel = document.getElementById('sem-hora');
+  if (sel) sel.value = '';
+  actualizarSemHint();
+  render();
 }
 
 // Fila del día: SOLO el nombre. Tocando la fila se abre el turno (mover / reprogramar
 // / borrar). Sin botones de vino / no vino ni estados.
 function filaTurno(t) {
-  return `<div class="list-item clicky" onclick="abrirTurno(${t.turno_id})" title="Tocar para mover, reprogramar o borrar">
+  const hl = (PAC_BUSCADO && t.paciente_id === PAC_BUSCADO.id) ? ' pac-hl-row' : '';
+  return `<div class="list-item clicky${hl}" onclick="abrirTurno(${t.turno_id})" title="Tocar para mover, reprogramar o borrar">
     <div class="avatar">${iniciales(t.paciente)}</div>
     <div class="li-main"><span class="li-name">${escapeHtml(t.paciente)}</span></div>
   </div>`;
@@ -438,7 +576,7 @@ function recordarWa() {
   const d = new Date(TURNO_SEL.fecha + 'T12:00:00');
   const fstr = d.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
   const msg = `Hola ${TURNO_SEL.paciente.split(' ')[0]}, te recordamos tu turno en KDYM el ${fstr}` +
-    (TURNO_SEL.hora ? ' a las ' + TURNO_SEL.hora : '') + '. ¡Te esperamos! 🙌';
+    (TURNO_SEL.hora ? ' a las ' + TURNO_SEL.hora : '') + '. ¡Te esperamos!';
   window.open('https://wa.me/' + tel + '?text=' + encodeURIComponent(msg), '_blank');
 }
 
@@ -452,7 +590,7 @@ async function buscarHuecos() {
   const fecha = document.getElementById('huecos-fecha').value;
   const dur = document.getElementById('huecos-dur').value;
   if (!fecha) { toast('Elegí un día', 'alert'); return; }
-  const d = await apiGet('/api/huecos?fecha=' + fecha + '&duracion=' + dur);
+  const d = await apiGet('/api/huecos?fecha=' + fecha + '&duracion=' + dur + '&sede=' + VER_SEDE);
   const chips = d.slots.map(s =>
     `<span class="chip" style="${s.libres > 0 ? '' : 'opacity:.35;'}">${s.hora} · ${s.libres > 0 ? s.libres + ' libre' : 'lleno'}</span>`
   ).join('');
@@ -506,11 +644,124 @@ function elegirDesdeNuevo(id, nombre) { recargar(); }
 // del modal se elige un paciente existente (buscador) o se carga uno nuevo.
 function darTurnoEsteDia() {
   abrirAgregarTurnos(null, '', recargar);
+  poblarSelectSede('at-sede', VER_SEDE);   // el turno va a la sede que estás viendo
   atModo('manual');
   const cont = document.getElementById('at-manual-rows');
-  if (cont) { cont.innerHTML = ''; atAgregarFila(SEL, ''); }
+  // Si hay un horario elegido en el semáforo, el turno arranca en esa hora
+  // (se puede cambiar igual).
+  if (cont) { cont.innerHTML = ''; atAgregarFila(SEL, HORA_FILTRO || ''); }
   const b = document.getElementById('at-buscar');
   if (b) setTimeout(() => b.focus(), 150);
+}
+// "Agregar turnos" desde la agenda: por defecto a la sede que estás viendo.
+function agAgregarTurnos() {
+  abrirAgregarTurnos(null, '', recargar);
+  poblarSelectSede('at-sede', VER_SEDE);
+}
+
+// ---- Selector de sede del calendario (Morón / Ramos) ----
+function pintarSedeBar() {
+  const bar = document.getElementById('agenda-sede-bar');
+  if (!bar) return;
+  const sedes = window.SEDES || [];
+  if (sedes.length < 2) { bar.style.display = 'none'; return; }
+  bar.innerHTML = '<span class="agenda-sede-lbl">Calendario de:</span>' +
+    '<div class="seg">' + sedes.map(s =>
+      `<button class="${s.id == VER_SEDE ? 'on' : ''}" onclick="verSede(${s.id})">${escapeHtml(s.nombre)}</button>`
+    ).join('') + '</div>';
+}
+function verSede(id) {
+  VER_SEDE = id;
+  pintarSedeBar();
+  recargar();
+}
+
+// ---- Buscar un paciente y resaltar sus días en el calendario ----
+let _agbt = null;
+document.getElementById('ag-buscar').addEventListener('input', e => {
+  clearTimeout(_agbt);
+  const term = e.target.value.trim();
+  const res = document.getElementById('ag-buscar-res');
+  if (!term) { res.innerHTML = ''; return; }
+  _agbt = setTimeout(async () => {
+    const rows = await apiGet('/api/pacientes?q=' + encodeURIComponent(term));
+    res.innerHTML = rows.slice(0, 8).map(p =>
+      `<div class="ag-buscar-op" onclick='resaltarPaciente(${JSON.stringify({ id: p.id, nombre: p.nombre_completo, usadas: p.sesiones_usadas, totales: p.sesiones_totales })})'>
+        <span>${escapeHtml(p.nombre_completo)}</span>
+        <span class="ag-ses">${p.sesiones_usadas}/${p.sesiones_totales}</span>
+      </div>`).join('') || '<div class="ag-buscar-op muted">Sin resultados</div>';
+  }, 220);
+});
+function resaltarPaciente(p) {
+  PAC_BUSCADO = p;
+  // El semáforo por horario pasa a "Todos" para que no tape el violeta.
+  HORA_FILTRO = '';
+  try { localStorage.setItem('kdym_sem_hora', ''); } catch (e) {}
+  const selh = document.getElementById('sem-hora'); if (selh) selh.value = '';
+  actualizarSemHint();
+  document.getElementById('ag-buscar').value = p.nombre;
+  document.getElementById('ag-buscar-res').innerHTML = '';
+  const b = document.getElementById('ag-buscado');
+  b.style.display = '';
+  b.innerHTML = `<span class="ag-hl-dot"></span> <b>${escapeHtml(p.nombre)}</b>
+    <span class="ag-ses-big">${p.usadas}/${p.totales} sesiones</span>
+    <a href="#" onclick="quitarResaltado();return false;">quitar</a>`;
+  render();
+}
+function quitarResaltado() {
+  PAC_BUSCADO = null;
+  document.getElementById('ag-buscar').value = '';
+  document.getElementById('ag-buscar-res').innerHTML = '';
+  document.getElementById('ag-buscado').style.display = 'none';
+  render();
+}
+
+// ---- Filtro por día de la semana (mostrar sólo esos días) ----
+function pintarDiasChips() {
+  const cont = document.getElementById('ag-dias-chips');
+  if (!cont) return;
+  cont.innerHTML = DIAS_ABBR.map((d, i) =>
+    `<button class="dia-chip ${DIAS_FILTRO.has(i) ? 'on' : ''}" onclick="toggleDiaFiltro(${i})">${d}</button>`).join('');
+  document.getElementById('ag-dias-limpiar').style.display = DIAS_FILTRO.size ? '' : 'none';
+}
+function toggleDiaFiltro(i) {
+  if (DIAS_FILTRO.has(i)) DIAS_FILTRO.delete(i); else DIAS_FILTRO.add(i);
+  pintarDiasChips();
+  render();
+}
+function limpiarDiasFiltro() {
+  DIAS_FILTRO.clear();
+  pintarDiasChips();
+  render();
+}
+
+// ---- Feriados (días sin turnos) ----
+async function marcarFeriado() {
+  const cuantos = (DATA[SEL] || []).filter(t => !['ausente', 'perdido', 'terminado'].includes(t.estado)).length;
+  if (!confirm('¿Marcar este día como FERIADO? No se van a poder dar turnos ese día.')) return;
+  const nombre = prompt('Nombre del feriado (opcional):', 'Feriado') || 'Feriado';
+  await api('/api/feriado', { fecha: SEL, nombre: nombre, sede_id: VER_SEDE });
+  // Si el día tenía turnos cargados, preguntar qué hacer con ellos.
+  if (cuantos) {
+    const mover = confirm(
+      `Este día tenía ${cuantos} turno(s).\n\n` +
+      'Aceptar = pasarlos a la próxima fecha disponible de cada paciente.\n' +
+      'Cancelar = dejarlos para asignarlos a mano.');
+    if (mover) {
+      const r = await api('/api/feriado/reprogramar_turnos', { fecha: SEL, sede_id: VER_SEDE });
+      toast(`Feriado marcado — ${r.movidos || 0} turno(s) reprogramados`, 'ok');
+    } else {
+      toast('Feriado marcado — los turnos quedan para asignar a mano', 'ok');
+    }
+  } else {
+    toast('Día marcado como feriado', 'ok');
+  }
+  recargar();
+}
+async function quitarFeriado() {
+  await api('/api/feriado/borrar', { fecha: SEL });
+  toast('Feriado quitado — ya se pueden dar turnos ✓', 'ok');
+  recargar();
 }
 
 // ---- Controles del semáforo: horario a colorear + puntito ----
@@ -526,7 +777,7 @@ function actualizarSemHint() {
   const sel = document.getElementById('sem-hora');
   if (sel) {
     let opts = '<option value="">Todos (sin color)</option>';
-    for (let m = 7 * 60; m <= 21 * 60; m += 30) {
+    for (let m = 7 * 60; m <= 21 * 60; m += 15) {
       const h = `${String(Math.floor(m / 60)).padStart(2, '0')}:${String(m % 60).padStart(2, '0')}`;
       opts += `<option value="${h}">${h}</option>`;
     }
@@ -556,18 +807,20 @@ async function simularAgenda() {
   const mes = ymd(MES).slice(0, 7);   // 'YYYY-MM' del mes visible
   if (!confirm('Se van a cargar turnos de ejemplo en todo ' +
     MES.toLocaleDateString('es-AR', { month: 'long', year: 'numeric' }) +
-    ' (sede actual). Después podés borrarlos con “🧹 Limpiar”. ¿Seguir?')) return;
-  const r = await api('/api/simular_agenda', { mes });
+    ' (sede actual). Después podés borrarlos con “Limpiar”. ¿Seguir?')) return;
+  const r = await api('/api/simular_agenda', { mes, sede_id: VER_SEDE });
   toast('Simulación cargada: ' + (r.creados || 0) + ' turnos ✓', 'ok');
   recargar();
 }
 async function limpiarSimulacion() {
   if (!confirm('¿Borrar TODOS los turnos de simulación de esta sede?')) return;
-  const r = await api('/api/limpiar_simulacion', {});
+  const r = await api('/api/limpiar_simulacion', { sede_id: VER_SEDE });
   toast('Se borraron ' + (r.borrados || 0) + ' turnos de simulación ✓', 'ok');
   recargar();
 }
 
+pintarSedeBar();
+pintarDiasChips();
 pintarFecha();
 cargarDatos();
 cargarStats();

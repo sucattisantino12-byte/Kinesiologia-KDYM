@@ -89,9 +89,9 @@ function pintarBoxes() {
       return `<div class="box ocupado ${venc ? 'vencido' : ''}" data-box="t${b.id}">
         <div class="box-head">
           <span class="box-nom">${escapeHtml(b.nombre)}</span>
-          <span class="box-badge ${venc ? 'badge-vencido' : 'badge-ocupado'}">${venc ? '¡Terminó!' : '🧪 Prueba'}</span>
+          <span class="box-badge ${venc ? 'badge-vencido' : 'badge-ocupado'}">${venc ? '¡Terminó!' : 'Prueba'}</span>
         </div>
-        <div class="box-pac">🧪 Prueba de alarma</div>
+        <div class="box-pac">Prueba de alarma</div>
         <div class="box-diag"></div>
         <div class="timer" data-restante="${rest}">${fmt(rest)}</div>
         <div class="box-actions">
@@ -108,14 +108,14 @@ function pintarBoxes() {
         <div class="box-libre-txt">Disponible</div>
         <div class="box-actions">
           <button class="btn btn-primary btn-sm grow" onclick="ponerEnBox(${b.id}, '${escapeJs(b.nombre)}')">+ Paciente</button>
-          <button class="btn btn-line btn-sm" onclick="probarBox(${b.id})" title="Probar alarma (10 segundos)">🧪 Prueba</button>
+          <button class="btn btn-line btn-sm" onclick="probarBox(${b.id})" title="Probar alarma (10 segundos)">Prueba</button>
           <button class="btn btn-danger-soft btn-sm" onclick="borrarBox(${b.id})" title="Quitar box">✕</button>
         </div>
       </div>`;
     }
     const venc = b.vencido;
     const wa = (venc && CONFIG.wa_kine)
-      ? `<button class="btn btn-ghost btn-sm" onclick="avisarWa('${escapeJs(b.paciente)}','${escapeJs(b.nombre)}')" title="Avisar por WhatsApp">📲</button>` : '';
+      ? `<button class="btn btn-ghost btn-sm" onclick="avisarWa('${escapeJs(b.paciente)}','${escapeJs(b.nombre)}')" title="Avisar por WhatsApp">WA</button>` : '';
     return `<div class="box ocupado ${venc ? 'vencido' : ''}" data-box="${b.id}">
       <div class="box-head">
         <span class="box-nom">${escapeHtml(b.nombre)}</span>
@@ -164,7 +164,7 @@ function pintarSala() {
 // Próximos: agrupados por hora (lo más importante, va primero).
 function seccionProximos(turnos) {
   if (!turnos.length) {
-    return `<div class="sala-sec"><div class="sala-sec-h">🔜 Próximos</div>
+    return `<div class="sala-sec"><div class="sala-sec-h">Próximos</div>
       <div class="card"><div class="empty">Nadie por venir por ahora</div></div></div>`;
   }
   const grupos = {};
@@ -177,7 +177,7 @@ function seccionProximos(turnos) {
       </div>
       <div class="card">${grupos[h].map(filaSala).join('')}</div>
     </div>`).join('');
-  return `<div class="sala-sec"><div class="sala-sec-h">🔜 Próximos</div>${bloques}</div>`;
+  return `<div class="sala-sec"><div class="sala-sec-h">Próximos</div>${bloques}</div>`;
 }
 
 function seccionEnBox(turnos) {
@@ -187,7 +187,7 @@ function seccionEnBox(turnos) {
       <div class="li-main"><span class="li-name">${escapeHtml(t.paciente)}</span>
         <div class="li-sub"><span class="pill">En ${escapeHtml(t.box || 'box')}</span></div></div>
     </div>`).join('');
-  return `<div class="sala-sec"><div class="sala-sec-h">🏥 En box ahora</div><div class="card">${filas}</div></div>`;
+  return `<div class="sala-sec"><div class="sala-sec-h">En box ahora</div><div class="card">${filas}</div></div>`;
 }
 
 // No vinieron (incluye los marcados automáticamente por pasar la tolerancia).
@@ -196,7 +196,7 @@ function seccionNoVinieron(turnos) {
     const perdido = t.estado === 'perdido';
     const acc = perdido ? '' : `
       <button class="btn btn-ok btn-sm" onclick="cancelarNoVino(${t.turno_id})" title="Cancelar: en realidad está / sigue esperando">↩ Cancelar</button>
-      <button class="btn btn-line btn-sm" onclick="reprogramarAusente(${t.turno_id}, '${escapeJs(t.paciente)}')">📅 Reprogramar</button>`;
+      <button class="btn btn-line btn-sm" onclick="reprogramarAusente(${t.turno_id}, '${escapeJs(t.paciente)}')">Reprogramar</button>`;
     return `<div class="espera-item">
       <div class="avatar clicky" onclick="verPerfil(${t.paciente_id})">${iniciales(t.paciente)}</div>
       <div class="li-main clicky" onclick="verPerfil(${t.paciente_id})">
@@ -207,7 +207,7 @@ function seccionNoVinieron(turnos) {
       <div class="li-actions">${acc}</div>
     </div>`;
   }).join('');
-  return `<div class="sala-sec"><div class="sala-sec-h danger">🚫 No vinieron (${turnos.length})</div>
+  return `<div class="sala-sec"><div class="sala-sec-h danger">⊘ No vinieron (${turnos.length})</div>
     <div class="card">${filas}</div></div>`;
 }
 
@@ -220,7 +220,7 @@ function seccionTerminados(turnos) {
         <div class="li-sub"><span class="pill">${escapeHtml(t.hora || '')}</span>
           <span class="pill ok">Terminó</span></div></div>
     </div>`).join('');
-  return `<details class="sala-sec"><summary class="sala-sec-h ok">✅ Ya pasaron (${turnos.length})</summary>
+  return `<details class="sala-sec"><summary class="sala-sec-h ok">✓ Ya pasaron (${turnos.length})</summary>
     <div class="card">${filas}</div></details>`;
 }
 
@@ -392,8 +392,8 @@ function dispararAviso(boxId, box) {
   const pac = pacEl ? pacEl.textContent : '';
   vibrar([700, 300, 700]);
   if (alarmaEncendida()) sonarContinuo();
-  mostrarNotif(boxId || 'x', '⏰ ' + nom + ' terminó', pac);
-  toast(`⏰ ${nom} terminó — ${pac}`, 'alert');
+  mostrarNotif(boxId || 'x', '' + nom + ' terminó', pac);
+  toast(`${nom} terminó — ${pac}`, 'alert');
 }
 
 // ---- Acciones de box ----
@@ -579,7 +579,7 @@ function waLink(msg) {
 }
 function avisarWa(paciente, box) {
   if (!CONFIG.wa_kine) { toast('Primero cargá el WhatsApp en Configuración', 'alert'); return; }
-  window.open(waLink(`${paciente} terminó su sesión en ${box}. Ya podés pasar 🙌`), '_blank');
+  window.open(waLink(`${paciente} terminó su sesión en ${box}. Ya podés pasar`), '_blank');
 }
 
 async function cargarConfig() { try { CONFIG = await apiGet('/api/config'); } catch (e) {} }
@@ -649,7 +649,7 @@ let TESTS = {};   // boxId -> timestamp de fin (ms)
 function probarBox(boxId) {
   primerToque();
   TESTS[boxId] = Date.now() + 10000;
-  toast('🧪 Prueba: la alarma sonará en 10 segundos…', 'ok');
+  toast('Prueba: la alarma sonará en 10 segundos…', 'ok');
   pintarBoxes();
 }
 function terminarPrueba(boxId) {
