@@ -1595,13 +1595,18 @@ def api_horas_dia():
     slots = _slots_dia(sede, fecha)   # (hora, libres, ocupados)
     if not slots:
         return jsonify(ok=True, fecha=fecha, abierto=False, opciones=[])
-    verdes = [{"hora": h, "libres": lib, "color": "verde"}
-              for h, lib, oc in slots if (not tope or lib >= 2)]
-    amarillos = [{"hora": h, "libres": lib, "color": "amar"}
-                 for h, lib, oc in slots if tope and lib == 1]
-    ops = list(verdes)
-    if len(verdes) <= 6:
-        ops += amarillos
+    if request.args.get("todos") == "1":
+        # Todos los horarios (en punto y y media), diciendo cómo está cada uno.
+        ops = [{"hora": h, "libres": lib, "color": _color_libres(lib, tope)}
+               for h, lib, oc in slots]
+    else:
+        verdes = [{"hora": h, "libres": lib, "color": "verde"}
+                  for h, lib, oc in slots if (not tope or lib >= 2)]
+        amarillos = [{"hora": h, "libres": lib, "color": "amar"}
+                     for h, lib, oc in slots if tope and lib == 1]
+        ops = list(verdes)
+        if len(verdes) <= 6:
+            ops += amarillos
     ops.sort(key=lambda x: _hm_a_min(x["hora"], 0))
     return jsonify(ok=True, fecha=fecha, abierto=True, opciones=ops)
 
@@ -1624,13 +1629,25 @@ def api_recomendados():
         cur += timedelta(days=1)
         if wd in vistos or _es_feriado(f):
             continue
-        best = _mejor_slot(sede, f)
+        slots = _slots_dia(sede, f)
         vistos.add(wd)
-        if not best or (tope and best[1] <= 0):
-            continue   # centro cerrado ese día o sin lugar
+        if not slots:
+            continue   # el centro no abre ese día
+        # Horarios recomendados de ese día: los verdes y, si hay 6 o menos,
+        # también los amarillos. Ordenados del más vacío al más lleno.
+        verdes = [s for s in slots if (not tope or s[1] >= 2)]
+        amarillos = [s for s in slots if tope and s[1] == 1]
+        cand = list(verdes)
+        if len(verdes) <= 6:
+            cand += amarillos
+        if not cand:
+            continue   # ese día está lleno
+        cand.sort(key=lambda x: (x[2], _hm_a_min(x[0], 0)))
+        opciones = [{"hora": h, "libres": lib, "color": _color_libres(lib, tope)}
+                    for h, lib, oc in cand]
         out.append({"weekday": wd, "dia": DIAS_FULL[wd], "fecha": f,
-                    "hora": best[0], "libres": best[1],
-                    "color": _color_libres(best[1], tope)})
+                    "hora": opciones[0]["hora"], "libres": opciones[0]["libres"],
+                    "color": opciones[0]["color"], "opciones": opciones})
     out.sort(key=lambda x: x["weekday"])
     return jsonify(items=out)
 

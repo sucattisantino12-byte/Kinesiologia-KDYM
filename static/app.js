@@ -427,14 +427,17 @@ async function atCargarPlanPaciente(pid) {
 // Precarga los días/horas/cantidad del paciente en el flujo de plan.
 function atAplicarPlanPaciente(p) {
   AT_QUEDAN = p.sesiones_quedan > 0 ? p.sesiones_quedan : 0;
-  AT_DIAS = new Set(p.dias_idx || []);
-  // Hora por cada día que ya tenía cargada.
-  AT_HORAS = {};
-  const hs = p.horarios || {};
-  (p.dias_idx || []).forEach(i => {
-    const h = hs[i] || hs[String(i)];
-    if (h) AT_HORAS[i] = h;
-  });
+  // En "recomendados" los días los elige la app: no precargo los del paciente.
+  if (AT_ESTRATEGIA !== 'recomendado') {
+    AT_DIAS = new Set(p.dias_idx || []);
+    // Hora por cada día que ya tenía cargada.
+    AT_HORAS = {};
+    const hs = p.horarios || {};
+    (p.dias_idx || []).forEach(i => {
+      const h = hs[i] || hs[String(i)];
+      if (h) AT_HORAS[i] = h;
+    });
+  }
   atRenderDiasChips();
   atRenderHorasRows();
   if (!document.getElementById('at-cantidad').value)
@@ -484,6 +487,9 @@ function atPlanInfo() {
     el.textContent = AT_QUEDAN ? `Le quedan ${AT_QUEDAN} sesión(es) por hacer.` : '';
 }
 
+const DIAS_FULL_JS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+
+// Los chips se dibujan SIEMPRE desde el estado (así no se desincronizan).
 function atRenderDiasChips() {
   const cont = document.getElementById('at-dias-chips');
   if (!cont) return;
@@ -492,15 +498,13 @@ function atRenderDiasChips() {
   ).join('');
 }
 function atToggleDiaChip(i) {
-  if (AT_DIAS.has(i)) { AT_DIAS.delete(i); delete AT_HORAS[i]; }
-  else {
-    AT_DIAS.add(i);
-    // Default cómodo: copio la primera hora ya cargada (igual se puede cambiar).
-    if (AT_HORAS[i] == null) { const prim = Object.values(AT_HORAS)[0]; if (prim) AT_HORAS[i] = prim; }
-  }
-  const b = document.querySelector(`#at-dias-chips .dia-chip[data-i="${i}"]`);
-  if (b) b.classList.toggle('on');
+  const agregado = !AT_DIAS.has(i);
+  if (agregado) AT_DIAS.add(i);
+  else { AT_DIAS.delete(i); delete AT_HORAS[i]; }
+  atRenderDiasChips();
   atRenderHorasRows();
+  // Al elegir un día, se despliega solo su menú de horarios.
+  if (agregado) atAbrirPickDia(i);
   atInvalidarPropuesta();
 }
 
@@ -529,8 +533,15 @@ function atEstrategia(e) {
   atInvalidarPropuesta();
 }
 
-// Muestra el horario de cada día elegido. En "a la hora que elijo" es un input de
-// hora; en "mejores horas" es un selector con los horarios coloreados por ocupación.
+// Texto de disponibilidad de un horario.
+function atTxtLibres(libres) {
+  if (libres >= 90) return 'libre';
+  if (libres <= 0) return 'lleno';
+  return libres + ' libre' + (libres > 1 ? 's' : '');
+}
+
+// Un bloque por día elegido. En las dos estrategias es un desplegable: se abre al
+// tocar el día y, al elegir la hora, se cierra y queda sólo esa hora en pantalla.
 function atRenderHorasRows() {
   const wrap = document.getElementById('at-horas-wrap');
   const rows = document.getElementById('at-horas-rows');
@@ -540,54 +551,82 @@ function atRenderHorasRows() {
   const mostrar = (AT_ESTRATEGIA === 'hora' || AT_ESTRATEGIA === 'mejor_hora') && dias.length;
   if (wrap) wrap.style.display = mostrar ? '' : 'none';
   if (!mostrar) { rows.innerHTML = ''; return; }
-
-  if (AT_ESTRATEGIA === 'hora') {
-    if (label) label.textContent = 'Horario de cada día';
-    rows.innerHTML = dias.map(i =>
-      `<div class="dia-hora-row"><span class="dia-hora-lbl">${DIAS_ABBR[i]}</span>
-         <input type="time" step="900" class="input at-hora-dia" data-i="${i}" value="${AT_HORAS[i] || ''}"></div>`
-    ).join('');
-    rows.querySelectorAll('.at-hora-dia').forEach(inp => inp.oninput = () => {
-      AT_HORAS[+inp.dataset.i] = inp.value;
-      atInvalidarPropuesta();
-    });
-  } else {
-    // mejor_hora: un selector de horarios coloreados por día.
-    if (label) label.textContent = 'Elegí el horario de cada día';
-    rows.innerHTML = dias.map(i =>
-      `<div class="at-pick-dia"><div class="at-pick-lbl">${DIAS_FULL_JS[i]}</div>
-         <div class="at-pick-ops" id="at-pick-${i}"><span class="hint">Cargando…</span></div></div>`
-    ).join('');
-    dias.forEach(i => atCargarOpcionesDia(i));
+  if (label) {
+    label.textContent = AT_ESTRATEGIA === 'hora'
+      ? 'Horario de cada día (en punto o y media)'
+      : 'Elegí el horario de cada día';
   }
+  rows.innerHTML = dias.map(i => `
+    <div class="at-pick-dia" data-wd="${i}">
+      <button type="button" class="at-pick-head" onclick="atTogglePickDia(${i})">
+        <span class="at-pick-lbl">${DIAS_FULL_JS[i]}</span>
+        <span class="at-pick-val" id="at-pick-val-${i}">${AT_HORAS[i] || 'Elegir horario'}</span>
+        <span class="at-pick-arrow" id="at-pick-arr-${i}">▾</span>
+      </button>
+      <div class="at-pick-ops" id="at-pick-${i}" style="display:none;"></div>
+    </div>`).join('');
 }
 
-const DIAS_FULL_JS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+// Abre/cierra el desplegable de horarios de un día (carga las opciones la 1ª vez).
+function atTogglePickDia(wd) {
+  const cont = document.getElementById('at-pick-' + wd);
+  if (!cont) return;
+  const abrir = cont.style.display === 'none';
+  if (abrir) atAbrirPickDia(wd); else atCerrarPickDia(wd);
+}
+function atAbrirPickDia(wd) {
+  const cont = document.getElementById('at-pick-' + wd);
+  if (!cont) return;
+  cont.style.display = '';
+  const arr = document.getElementById('at-pick-arr-' + wd);
+  if (arr) arr.textContent = '▴';
+  if (!cont.dataset.cargado) {
+    cont.innerHTML = '<span class="hint">Cargando horarios…</span>';
+    atCargarOpcionesDia(wd);
+  }
+}
+function atCerrarPickDia(wd) {
+  const cont = document.getElementById('at-pick-' + wd);
+  if (cont) cont.style.display = 'none';
+  const arr = document.getElementById('at-pick-arr-' + wd);
+  if (arr) arr.textContent = '▾';
+}
 
-// Trae las opciones de horario (con color) del próximo día de esa semana.
+// Trae los horarios del próximo día de esa semana, con su disponibilidad.
+// En "a la hora que elijo" trae todos (en punto y y media); en "mejores horas",
+// sólo los verdes (y amarillos si hay pocos verdes).
 async function atCargarOpcionesDia(wd) {
   const cont = document.getElementById('at-pick-' + wd);
   if (!cont) return;
   const desde = document.getElementById('at-desde').value;
+  const todos = AT_ESTRATEGIA === 'hora' ? '&todos=1' : '';
   const d = await apiGet('/api/horas_dia?sede=' + atSedeElegida() + '&weekday=' + wd +
-    (desde ? '&desde=' + desde : ''));
+    (desde ? '&desde=' + desde : '') + todos);
   if (!d.opciones || !d.opciones.length) {
-    cont.innerHTML = '<span class="hint">Sin horarios ese día.</span>'; return;
+    cont.innerHTML = '<span class="hint">El centro no abre ese día.</span>'; return;
   }
-  cont.innerHTML = d.opciones.map(o =>
-    `<button type="button" class="at-slot ${o.color === 'verde' ? 'libre' : 'casi'} ${AT_HORAS[wd] === o.hora ? 'sel' : ''}"
-       data-h="${o.hora}" onclick="atElegirHoraDia(${wd},'${o.hora}')">${o.hora}
-       <small>${o.libres >= 90 ? 'libre' : o.libres + ' libre' + (o.libres > 1 ? 's' : '')}</small></button>`
-  ).join('');
+  cont.dataset.cargado = '1';
+  cont.innerHTML = d.opciones.map(o => {
+    const cls = o.color === 'verde' ? 'libre' : (o.color === 'amar' ? 'casi' : 'lleno');
+    const lleno = o.color === 'rojo';
+    return `<button type="button" class="at-slot ${cls} ${AT_HORAS[wd] === o.hora ? 'sel' : ''}"
+       data-h="${o.hora}" ${lleno ? 'disabled' : ''} onclick="atElegirHoraDia(${wd},'${o.hora}')">${o.hora}
+       <small>${atTxtLibres(o.libres)}</small></button>`;
+  }).join('');
 }
+
+// Al elegir la hora, queda sólo esa hora en pantalla (se cierra el desplegable).
 function atElegirHoraDia(wd, hora) {
   AT_HORAS[wd] = hora;
   document.querySelectorAll('#at-pick-' + wd + ' .at-slot').forEach(b =>
     b.classList.toggle('sel', b.dataset.h === hora));
+  const val = document.getElementById('at-pick-val-' + wd);
+  if (val) val.textContent = hora;
+  atCerrarPickDia(wd);
   atInvalidarPropuesta();
 }
 
-// ---- Recomendados: slots más vacíos para ofrecer (uno por día hábil) ----
+// ---- Recomendados: los horarios más vacíos de cada día hábil, para ofrecer ----
 async function atCargarRecom() {
   const cont = document.getElementById('at-recom-list');
   if (!cont) return;
@@ -595,19 +634,30 @@ async function atCargarRecom() {
   const desde = document.getElementById('at-desde').value;
   const d = await apiGet('/api/recomendados?sede=' + atSedeElegida() + (desde ? '&desde=' + desde : ''));
   if (!d.items || !d.items.length) { cont.innerHTML = '<div class="empty">No hay horarios para recomendar.</div>'; return; }
-  cont.innerHTML = d.items.map(it =>
-    `<button type="button" class="at-recom-item ${it.color === 'verde' ? 'verde' : 'amar'} ${AT_DIAS.has(it.weekday) && AT_HORAS[it.weekday] === it.hora ? 'sel' : ''}"
-       data-wd="${it.weekday}" data-h="${it.hora}" onclick="atToggleRecom(${it.weekday},'${it.hora}')">
-       <span class="at-recom-dia">${it.dia}</span>
-       <span class="at-recom-hora">${it.hora}</span>
-       <span class="at-recom-lib">${it.libres >= 90 ? 'libre' : it.libres + ' libre' + (it.libres > 1 ? 's' : '')}</span>
-       <span class="at-recom-check">✓</span></button>`
-  ).join('');
+  cont.innerHTML = d.items.map(it => {
+    const sel = AT_DIAS.has(it.weekday);
+    const horaSel = sel ? AT_HORAS[it.weekday] : it.hora;
+    const ops = (it.opciones || [{ hora: it.hora, libres: it.libres, color: it.color }]);
+    return `<div class="at-recom-item ${it.color === 'verde' ? 'verde' : 'amar'} ${sel ? 'sel' : ''}" data-wd="${it.weekday}">
+      <span class="at-recom-dia">${it.dia}</span>
+      <select class="input at-recom-sel" data-wd="${it.weekday}" onchange="atRecomHora(${it.weekday}, this.value)">
+        ${ops.map(o => `<option value="${o.hora}" ${o.hora === horaSel ? 'selected' : ''}>${o.hora} · ${atTxtLibres(o.libres)}</option>`).join('')}
+      </select>
+      <button type="button" class="at-recom-check" onclick="atToggleRecom(${it.weekday})" title="Ofrecer / aceptar">✓</button>
+    </div>`;
+  }).join('');
   atRecomInfo();
 }
-function atToggleRecom(wd, hora) {
-  if (AT_DIAS.has(wd) && AT_HORAS[wd] === hora) { AT_DIAS.delete(wd); delete AT_HORAS[wd]; }
-  else { AT_DIAS.add(wd); AT_HORAS[wd] = hora; }
+// Cambiar la hora del desplegable de un día (si ya estaba aceptado, la actualiza).
+function atRecomHora(wd, hora) {
+  if (AT_DIAS.has(wd)) { AT_HORAS[wd] = hora; atInvalidarPropuesta(); }
+}
+// Aceptar / sacar un día (queda como turno fijo semanal a la hora del desplegable).
+function atToggleRecom(wd) {
+  const sel = document.querySelector(`#at-recom-list .at-recom-sel[data-wd="${wd}"]`);
+  const hora = sel ? sel.value : null;
+  if (AT_DIAS.has(wd)) { AT_DIAS.delete(wd); delete AT_HORAS[wd]; }
+  else if (hora) { AT_DIAS.add(wd); AT_HORAS[wd] = hora; }
   const b = document.querySelector(`#at-recom-list .at-recom-item[data-wd="${wd}"]`);
   if (b) b.classList.toggle('sel', AT_DIAS.has(wd));
   atRecomInfo();
@@ -618,7 +668,7 @@ function atRecomInfo() {
   const n = AT_DIAS.size;
   if (h) h.textContent = n
     ? `Elegidos ${n} horario(s) fijo(s) por semana. Se repiten hasta completar las sesiones.`
-    : 'Tocá los horarios que el paciente acepte. Cada uno queda fijo todas las semanas.';
+    : 'Elegí la hora de cada día y tocá ✓ en los que el paciente acepte.';
 }
 
 // Si cambian los parámetros, la propuesta anterior queda vieja.
