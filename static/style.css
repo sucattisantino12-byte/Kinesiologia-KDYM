@@ -592,6 +592,18 @@ body.splashing { overflow: hidden; }
 }
 #splash.on { display: grid; }
 #splash.hide { opacity: 0; transform: translateY(-20px); pointer-events: none; }
+
+/* Video de la intro: llena la pantalla. Cuando se está reproduciendo,
+   se oculta la animación hecha en CSS (que queda como respaldo). */
+.splash-video {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover; display: none; background: #A7A7A7;
+}
+#splash.con-video { background: #A7A7A7; }
+#splash.con-video .splash-video { display: block; }
+#splash.con-video .splash-inner,
+#splash.con-video .splash-swoosh-a,
+#splash.con-video .splash-swoosh-b { display: none; }
 .splash-swoosh-a {
   position: absolute; left: 0; right: 0; bottom: 0; height: 34%;
   background: linear-gradient(135deg, #0F2350 0%, #1D3F86 60%, #2F5FB0 100%);
@@ -847,6 +859,14 @@ body.splashing { overflow: hidden; }
   opacity: 1; transition: opacity .7s ease, transform .7s ease;
 }
 .hub-splash.fuera { opacity: 0; transform: scale(1.04); pointer-events: none; }
+/* Video de la intro en el hub (la animación de CSS queda de respaldo) */
+.hub-splash-video {
+  position: absolute; inset: 0; width: 100%; height: 100%;
+  object-fit: cover; display: none; background: #A7A7A7;
+}
+.hub-splash.con-video { background: #A7A7A7; }
+.hub-splash.con-video .hub-splash-video { display: block; }
+.hub-splash.con-video .hub-splash-inner { display: none; }
 .hub-splash-inner { text-align: center; display: flex; flex-direction: column;
   align-items: center; gap: 16px; }
 .hub-splash-mark {

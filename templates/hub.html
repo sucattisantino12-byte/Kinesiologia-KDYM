@@ -8,8 +8,10 @@
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ asset_v('style.css') }}">
 </head>
 <body class="hub-body">
-  <!-- Bienvenida: aparece antes del hub -->
+  <!-- Bienvenida: el video de marca. Si no puede reproducirse, queda la de CSS. -->
   <div class="hub-splash" id="hub-splash">
+    <video id="hub-video" class="hub-splash-video" muted playsinline preload="auto"
+           src="{{ url_for('static', filename='intro.mp4') }}?v={{ asset_v('intro.mp4') }}"></video>
     <div class="hub-splash-inner">
       <div class="hub-splash-mark">
         <span class="hub-splash-ring"></span>
@@ -74,18 +76,58 @@
       { base: '#C8891B', dark: '#9C6A12' },  // amarillo
       { base: '#7A5BD8', dark: '#5B3FB0' },  // violeta
     ];
-    // Sacar la bienvenida y revelar el hub (las tarjetas entran solas por CSS).
+    // Bienvenida con el video de marca; al terminar, se revela el hub.
     document.documentElement.classList.add('hub-cargando');
-    window.addEventListener('load', () => {
-      setTimeout(() => {
-        const sp = document.getElementById('hub-splash');
+    (function () {
+      const sp = document.getElementById('hub-splash');
+      const vid = document.getElementById('hub-video');
+      // Si ya vimos la intro hace poco, no la repetimos (igual que en la app).
+      let reciente = false;
+      try {
+        reciente = (Date.now() - (+localStorage.getItem('kdym_splash_ts') || 0)) < 30 * 60 * 1000;
+        if (!reciente) localStorage.setItem('kdym_splash_ts', String(Date.now()));
+      } catch (e) {}
+
+      let cerrado = false;
+      function revelar() {
+        if (cerrado) return;
+        cerrado = true;
         sp?.classList.add('fuera');
         document.documentElement.classList.remove('hub-cargando');
         document.documentElement.classList.add('hub-listo');
-        // Sacarlo del DOM al terminar el fundido (corta sus animaciones).
         setTimeout(() => { if (sp) sp.style.display = 'none'; }, 750);
-      }, 1600);
-    });
+      }
+      if (reciente) { revelar(); return; }
+      sp?.addEventListener('click', revelar);   // tocar para saltear
+
+      if (!vid) { setTimeout(revelar, 1600); return; }
+      sp?.classList.add('con-video');
+      function sinVideo() { sp?.classList.remove('con-video'); setTimeout(revelar, 1600); }
+      vid.addEventListener('ended', revelar);
+      vid.addEventListener('error', sinVideo);
+
+      let seguridad = setTimeout(revelar, 10000);   // por si nunca arranca
+      vid.addEventListener('playing', () => {
+        clearTimeout(seguridad);
+        seguridad = setTimeout(revelar, ((vid.duration || 7) * 1000) + 1500);
+      });
+      function intentarPlay() {
+        const p = vid.play();
+        if (!p || !p.catch) return;
+        p.catch(() => {
+          if (document.hidden) {
+            document.addEventListener('visibilitychange', function volvio() {
+              if (document.hidden) return;
+              document.removeEventListener('visibilitychange', volvio);
+              clearTimeout(seguridad);
+              seguridad = setTimeout(revelar, 10000);
+              intentarPlay();
+            });
+          } else { sinVideo(); }
+        });
+      }
+      intentarPlay();
+    })();
     // Al elegir sede: círculo del color de la sede que se abre desde la tarjeta.
     function accederSede(ev, el) {
       ev.preventDefault();
