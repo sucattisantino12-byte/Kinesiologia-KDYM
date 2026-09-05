@@ -652,6 +652,23 @@ def _mejor_slot(sede_id, fecha):
     return (best[0], best[1])
 
 
+def _color_libres(libres, tope):
+    """Semáforo de un horario: verde (2+ libres), amarillo (1), rojo (lleno)."""
+    if tope and libres <= 0:
+        return "rojo"
+    return "amar" if libres <= 1 else "verde"
+
+
+def _proxima_ocurrencia(weekday, desde):
+    """La próxima fecha (>= desde) de ese día de la semana que no sea feriado."""
+    cur = date.fromisoformat(desde)
+    for _ in range(70):
+        if cur.weekday() == weekday and not _es_feriado(cur.isoformat()):
+            return cur.isoformat()
+        cur += timedelta(days=1)
+    return None
+
+
 @app.context_processor
 def inject_asset_version():
     """Versión (mtime) de los archivos estáticos para evitar caché viejo:
@@ -1559,6 +1576,63 @@ def api_plan_propuesta():
     return jsonify(ok=True, items=items, resumen=resumen,
                    paciente=nombre_completo(p), quedan=quedan,
                    cantidad=cantidad, modo=modo)
+
+
+@app.route("/api/horas_dia")
+def api_horas_dia():
+    """Opciones de horario (con color) del próximo día de esa semana, para elegir
+    en 'mejores horas'. Muestra los verdes y, si hay 6 o menos, también amarillos."""
+    sede = _sede_de_args()
+    tope = tope_de_sede(sede) or 0
+    try:
+        weekday = int(request.args.get("weekday"))
+    except (TypeError, ValueError):
+        return jsonify(ok=False, error="Falta el día"), 400
+    desde = request.args.get("desde") or date.today().isoformat()
+    fecha = _proxima_ocurrencia(weekday, desde)
+    if not fecha:
+        return jsonify(ok=True, fecha=None, abierto=False, opciones=[])
+    slots = _slots_dia(sede, fecha)   # (hora, libres, ocupados)
+    if not slots:
+        return jsonify(ok=True, fecha=fecha, abierto=False, opciones=[])
+    verdes = [{"hora": h, "libres": lib, "color": "verde"}
+              for h, lib, oc in slots if (not tope or lib >= 2)]
+    amarillos = [{"hora": h, "libres": lib, "color": "amar"}
+                 for h, lib, oc in slots if tope and lib == 1]
+    ops = list(verdes)
+    if len(verdes) <= 6:
+        ops += amarillos
+    ops.sort(key=lambda x: _hm_a_min(x["hora"], 0))
+    return jsonify(ok=True, fecha=fecha, abierto=True, opciones=ops)
+
+
+@app.route("/api/recomendados")
+def api_recomendados():
+    """Hasta 7 slots recomendados (uno por día hábil que abre el local), con el
+    horario con menos gente de cada día, para ofrecerle al paciente."""
+    sede = _sede_de_args()
+    tope = tope_de_sede(sede) or 0
+    desde = request.args.get("desde") or date.today().isoformat()
+    cur = date.fromisoformat(desde)
+    vistos = set()
+    out = []
+    guard = 0
+    while len(out) < 7 and len(vistos) < 7 and guard < 40:
+        guard += 1
+        wd = cur.weekday()
+        f = cur.isoformat()
+        cur += timedelta(days=1)
+        if wd in vistos or _es_feriado(f):
+            continue
+        best = _mejor_slot(sede, f)
+        vistos.add(wd)
+        if not best or (tope and best[1] <= 0):
+            continue   # centro cerrado ese día o sin lugar
+        out.append({"weekday": wd, "dia": DIAS_FULL[wd], "fecha": f,
+                    "hora": best[0], "libres": best[1],
+                    "color": _color_libres(best[1], tope)})
+    out.sort(key=lambda x: x["weekday"])
+    return jsonify(items=out)
 
 
 @app.route("/api/plan_confirmar", methods=["POST"])

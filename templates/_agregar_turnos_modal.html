@@ -62,8 +62,14 @@
         </div>
         <!-- Un horario por cada día elegido (pueden ser distintos) -->
         <div class="field" id="at-horas-wrap" style="display:none;">
-          <label>Horario de cada día</label>
+          <label id="at-horas-label">Horario de cada día</label>
           <div id="at-horas-rows" class="at-horas-rows"></div>
+        </div>
+
+        <!-- Recomendados: slots más vacíos para ofrecer (uno por día hábil) -->
+        <div class="field" id="at-recom-wrap" style="display:none;">
+          <label>Horarios recomendados <span class="muted" style="font-weight:500;">(los más vacíos — tocá los que el paciente acepte)</span></label>
+          <div id="at-recom-list" class="at-recom-list"></div>
         </div>
 
         <button type="button" class="btn btn-line btn-block" id="at-ver-prop" style="margin-top:4px;" onclick="atProponer()">Ver propuesta de turnos</button>

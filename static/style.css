@@ -1263,6 +1263,37 @@ html[data-theme="dark"] .cal-cell.pac-hl { background: #241B3A; }
 .at-slot:not(.lleno):hover { border-color: var(--azul); background: var(--azul-claro); }
 html[data-theme="dark"] .at-slot { background: #0F1B2E; }
 html[data-theme="dark"] .at-slot.lleno { background: #172235; }
+/* Fondo tenue por color para el selector de "mejores horas" */
+.at-slot.libre { background: var(--verde-bg); border-color: #9BE0BB; }
+.at-slot.casi { background: var(--amarillo-bg); border-color: #ECCB7E; }
+.at-slot.sel { background: var(--azul); border-color: var(--azul); color: #fff; }
+.at-slot.sel small { color: rgba(255,255,255,.9); }
+
+/* "Mejores horas": un selector de horarios coloreados por día */
+.at-pick-dia { margin-bottom: 12px; }
+.at-pick-lbl { font-weight: 800; font-size: 13px; color: var(--texto); margin-bottom: 6px; }
+.at-pick-ops { display: grid; grid-template-columns: repeat(auto-fill, minmax(78px, 1fr)); gap: 6px; }
+
+/* "Recomendados": lista de slots más vacíos para ofrecer */
+.at-recom-list { display: flex; flex-direction: column; gap: 8px; }
+.at-recom-item {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  border: 1.5px solid var(--borde); border-radius: 12px; padding: 10px 12px;
+  background: #fff; cursor: pointer; font-family: inherit; font-size: 14px;
+  color: var(--texto); transition: border-color .12s, background .12s;
+}
+.at-recom-item.verde { border-left: 5px solid var(--verde); }
+.at-recom-item.amar { border-left: 5px solid var(--amarillo); }
+.at-recom-item:hover { border-color: var(--azul); }
+.at-recom-dia { font-weight: 800; flex: 1; }
+.at-recom-hora { font-weight: 800; font-size: 15px; }
+.at-recom-lib { font-size: 12px; color: var(--gris); }
+.at-recom-check { width: 22px; height: 22px; border-radius: 50%; display: flex;
+  align-items: center; justify-content: center; background: var(--gris-claro);
+  color: transparent; font-size: 13px; font-weight: 900; flex: none; }
+.at-recom-item.sel { border-color: var(--azul); background: var(--azul-claro); }
+.at-recom-item.sel .at-recom-check { background: var(--azul); color: #fff; }
+html[data-theme="dark"] .at-recom-item { background: #0F1B2E; }
 
 /* ============ Filtro por día de la semana (agenda) ============ */
 .agenda-dias-filtro { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 12px; }
