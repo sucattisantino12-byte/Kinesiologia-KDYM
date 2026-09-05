@@ -362,7 +362,7 @@ function probarAlarma() { sonarContinuo(); setTimeout(pararSonido, 3000); toast(
 let AT_PID = null, AT_PICKER = null, AT_MODO = 'auto', AT_ONDONE = null;
 let AT_DIAS = new Set();          // días de la semana elegidos (0=Lun)
 let AT_HORAS = {};                // hora por día de la semana {wd: "HH:MM"}
-let AT_ESTRATEGIA = 'hora';       // 'hora' | 'mejor_hora' | 'recomendado'
+let AT_ESTRATEGIA = 'hora';       // 'hora' (elijo el horario) | 'recomendado'
 let AT_PLAN_MODO = 'nuevo';       // 'nuevo' | 'extender'
 let AT_PROP = null;               // última propuesta mostrada (filas)
 let AT_PROP_ABIERTA = false;      // si el panel de propuesta está desplegado
@@ -508,25 +508,23 @@ function atToggleDiaChip(i) {
   atInvalidarPropuesta();
 }
 
-// Estrategia para armar los turnos.
+// Cómo armar los turnos: "hora" (elijo el horario) o "recomendado" (sólo libres).
 function atEstrategia(e) {
   AT_ESTRATEGIA = e;
   document.getElementById('at-es-hora').classList.toggle('on', e === 'hora');
-  document.getElementById('at-es-mejor').classList.toggle('on', e === 'mejor_hora');
   document.getElementById('at-es-recom').classList.toggle('on', e === 'recomendado');
-  // En "recomendado" la app elige los días: se ocultan los chips de días.
+  // En "recomendado" la app propone los días: se ocultan los chips de días.
   const diasField = document.getElementById('at-dias-field');
   if (diasField) diasField.style.display = e === 'recomendado' ? 'none' : '';
   const recom = document.getElementById('at-recom-wrap');
   if (recom) recom.style.display = e === 'recomendado' ? '' : 'none';
   const hints = {
-    hora: 'Elegís los días y ponés el horario de cada uno.',
-    mejor_hora: 'Elegís los días y elegís un horario (verde = más vacío). Se repite todas las semanas.',
-    recomendado: 'La app te muestra los horarios más vacíos para ofrecer; tocá los que el paciente acepte.',
+    hora: 'Elegí los días y, en cada uno, el horario. Te muestro todas las horas con el semáforo (verde libre, amarillo casi lleno, rojo lleno).',
+    recomendado: 'Sólo los horarios libres (en verde) de cada día, para ofrecer. Tocá el ✓ en los que el paciente acepte.',
   };
   const h = document.getElementById('at-es-hint');
   if (h) h.textContent = hints[e] || '';
-  // Al cambiar de estrategia arranco el patrón de horas limpio.
+  // Al cambiar de modo arranco el patrón de horas limpio.
   AT_HORAS = {};
   if (e === 'recomendado') { AT_DIAS = new Set(); atRenderDiasChips(); atCargarRecom(); }
   atRenderHorasRows();
@@ -548,14 +546,10 @@ function atRenderHorasRows() {
   const label = document.getElementById('at-horas-label');
   if (!rows) return;
   const dias = [...AT_DIAS].sort((a, b) => a - b);
-  const mostrar = (AT_ESTRATEGIA === 'hora' || AT_ESTRATEGIA === 'mejor_hora') && dias.length;
+  const mostrar = AT_ESTRATEGIA === 'hora' && dias.length;
   if (wrap) wrap.style.display = mostrar ? '' : 'none';
   if (!mostrar) { rows.innerHTML = ''; return; }
-  if (label) {
-    label.textContent = AT_ESTRATEGIA === 'hora'
-      ? 'Horario de cada día (en punto o y media)'
-      : 'Elegí el horario de cada día';
-  }
+  if (label) label.textContent = 'Horario de cada día (en punto o y media)';
   rows.innerHTML = dias.map(i => `
     <div class="at-pick-dia" data-wd="${i}">
       <button type="button" class="at-pick-head" onclick="atTogglePickDia(${i})">
@@ -592,16 +586,14 @@ function atCerrarPickDia(wd) {
   if (arr) arr.textContent = '▾';
 }
 
-// Trae los horarios del próximo día de esa semana, con su disponibilidad.
-// En "a la hora que elijo" trae todos (en punto y y media); en "mejores horas",
-// sólo los verdes (y amarillos si hay pocos verdes).
+// Trae TODOS los horarios del próximo día de esa semana (en punto y y media),
+// cada uno con su semáforo: verde libre, amarillo casi lleno, rojo lleno.
 async function atCargarOpcionesDia(wd) {
   const cont = document.getElementById('at-pick-' + wd);
   if (!cont) return;
   const desde = document.getElementById('at-desde').value;
-  const todos = AT_ESTRATEGIA === 'hora' ? '&todos=1' : '';
   const d = await apiGet('/api/horas_dia?sede=' + atSedeElegida() + '&weekday=' + wd +
-    (desde ? '&desde=' + desde : '') + todos);
+    (desde ? '&desde=' + desde : '') + '&todos=1');
   if (!d.opciones || !d.opciones.length) {
     cont.innerHTML = '<span class="hint">El centro no abre ese día.</span>'; return;
   }

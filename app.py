@@ -1633,15 +1633,11 @@ def api_recomendados():
         vistos.add(wd)
         if not slots:
             continue   # el centro no abre ese día
-        # Horarios recomendados de ese día: los verdes y, si hay 6 o menos,
-        # también los amarillos. Ordenados del más vacío al más lleno.
-        verdes = [s for s in slots if (not tope or s[1] >= 2)]
-        amarillos = [s for s in slots if tope and s[1] == 1]
-        cand = list(verdes)
-        if len(verdes) <= 6:
-            cand += amarillos
+        # Sólo horarios 100% libres (nadie) o en verde. Nada de amarillos.
+        # s = (hora, libres, ocupados); van del más vacío al menos vacío.
+        cand = [s for s in slots if s[2] == 0 or (tope and s[1] >= 2)]
         if not cand:
-            continue   # ese día está lleno
+            continue   # ese día no tiene horarios recomendables
         cand.sort(key=lambda x: (x[2], _hm_a_min(x[0], 0)))
         opciones = [{"hora": h, "libres": lib, "color": _color_libres(lib, tope)}
                     for h, lib, oc in cand]
