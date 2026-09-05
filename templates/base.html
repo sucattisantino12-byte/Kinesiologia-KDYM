@@ -23,22 +23,32 @@
       <svg viewBox="0 0 200 200" class="splash-mark">
         <defs>
           <clipPath id="kdymSplashClip"><circle cx="100" cy="100" r="84"></circle></clipPath>
-          <radialGradient id="kdymBrillo" cx="32%" cy="24%" r="70%">
-            <stop offset="0%" stop-color="#8FB2EC" stop-opacity=".85"></stop>
-            <stop offset="55%" stop-color="#8FB2EC" stop-opacity="0"></stop>
+          <!-- Degradé liso del círculo (como el del video): celeste arriba, navy abajo. -->
+          <linearGradient id="kdymFondo" x1="50%" y1="0%" x2="50%" y2="100%">
+            <stop offset="0%" stop-color="#2C7AAB"></stop>
+            <stop offset="45%" stop-color="#27578C"></stop>
+            <stop offset="100%" stop-color="#253164"></stop>
+          </linearGradient>
+          <!-- Brillo arriba al centro, como el círculo del video de marca. -->
+          <radialGradient id="kdymBrillo" cx="50%" cy="16%" r="62%">
+            <stop offset="0%" stop-color="#7FD2F0" stop-opacity=".42"></stop>
+            <stop offset="60%" stop-color="#7FD2F0" stop-opacity="0"></stop>
           </radialGradient>
-          <radialGradient id="kdymSombra" cx="72%" cy="82%" r="72%">
-            <stop offset="0%" stop-color="#050D1F" stop-opacity=".75"></stop>
-            <stop offset="70%" stop-color="#050D1F" stop-opacity="0"></stop>
+          <radialGradient id="kdymSombra" cx="60%" cy="88%" r="70%">
+            <stop offset="0%" stop-color="#0B1B33" stop-opacity=".38"></stop>
+            <stop offset="72%" stop-color="#0B1B33" stop-opacity="0"></stop>
           </radialGradient>
         </defs>
         <g clip-path="url(#kdymSplashClip)">
           <g transform="rotate(-18 100 100)">
-            <rect x="-110" y="4" width="420" height="52" fill="#2C55A8" style="animation:kdymCintaL .55s cubic-bezier(.16,.84,.28,1) 0s both"></rect>
-            <rect x="-110" y="56" width="420" height="52" fill="#1E3F8C" style="animation:kdymCintaR .55s cubic-bezier(.16,.84,.28,1) .08s both"></rect>
-            <rect x="-110" y="108" width="420" height="52" fill="#152C66" style="animation:kdymCintaL .55s cubic-bezier(.16,.84,.28,1) .16s both"></rect>
-            <rect x="-110" y="160" width="420" height="70" fill="#0B1B33" style="animation:kdymCintaR .55s cubic-bezier(.16,.84,.28,1) .24s both"></rect>
+            <!-- Colores tomados del círculo del video: de celeste arriba a navy abajo. -->
+            <rect x="-110" y="4" width="420" height="52" fill="#2C7AAB" style="animation:kdymCintaL .55s cubic-bezier(.16,.84,.28,1) 0s both"></rect>
+            <rect x="-110" y="56" width="420" height="52" fill="#276094" style="animation:kdymCintaR .55s cubic-bezier(.16,.84,.28,1) .08s both"></rect>
+            <rect x="-110" y="108" width="420" height="52" fill="#254578" style="animation:kdymCintaL .55s cubic-bezier(.16,.84,.28,1) .16s both"></rect>
+            <rect x="-110" y="160" width="420" height="70" fill="#253164" style="animation:kdymCintaR .55s cubic-bezier(.16,.84,.28,1) .24s both"></rect>
           </g>
+          <!-- Al terminar de entrar las cintas, se funden en el degradé liso. -->
+          <circle cx="100" cy="100" r="84" fill="url(#kdymFondo)" style="opacity:0;animation:kdymFade .45s ease-out .6s both"></circle>
           <circle cx="100" cy="100" r="84" fill="url(#kdymBrillo)" style="opacity:0;animation:kdymFade .55s ease-out .66s both"></circle>
           <circle cx="100" cy="100" r="84" fill="url(#kdymSombra)" style="opacity:0;animation:kdymFade .55s ease-out .66s both"></circle>
           <g fill="none" stroke="#fff" stroke-width="15" stroke-linecap="round" stroke-linejoin="round">
