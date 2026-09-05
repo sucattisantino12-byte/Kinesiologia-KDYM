@@ -21,54 +21,8 @@ function toggleTema() { setTema(!temaEsOscuro()); }
   localStorage.setItem('kdym_splash_ts', String(ahora));
   splash.classList.add('on');
   document.body.classList.add('splashing');
-
-  let cerrado = false;
-  function cerrar() {
-    if (cerrado) return;
-    cerrado = true;
-    splash.classList.add('hide');
-    setTimeout(() => { splash.remove(); document.body.classList.remove('splashing'); }, 650);
-  }
-  splash.addEventListener('click', cerrar);   // tocar para saltear la intro
-
-  const vid = document.getElementById('splash-video');
-  if (!vid) { setTimeout(cerrar, 3300); return; }
-
-  // Arranca con el video; si falla, vuelve a la animación de CSS.
-  splash.classList.add('con-video');
-  function sinVideo() {
-    splash.classList.remove('con-video');
-    setTimeout(cerrar, 3300);
-  }
-  vid.addEventListener('ended', cerrar);
-  vid.addEventListener('error', sinVideo);
-
-  let seguridad = setTimeout(cerrar, 10000);   // por si nunca arranca
-  vid.addEventListener('playing', () => {
-    clearTimeout(seguridad);
-    seguridad = setTimeout(cerrar, ((vid.duration || 7) * 1000) + 1500);
-  });
-
-  function intentarPlay() {
-    const p = vid.play();
-    if (!p || !p.catch) return;
-    p.catch(() => {
-      // Si la pestaña está en segundo plano el navegador no deja reproducir;
-      // en ese caso reintento cuando el usuario vuelve a la app.
-      if (document.hidden) {
-        document.addEventListener('visibilitychange', function volvio() {
-          if (document.hidden) return;
-          document.removeEventListener('visibilitychange', volvio);
-          clearTimeout(seguridad);
-          seguridad = setTimeout(cerrar, 10000);
-          intentarPlay();
-        });
-      } else {
-        sinVideo();
-      }
-    });
-  }
-  intentarPlay();
+  setTimeout(() => splash.classList.add('hide'), 3300);
+  setTimeout(() => { splash.remove(); document.body.classList.remove('splashing'); }, 3950);
 })();
 
 function toast(msg, tipo) {
