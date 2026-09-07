@@ -41,6 +41,10 @@
         {% if p.dias_horarios %}
           {% for dh in p.dias_horarios %}<span class="chip-dia">{{ dh.dia }}{% if dh.hora %} · {{ dh.hora }}{% endif %}</span>{% endfor %}
         {% else %}—{% endif %}
+        <div style="margin-top:8px;">
+          <button class="btn btn-line btn-sm" onclick="cambiarDiasHorarios()">Cambiar días y horarios</button>
+        </div>
+        <div class="hint" style="margin-top:4px;">Mueve los turnos que faltan; las sesiones ya hechas no se tocan.</div>
       </div></div>
       <div class="dato"><div class="k">Diagnóstico</div><div class="v">{{ p.diagnostico or '—' }}</div></div>
       <div class="dato"><div class="k">Notas</div><div class="v">{{ p.notas or '—' }}</div></div>
@@ -296,6 +300,12 @@
 
 {% block scripts %}
 <script>
+// Cambiar los días/horarios a mitad del tratamiento: abre "Agregar turnos"
+// directamente en el modo que mueve los turnos pendientes.
+function cambiarDiasHorarios() {
+  abrirAgregarTurnos(PID, PNOMBRE, () => location.reload());
+  atPlanModo('reprogramar');
+}
 const PID = {{ p.id }};
 const PNOMBRE = {{ p.nombre_completo|tojson }};
 const TOT = {{ p.sesiones_totales }};

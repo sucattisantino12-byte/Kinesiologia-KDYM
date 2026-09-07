@@ -579,8 +579,10 @@ def _sede_de_request(data):
     return sede_actual_id()
 
 
-def _slot_ocupado(sede_id, fecha, hora, excluir_turno=None):
-    """Cuántos turnos 'vivos' (no ausente/perdido) hay en ese horario y sede."""
+def _slot_ocupado(sede_id, fecha, hora, excluir_turno=None, excluir_paciente=None):
+    """Cuántos turnos 'vivos' (no ausente/perdido) hay en ese horario y sede.
+    `excluir_paciente` sirve al reprogramar: los turnos de ese paciente se van a
+    reemplazar, así que no deben contarse como ocupados."""
     sql = ("""SELECT COUNT(*) c FROM turnos
               WHERE sede_id=? AND fecha=? AND hora=? AND hora<>''
                 AND estado NOT IN ('ausente','perdido')""")
@@ -588,6 +590,9 @@ def _slot_ocupado(sede_id, fecha, hora, excluir_turno=None):
     if excluir_turno:
         sql += " AND id<>?"
         args.append(excluir_turno)
+    if excluir_paciente:
+        sql += " AND paciente_id<>?"
+        args.append(excluir_paciente)
     return q1(sql, tuple(args))["c"]
 
 
@@ -1510,12 +1515,22 @@ def api_plan_propuesta():
 
     modo = d.get("modo") or "nuevo"
     quedan = (p["sesiones_totales"] or 0) - (p["sesiones_usadas"] or 0)
+    desde_txt = d.get("desde") or date.today().isoformat()
     if modo == "extender":
         # Las que faltan por agendar = las que quedan menos las ya agendadas a futuro.
         fut = q1("""SELECT COUNT(*) c FROM turnos WHERE paciente_id=? AND fecha>=?
                     AND estado IN ('agendado','en_espera','presente')""",
                  (pid, date.today().isoformat()))["c"]
         cantidad = max(0, quedan - fut)
+    elif modo == "reprogramar":
+        # Cambiar días/horarios a mitad del tratamiento: se mueven los turnos que
+        # todavía no pasaron. Las sesiones ya hechas no se tocan.
+        cantidad = q1("""SELECT COUNT(*) c FROM turnos WHERE paciente_id=? AND fecha>=?
+                         AND sede_id=? AND estado IN ('agendado','en_espera','presente')""",
+                      (pid, desde_txt, sede))["c"]
+        if cantidad <= 0:
+            return jsonify(ok=False,
+                           error="Este paciente no tiene turnos pendientes para mover en esta sede."), 400
     else:
         cantidad = int(d.get("cantidad") or quedan or 0)
     if cantidad <= 0:
@@ -1545,7 +1560,8 @@ def api_plan_propuesta():
             continue   # el centro no abre ese día
         if estrategia == "hora":
             h = hora_de(wd)
-            oc = _slot_ocupado(sede, f, h)
+            oc = _slot_ocupado(sede, f, h,
+                               excluir_paciente=(pid if modo == "reprogramar" else None))
             libres = (max(0, tope - oc) if tope else 99)
             if tope and libres <= 0:
                 items.append({"fecha": f, "dia": DIAS_FULL[wd], "hora": h,
@@ -1663,6 +1679,19 @@ def api_plan_confirmar():
     if not rows:
         return jsonify(ok=False, error="No hay turnos para crear"), 400
 
+    # Reprogramar: primero se sacan los turnos pendientes que se están moviendo
+    # (así además liberan su lugar y no cuentan para el tope). Las sesiones ya
+    # hechas o pasadas NO se tocan.
+    movidos = 0
+    reemplazar = (d.get("reemplazar_desde") or "").strip()
+    if reemplazar:
+        movidos = q1("""SELECT COUNT(*) c FROM turnos WHERE paciente_id=? AND fecha>=?
+                        AND sede_id=? AND estado IN ('agendado','en_espera','presente')""",
+                     (pid, reemplazar, sede))["c"]
+        run("""DELETE FROM turnos WHERE paciente_id=? AND fecha>=? AND sede_id=?
+               AND estado IN ('agendado','en_espera','presente')""",
+            (pid, reemplazar, sede))
+
     creados, saltados, llenos = 0, 0, []
     for r in rows:
         f = (r.get("fecha") or "").strip()
@@ -1695,10 +1724,10 @@ def api_plan_confirmar():
     if llenos:
         muestra = ", ".join(llenos[:6]) + ("…" if len(llenos) > 6 else "")
         return jsonify(ok=True, creados=creados, saltados=saltados,
-                       llenos=llenos,
+                       llenos=llenos, movidos=movidos,
                        aviso=f"{creados} turno(s) creados. Estos quedaron llenos y "
                              f"no se agendaron: {muestra}")
-    return jsonify(ok=True, creados=creados, saltados=saltados, llenos=[])
+    return jsonify(ok=True, creados=creados, saltados=saltados, llenos=[], movidos=movidos)
 
 
 @app.route("/api/turno/<int:tid>/borrar", methods=["POST"])

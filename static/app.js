@@ -451,8 +451,10 @@ function atPlanModo(m) {
   AT_PLAN_MODO = m;
   document.getElementById('at-pm-nuevo').classList.toggle('on', m === 'nuevo');
   document.getElementById('at-pm-ext').classList.toggle('on', m === 'extender');
-  // "Extender" calcula la cantidad solo (las que faltan): se oculta el input.
-  document.getElementById('at-cantidad-wrap').style.display = m === 'extender' ? 'none' : '';
+  const rp = document.getElementById('at-pm-repro');
+  if (rp) rp.classList.toggle('on', m === 'reprogramar');
+  // "Extender" y "Cambiar días/horarios" calculan la cantidad solos.
+  document.getElementById('at-cantidad-wrap').style.display = (m === 'nuevo') ? '' : 'none';
   atPlanInfo();
   atInvalidarPropuesta();
 }
@@ -463,6 +465,8 @@ function atPlanInfo() {
   if (!AT_PID) { el.textContent = ''; return; }
   if (AT_PLAN_MODO === 'extender')
     el.textContent = `Le quedan ${AT_QUEDAN} sesión(es). Voy a agendar las que falten (las que aún no tienen turno).`;
+  else if (AT_PLAN_MODO === 'reprogramar')
+    el.textContent = 'Se mueven los turnos que todavía no pasaron, a los días y horarios nuevos. Las sesiones ya hechas no se tocan.';
   else
     el.textContent = AT_QUEDAN ? `Le quedan ${AT_QUEDAN} sesión(es) por hacer.` : '';
 }
@@ -901,7 +905,12 @@ async function atGenerar() {
     if (!rows.length) { atError('No quedaron turnos para agendar.'); return; }
     const resp = await fetch('/api/plan_confirmar', {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ paciente_id: AT_PID, rows, duracion: dur, sede_id }),
+      body: JSON.stringify({
+        paciente_id: AT_PID, rows, duracion: dur, sede_id,
+        // Al reprogramar, se reemplazan los turnos pendientes desde esa fecha.
+        reemplazar_desde: AT_PLAN_MODO === 'reprogramar'
+          ? document.getElementById('at-desde').value : '',
+      }),
     });
     let r = {}; try { r = await resp.json(); } catch (e) {}
     if (!resp.ok || r.ok === false) { atError(r.error || 'No se pudieron asignar los turnos'); return; }
@@ -912,7 +921,9 @@ async function atGenerar() {
       return;
     }
     cerrarModal('modal-agturnos');
-    toast(`${r.creados} turno(s) agregados ✓`, 'ok');
+    toast(r.movidos
+      ? `${r.movidos} turno(s) movidos a los días y horarios nuevos ✓`
+      : `${r.creados} turno(s) agregados ✓`, 'ok');
   } else {
     const filas = [].slice.call(document.querySelectorAll('#at-manual-rows .at-manual-row'));
     const turnos = filas.map(f => {
