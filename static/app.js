@@ -25,6 +25,29 @@ function toggleTema() { setTema(!temaEsOscuro()); }
   setTimeout(() => { splash.remove(); document.body.classList.remove('splashing'); }, 3950);
 })();
 
+// ---- Animación de entrada de la pestaña ----
+// Corre en todas las pestañas y en cualquier sede. Si está la intro, espera a
+// que se vaya para que la animación se vea.
+(function () {
+  const main = document.querySelector('main.wrap');
+  if (!main) return;
+  function animar() {
+    main.classList.add('page-enter');
+    // Se saca al terminar: así no queda ninguna transformación puesta.
+    setTimeout(() => main.classList.remove('page-enter'), 1400);
+  }
+  const splash = document.getElementById('splash');
+  if (splash && splash.classList.contains('on')) {
+    const obs = new MutationObserver(() => {
+      if (!document.getElementById('splash')) { obs.disconnect(); animar(); }
+    });
+    obs.observe(document.body, { childList: true });
+    setTimeout(() => { obs.disconnect(); animar(); }, 6000);   // red de seguridad
+  } else {
+    animar();
+  }
+})();
+
 function toast(msg, tipo) {
   const cont = document.getElementById('toasts');
   if (!cont) return;
@@ -94,49 +117,6 @@ function escapeJs(s) { return (s || '').replace(/\\/g, '\\\\').replace(/'/g, "\\
 
 // ---- Días de la semana ----
 const DIAS_ABBR = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
-
-// ---- Selector reutilizable de "días que viene" con horario por día ----
-// Devuelve { getData() -> {dias:[...], horarios:{wd:"HH:MM"}}, setData(dias,horarios) }
-function crearDiasPicker(pickerId, rowsId) {
-  const state = { dias: new Set(), horarios: {} };
-  function render() {
-    const picker = document.getElementById(pickerId);
-    const rows = document.getElementById(rowsId);
-    if (!picker) return;
-    picker.innerHTML = DIAS_ABBR.slice(0, 6).map((d, i) =>
-      `<div class="dia-btn ${state.dias.has(i) ? 'on' : ''}" data-i="${i}">${d}</div>`
-    ).join('');
-    picker.querySelectorAll('.dia-btn').forEach(b => b.onclick = () => {
-      const i = +b.dataset.i;
-      if (state.dias.has(i)) { state.dias.delete(i); delete state.horarios[i]; }
-      else state.dias.add(i);
-      render();
-    });
-    if (rows) {
-      rows.innerHTML = [...state.dias].sort((a, b) => a - b).map(i =>
-        `<div class="dia-hora-row">
-           <span class="dia-hora-lbl">${DIAS_ABBR[i]}</span>
-           <input type="time" step="900" class="input" data-dia="${i}" value="${state.horarios[i] || ''}">
-         </div>`).join('');
-      rows.querySelectorAll('input[type=time]').forEach(inp =>
-        inp.oninput = () => { state.horarios[+inp.dataset.dia] = inp.value; });
-    }
-  }
-  render();
-  return {
-    getData() {
-      const h = {};
-      Object.keys(state.horarios).forEach(k => { if (state.horarios[k]) h[k] = state.horarios[k]; });
-      return { dias: [...state.dias].sort((a, b) => a - b), horarios: h };
-    },
-    setData(dias, horarios) {
-      state.dias = new Set((dias || []).filter(i => i < 6));
-      state.horarios = {};
-      Object.keys(horarios || {}).forEach(k => { if (+k < 6) state.horarios[+k] = horarios[k]; });
-      render();
-    },
-  };
-}
 
 // ---- Modal de paciente compartido ----
 let NP_CB = null;

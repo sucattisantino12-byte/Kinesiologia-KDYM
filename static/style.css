@@ -344,16 +344,20 @@ a { color: inherit; text-decoration: none; }
 /* Plan de sesiones: toggle chico nuevo/extender */
 .seg.seg-sm button { padding: 7px 10px; font-size: 13px; }
 
-/* Animación de entrada escalonada (Recepción desde el hub, y otras pestañas) */
-.recep-enter > *, .page-enter > * { animation: recepUp .55s cubic-bezier(.2,.8,.3,1) both; }
-.recep-enter > *:nth-child(1), .page-enter > *:nth-child(1) { animation-delay: .04s; }
-.recep-enter > *:nth-child(2), .page-enter > *:nth-child(2) { animation-delay: .14s; }
-.recep-enter > *:nth-child(3), .page-enter > *:nth-child(3) { animation-delay: .24s; }
-.recep-enter > *:nth-child(4), .page-enter > *:nth-child(4) { animation-delay: .34s; }
-.recep-enter > *:nth-child(5), .page-enter > *:nth-child(5) { animation-delay: .44s; }
-@keyframes recepUp { from { transform: translateY(18px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
+/* Animación de entrada de cada pestaña (todas las sedes y todas las pestañas).
+   Se excluyen los modales: si les queda una transformación puesta, el
+   position:fixed de adentro deja de tomar la pantalla como referencia. */
+.page-enter > *:not(.modal-bg) { animation: recepUp .55s cubic-bezier(.2,.8,.3,1) both; }
+.page-enter > *:nth-child(1):not(.modal-bg) { animation-delay: .04s; }
+.page-enter > *:nth-child(2):not(.modal-bg) { animation-delay: .12s; }
+.page-enter > *:nth-child(3):not(.modal-bg) { animation-delay: .20s; }
+.page-enter > *:nth-child(4):not(.modal-bg) { animation-delay: .28s; }
+.page-enter > *:nth-child(5):not(.modal-bg) { animation-delay: .36s; }
+.page-enter > *:nth-child(6):not(.modal-bg) { animation-delay: .44s; }
+/* Termina en 'none' (no en translateY(0)) para no dejar un contexto de transformación. */
+@keyframes recepUp { from { transform: translateY(18px); opacity: 0; } to { transform: none; opacity: 1; } }
 @media (prefers-reduced-motion: reduce) {
-  .recep-enter > *, .page-enter > * { animation-duration: .01ms !important; }
+  .page-enter > *:not(.modal-bg) { animation-duration: .01ms !important; }
 }
 
 /* Selector de estrategia para armar los turnos */
@@ -626,21 +630,6 @@ body.splashing { overflow: hidden; }
 @keyframes kdymCintaF { 0% { opacity: 0; transform: translate(140px,150px) rotate(-24deg); } 45% { opacity: 1; } 100% { opacity: 1; transform: translate(0,0) rotate(0); } }
 
 /* ---------- Selector de días de la semana ---------- */
-.dias-picker { display: flex; gap: 6px; flex-wrap: wrap; }
-.dia-btn {
-  border: 1.5px solid var(--borde); background: var(--blanco);
-  border-radius: 10px; padding: 9px 0; width: 46px; text-align: center;
-  font-weight: 700; font-size: 13px; cursor: pointer; color: var(--gris);
-  user-select: none; transition: all .12s;
-}
-.dia-btn.on { background: var(--azul); color: #fff; border-color: var(--azul); }
-.dias-horas { margin-top: 10px; display: flex; flex-direction: column; gap: 8px; }
-.dia-hora-row { display: flex; align-items: center; gap: 12px; }
-.dia-hora-lbl {
-  width: 54px; font-weight: 700; font-size: 14px; color: var(--azul-oscuro);
-  background: var(--azul-claro); border-radius: 8px; padding: 8px 0; text-align: center;
-}
-.dia-hora-row input[type=time] { flex: 1; }
 
 /* ---------- Calendario ---------- */
 .cal-head { display: flex; align-items: center; gap: 12px; margin-bottom: 12px; flex-wrap: wrap; }
@@ -1370,3 +1359,15 @@ html[data-theme="dark"] .of-item { background: #0F1B2E; }
 
 /* Filtro de sede en la lista de pacientes */
 .pac-sede-filtro { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+
+/* ---- Modo oscuro: mantener el código de colores de los estados ----
+   Las reglas base de modo oscuro son más específicas que las de estado
+   (.libre, .casi, .sel...), así que sin esto el semáforo se perdía. */
+html[data-theme="dark"] .at-slot.libre { background: var(--verde-bg); border-color: #2F6B48; }
+html[data-theme="dark"] .at-slot.casi  { background: var(--amarillo-bg); border-color: #7A6A2E; }
+html[data-theme="dark"] .at-slot.sel   { background: var(--azul); border-color: var(--azul); color: #fff; }
+html[data-theme="dark"] .at-prop-row.lleno { background: var(--rojo-bg); border-color: #7A3A3D; }
+html[data-theme="dark"] .at-recom-item.sel { background: var(--azul-claro); border-color: var(--azul); }
+html[data-theme="dark"] .mini-cell.on      { background: var(--azul); border-color: var(--azul); }
+html[data-theme="dark"] .mini-cell.lleno   { background: var(--amarillo-bg); border-color: #7A6A2E; }
+html[data-theme="dark"] .mini-cell.feriado { background: var(--gris-claro); }

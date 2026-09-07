@@ -591,11 +591,35 @@ async function buscarHuecos() {
   const dur = document.getElementById('huecos-dur').value;
   if (!fecha) { toast('Elegí un día', 'alert'); return; }
   const d = await apiGet('/api/huecos?fecha=' + fecha + '&duracion=' + dur + '&sede=' + VER_SEDE);
-  const chips = d.slots.map(s =>
-    `<span class="chip" style="${s.libres > 0 ? '' : 'opacity:.35;'}">${s.hora} · ${s.libres > 0 ? s.libres + ' libre' : 'lleno'}</span>`
-  ).join('');
+  if (!d.slots || !d.slots.length) {
+    document.getElementById('huecos-res').innerHTML =
+      '<div class="empty">Ese día el centro no abre o no hay horarios.</div>';
+    return;
+  }
+  // Cada horario libre se puede tocar: abre "Agregar turnos" con ese día y hora.
+  const chips = d.slots.map(s => {
+    const libre = s.libres > 0;
+    return `<button type="button" class="at-slot ${libre ? 'libre' : 'lleno'}"
+      ${libre ? '' : 'disabled'} onclick="huecoElegir('${fecha}','${s.hora}')">${s.hora}
+      <small>${libre ? s.libres + ' libre' + (s.libres > 1 ? 's' : '') : 'lleno'}</small></button>`;
+  }).join('');
   document.getElementById('huecos-res').innerHTML =
-    `<div class="hint" style="margin-bottom:8px;">${d.boxes} box(es) en total. Horarios de 08 a 20 hs:</div><div>${chips}</div>`;
+    `<div class="hint" style="margin-bottom:8px;">${d.boxes} box(es) en total. Tocá un horario libre para dar el turno:</div>
+     <div class="at-libres-slots">${chips}</div>`;
+}
+
+// Elegir un horario del buscador: abre "Agregar turnos" en manual con la fecha y
+// la hora ya puestas, así sólo hay que elegir el paciente.
+function huecoElegir(fecha, hora) {
+  cerrarModal('modal-huecos');
+  abrirAgregarTurnos(null, '', recargar);
+  poblarSelectSede('at-sede', VER_SEDE);
+  atModo('manual');
+  document.getElementById('at-manual-rows').innerHTML = '';
+  atAgregarFila(fecha, hora);
+  const b = document.getElementById('at-buscar');
+  if (b) setTimeout(() => { b.focus(); }, 200);
+  toast('Elegí el paciente para el ' + fecha + ' a las ' + hora, 'ok');
 }
 
 // ---- Acciones de asistencia ----
