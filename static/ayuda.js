@@ -13,12 +13,12 @@ const AYUDA = {
     secciones: [
       { t: 'Cuando llega un paciente con turno', pasos: [
         'Buscalo en la <b>Sala del día</b> (a la derecha, ordenada por hora).',
-        'Tocá <b>✓ Vino</b>. Se le descuenta una sesión y queda como <b>Presente</b>.',
+        'Tocá <b>✓ Vino</b>. Si tiene obra social, podés cargar su <b>token</b> en ese momento. Se le descuenta una sesión y queda como <b>Presente</b>.',
         'Tocá <b>A un box →</b>, elegí el box y la duración, y empieza a correr el tiempo.',
       ] },
       { t: 'Cuando llega alguien sin turno', pasos: [
         'Tocá <b>Registrar llegada</b>.',
-        'Escribí el nombre, apellido o DNI y tocá <b>Vino ✓</b>.',
+        'Escribí el nombre, apellido o DNI y tocá <b>Vino ✓</b> (ahí también podés cargar el token).',
         'La app le crea el turno de hoy a esta hora y lo deja presente.',
       ] },
       { t: 'Boxes y alarma', pasos: [
@@ -145,6 +145,13 @@ const AYUDA = {
         '<b>Archivos y fotos</b>: subí estudios, recetas u órdenes (desde el celular podés sacar la foto directo).',
         '<b>Consentimiento</b>: el paciente firma con el dedo en la pantalla.',
       ] },
+      { t: 'Tokens de la obra social', pasos: [
+        'Al marcar <b>✓ Vino</b> en Recepción, si el paciente tiene obra social aparece un casillero para el <b>token</b>. Es opcional.',
+        'En la ficha, la sección <b>Tokens de la obra social</b> muestra cada número con su fecha y sesión. Tocá el lápiz para <b>corregirlo</b> o borrarlo.',
+        '<b>+ Agregar token</b> carga uno suelto: elegís la sesión y la fecha se completa sola.',
+        '<b>Cargar varios</b> abre todas las sesiones con un casillero cada una. Si tenés los códigos juntos, pegalos (uno por renglón) y tocá <b>Repartir en orden</b>.',
+        'Arriba te avisa cuántas sesiones que vino no tienen token, para completarlas antes de facturar.',
+      ] },
       { t: 'Pagos', pasos: [
         'Cargá el <b>precio por sesión</b> y tocá Guardar.',
         'Con <b>+ Registrar pago</b> anotás lo que abona (podés elegir un precio guardado).',
@@ -160,6 +167,7 @@ const AYUDA = {
       { sel: '[data-tour="ficha-acciones"]', t: 'Acciones rápidas', x: 'Agregar turnos, cambiar días y horarios, escribirle por WhatsApp o editar sus datos.' },
       { sel: '[data-tour="ficha-datos"]', t: 'Datos', x: 'DNI, teléfono, obra social, días y horarios, diagnóstico y notas.' },
       { sel: '[data-tour="ficha-historial"]', t: 'Historial de turnos', x: 'Todas sus sesiones con su estado. Tocá una para ver qué ejercicios hizo.' },
+      { sel: '[data-tour="ficha-tokens"]', t: 'Tokens de la obra social', x: 'Cada token con su fecha y sesión. Podés corregirlos, agregar uno o cargar los de todas las sesiones de una.' },
       { sel: '[data-tour="ficha-pagos"]', t: 'Pagos y bono', x: 'Precio por sesión, lo pagado y el saldo pendiente.' },
     ],
   },

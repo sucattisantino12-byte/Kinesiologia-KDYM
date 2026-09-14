@@ -2357,3 +2357,37 @@ html[data-theme="dark"] .at-guia { background: #1A2842; }
 .at-tabs, .at-plan-modo { display: flex; width: 100%; }
 .np-intro { font-size: 13px; line-height: 1.5; color: var(--texto2); background: var(--gris-claro); border-radius: 10px; padding: 9px 12px; margin-bottom: 14px; }
 .np-intro b { color: var(--texto); }
+
+/* ---------------- Tokens de la obra social ---------------- */
+.sec-acc { display: flex; gap: 6px; flex-wrap: wrap; justify-content: flex-end; }
+.dlg-ayuda { font-size: 12.5px; color: var(--gris); margin-top: 8px; text-align: left; line-height: 1.45; }
+.tok-input { font-variant-numeric: tabular-nums; letter-spacing: .04em; font-weight: 700; }
+.tok-input::placeholder { font-weight: 500; letter-spacing: 0; }
+.tok-resumen { display: flex; align-items: center; gap: 8px 14px; flex-wrap: wrap; padding: 11px 14px; border-bottom: 1px solid var(--borde2); font-size: 13.5px; color: var(--texto2); }
+.tok-falta { color: var(--amarillo); font-weight: 700; }
+.tok-ok { color: var(--verde); font-weight: 700; }
+.tok-resumen .btn { margin-left: auto; }
+.tok-item { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--borde2); }
+.tok-item:last-child { border-bottom: 0; }
+.tok-num {
+  flex: none; min-width: 92px; text-align: center; font-weight: 800; font-size: 14px; letter-spacing: .05em;
+  font-variant-numeric: tabular-nums; color: var(--azul-oscuro); background: var(--azul-claro);
+  border: 1px dashed var(--azul-borde); border-radius: 9px; padding: 6px 10px; overflow-wrap: anywhere;
+}
+.turno-token:not(:empty) { display: inline-block; font-weight: 700; color: var(--azul-oscuro); }
+.turno-token[data-sep]:not(:empty)::before { content: '·'; color: var(--gris2); font-weight: 400; margin: 0 5px; }
+.tok-pegar { border: 1px solid var(--borde); border-radius: 12px; margin-bottom: 14px; }
+.tok-pegar summary { cursor: pointer; padding: 10px 14px; font-weight: 700; font-size: 13.5px; color: var(--azul-oscuro); }
+.tok-pegar-body { padding: 0 14px 14px; }
+.tok-pegar textarea { font-variant-numeric: tabular-nums; }
+.tokl-barra { display: flex; align-items: center; justify-content: space-between; gap: 8px; flex-wrap: wrap; margin-bottom: 10px; }
+.tokl-lista { display: flex; flex-direction: column; gap: 6px; }
+.tokl-row { display: grid; grid-template-columns: 24px 1fr 170px; align-items: center; gap: 10px; padding: 7px 8px 7px 10px; border: 1px solid var(--borde2); border-radius: 12px; }
+.tokl-info { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; min-width: 0; font-size: 13.5px; }
+.tokl-row .tok-input { padding: 8px 10px; }
+.tok-input.tok-nuevo { border-color: var(--azul); background: var(--azul-claro); }
+@media (max-width: 560px) {
+  .tokl-row { grid-template-columns: 24px 1fr; }
+  .tokl-row .tok-input { grid-column: 1 / -1; }
+  .sec-head { flex-wrap: wrap; }
+}

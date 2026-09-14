@@ -346,9 +346,12 @@ async function verPerfil(pid) {
 
 // ---- Vino / No vino ----
 async function vino(tid) {
-  if (!await confirmar('¿Confirmás que vino? Se le cuenta la sesión.')) return;
-  const r = await api(`/api/turno/${tid}/vino`);
-  toast(`Vino ✓ — sesión contada · quedan ${r.sesiones_quedan}`, 'ok');
+  const t = (ESTADO.sala || []).flatMap(g => g.turnos).find(x => x.turno_id === tid) || {};
+  const token = await confirmarLlegada(t.paciente, t.obra_social);
+  if (token === null) return;
+  const r = await api(`/api/turno/${tid}/vino`, token ? { token } : {});
+  toast(`Vino ✓ — sesión contada · quedan ${r.sesiones_quedan}` + (r.token ? ' · token guardado' : ''), 'ok');
+  if (r.token) avisoTokenDuplicado(r.token.duplicado);
   refrescar();
 }
 async function deshacerVino(tid) {
@@ -591,11 +594,13 @@ async function buscarPacientes(term) {
         <div class="li-name">${escapeHtml(p.nombre_completo)}</div>
         <div class="li-sub">${p.dni ? 'DNI ' + escapeHtml(p.dni) + ' · ' : ''}${p.sesiones_quedan} sesiones restantes</div>
       </div>
-      <button class="btn btn-primary btn-sm" onclick="registrarLlegada(${p.id}, '${escapeJs(p.nombre_completo)}')">Vino ✓</button>
+      <button class="btn btn-primary btn-sm" onclick="registrarLlegada(${p.id}, '${escapeJs(p.nombre_completo)}', '${escapeJs(p.obra_social || '')}')">Vino ✓</button>
     </div>`).join('');
 }
 
-async function registrarLlegada(pid, nombre) {
+async function registrarLlegada(pid, nombre, obraSocial) {
+  const token = await confirmarLlegada(nombre, obraSocial);
+  if (token === null) return;
   const hoy = hoyISO();
   const hora = new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
   const est = await apiGet('/api/estado');
@@ -604,9 +609,10 @@ async function registrarLlegada(pid, nombre) {
   let turnoId;
   if (enSala) turnoId = enSala.turno_id;
   else { const r = await api('/api/turno', { paciente_id: pid, fecha: hoy, hora }); turnoId = r.id; }
-  await api(`/api/turno/${turnoId}/vino`);
+  const rv = await api(`/api/turno/${turnoId}/vino`, token ? { token } : {});
   cerrarModal('modal-checkin');
-  toast(`${nombre}: vino ✓`, 'ok');
+  toast(`${nombre}: vino ✓` + (rv.token ? ' · token guardado' : ''), 'ok');
+  if (rv.token) avisoTokenDuplicado(rv.token.duplicado);
   refrescar();
 }
 

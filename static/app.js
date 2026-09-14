@@ -1108,7 +1108,7 @@ const _ICO_DLG = {
 // Palabras que indican una acción que borra/pierde algo → diálogo en rojo.
 const _RX_PELIGRO = /(borrar|eliminar|quitar|perdido|no se puede deshacer|todos los turnos)/i;
 
-function _dialogo({ titulo, mensaje, ok, cancelar, peligro, input, valor, tipoInput }) {
+function _dialogo({ titulo, mensaje, ok, cancelar, peligro, input, valor, tipoInput, placeholder, ayuda, icono }) {
   return new Promise(resolve => {
     const prev = document.getElementById('ui-dlg');
     if (prev) prev.remove();
@@ -1119,10 +1119,11 @@ function _dialogo({ titulo, mensaje, ok, cancelar, peligro, input, valor, tipoIn
     bg.innerHTML = `
       <div class="modal dlg ${peligro ? 'peligro' : ''}" role="dialog" aria-modal="true">
         <div class="modal-body">
-          <div class="dlg-ic">${input ? _ICO_DLG.editar : (peligro ? _ICO_DLG.peligro : _ICO_DLG.pregunta)}</div>
+          <div class="dlg-ic">${icono || (input ? _ICO_DLG.editar : (peligro ? _ICO_DLG.peligro : _ICO_DLG.pregunta))}</div>
           <h3>${escapeHtml(titulo)}</h3>
           ${mensaje ? `<p>${escapeHtml(mensaje)}</p>` : ''}
-          ${input ? `<input class="input" id="ui-dlg-in" type="${tipoInput || 'text'}" value="${escapeHtml(valor || '')}">` : ''}
+          ${input ? `<input class="input" id="ui-dlg-in" type="${tipoInput || 'text'}" value="${escapeHtml(valor || '')}" placeholder="${escapeHtml(placeholder || '')}" autocomplete="off">` : ''}
+          ${ayuda ? `<div class="dlg-ayuda">${escapeHtml(ayuda)}</div>` : ''}
         </div>
         <div class="modal-foot">
           <button class="btn btn-ghost" data-r="0">${escapeHtml(cancelar || 'Cancelar')}</button>
@@ -1173,6 +1174,31 @@ function pedirTexto(titulo, valor, opciones) {
   return _dialogo({ titulo, mensaje: o.mensaje || '', input: true, valor, tipoInput: o.tipo, ok: o.ok || 'Guardar' });
 }
 
+// Confirmar que un paciente vino. Si tiene obra social, pide (opcional) el token.
+// Devuelve null si se cancela, o el token escrito ('' si no cargó ninguno).
+const _ICO_TOKEN = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l3 3M14.5 8.5l2 2"/></svg>';
+function _usaToken(obraSocial) {
+  const os = _sinAcentos(obraSocial || '').trim();
+  return !!os && os !== 'particular' && os !== 'sin obra social';
+}
+async function confirmarLlegada(nombre, obraSocial) {
+  if (!_usaToken(obraSocial)) {
+    return (await confirmar('¿Confirmás que vino ' + (nombre || 'el paciente') + '?', { mensaje: 'Se le cuenta la sesión.', ok: 'Sí, vino', peligro: false })) ? '' : null;
+  }
+  const r = await _dialogo({
+    titulo: '¿Confirmás que vino ' + (nombre || 'el paciente') + '?',
+    mensaje: 'Se le cuenta la sesión. Si trae el token de ' + obraSocial + ', cargalo acá.',
+    input: true, valor: '', placeholder: 'Número de token (opcional)',
+    ayuda: 'Si no lo tiene ahora, dejalo vacío: lo podés agregar después desde su ficha.',
+    ok: 'Confirmar llegada', icono: _ICO_TOKEN,
+  });
+  return r === null ? null : r.trim();
+}
+function avisoTokenDuplicado(dup) {
+  if (!dup) return;
+  toast('Ojo: ese token ya estaba cargado' + (dup.paciente ? ' en ' + dup.paciente : '') + (dup.fecha ? ' (' + fechaLinda(dup.fecha) + ')' : ''), 'alert');
+}
+
 // ---- Formatos ----
 // Fecha local "AAAA-MM-DD" (toISOString usa UTC y a la noche da el día siguiente).
 function hoyISO(d) {
@@ -1205,10 +1231,10 @@ function fechaLinda(iso, conAnio) {
   if (!iso) return '';
   const [y, m, d] = iso.split('-').map(Number);
   const dt = new Date(y, m - 1, d);
-  const dia = dt.toLocaleDateString('es-AR', { weekday: 'short' }).replace('.', '');
-  const mes = dt.toLocaleDateString('es-AR', { month: 'short' }).replace('.', '');
+  const dia = ['Dom', 'Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb'][dt.getDay()];
+  const mes = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic'][m - 1];
   const anio = (conAnio === false || (conAnio === undefined && y === new Date().getFullYear())) ? '' : ' ' + y;
-  return _cap(dia) + ' ' + d + ' ' + mes + anio;
+  return dia + ' ' + d + ' ' + mes + anio;
 }
 function _sinAcentos(s) { return (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(); }
 

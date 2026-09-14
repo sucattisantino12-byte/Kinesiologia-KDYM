@@ -73,13 +73,13 @@
       {% for h in historial %}
       {% set num = loop.index %}
       {% if h.futuro and not ns.sep %}{% set ns.sep = true %}<div class="turno-sep">Próximos turnos</div>{% endif %}
-      <div class="turno-item {% if h.ejercicios %}tiene-ej{% endif %} {% if proximo and h.id == proximo.id %}proximo{% endif %}"
+      <div class="turno-item {% if h.ejercicios %}tiene-ej{% endif %} {% if proximo and h.id == proximo.id %}proximo{% endif %}" data-turno="{{ h.id }}"
            {% if h.ejercicios %}onclick="toggleTurnoEj({{ h.id }})"{% endif %}>
         <div class="turno-row">
           <div class="turno-num">{{ num }}</div>
           <div class="li-main">
             <div class="li-name">{% if h.dia %}{{ h.dia }} {% endif %}{{ h.fecha_linda }}{% if h.hora %} <span class="turno-hora">{{ h.hora }}</span>{% endif %}</div>
-            <div class="li-sub">{% if h.sede %}{{ h.sede }}{% endif %}{% if h.sede and h.ejercicios %} · {% endif %}{% if h.ejercicios %}{{ h.ejercicios|length }} ejercicio{{ 's' if h.ejercicios|length != 1 else '' }} · tocá para ver{% endif %}</div>
+            <div class="li-sub">{% if h.sede %}{{ h.sede }}{% endif %}{% if h.sede and h.ejercicios %} · {% endif %}{% if h.ejercicios %}{{ h.ejercicios|length }} ejercicio{{ 's' if h.ejercicios|length != 1 else '' }} · tocá para ver{% endif %}<span class="turno-token" data-token-turno="{{ h.id }}" {% if h.sede or h.ejercicios %}data-sep="1"{% endif %}>{% if h.token %}Token {{ h.token }}{% endif %}</span></div>
           </div>
           <span class="pill {{ h.estado_cls }}">{{ h.estado_txt }}</span>
         </div>
@@ -99,6 +99,15 @@
       <div class="empty"><b>Todavía no tiene turnos</b><br>Armale el plan de sesiones con días y horarios.<br><button class="btn btn-primary btn-sm" onclick="abrirAgregarTurnos(PID, PNOMBRE, () => location.reload())">+ Agregar turnos</button></div>
       {% endfor %}
     </div>
+
+    <div class="sec-head" id="sec-tokens">
+      <div class="section-title">Tokens de la obra social <span class="cuenta" id="tok-cuenta"></span></div>
+      <div class="sec-acc">
+        <button class="btn btn-ghost btn-sm" onclick="abrirTokensLote()">Cargar varios</button>
+        <button class="btn btn-ghost btn-sm" onclick="abrirToken()">+ Agregar token</button>
+      </div>
+    </div>
+    <div class="card" id="tokens-box" data-tour="ficha-tokens"><div class="cargando"></div></div>
 
     <div class="sec-head">
       <div class="section-title">Pagos y bono</div>
@@ -248,6 +257,75 @@
     <div class="modal-foot">
       <button class="btn btn-primary" onclick="cerrarModal('modal-ej')">Listo</button>
       <button class="btn btn-ghost" onclick="guardarEjercicio()">Agregar (modo escribir)</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal agregar / editar token -->
+<div class="modal-bg" id="modal-token">
+  <div class="modal">
+    <div class="modal-head">
+      <h3 id="tok-tit">Agregar token</h3>
+      <button class="x" onclick="cerrarModal('modal-token')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="np-intro">El <b>token</b> es el código que da la obra social para validar cada sesión{% if p.obra_social %} ({{ p.obra_social }}){% endif %}.</div>
+      <div class="field">
+        <label>Número de token *</label>
+        <input class="input tok-input" id="tok-numero" autocomplete="off" autocapitalize="characters" spellcheck="false" placeholder="Ej: 482913">
+      </div>
+      <div class="grid2">
+        <div class="field">
+          <label>Sesión</label>
+          <select class="input" id="tok-turno" onchange="tokSesionElegida()"></select>
+        </div>
+        <div class="field">
+          <label>Fecha</label>
+          <input class="input" id="tok-fecha" type="date">
+        </div>
+      </div>
+      <div class="hint" style="margin-top:-4px;">Al elegir una sesión, la fecha se completa sola.</div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-danger-soft" id="tok-borrar" onclick="borrarToken()" style="margin-right:auto;">Borrar</button>
+      <button class="btn btn-ghost" onclick="cerrarModal('modal-token')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarToken()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<!-- Modal cargar los tokens de todas las sesiones -->
+<div class="modal-bg" id="modal-tokens-lote">
+  <div class="modal modal-lg">
+    <div class="modal-head">
+      <h3>Tokens de todas las sesiones</h3>
+      <button class="x" onclick="cerrarModal('modal-tokens-lote')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="np-intro">Escribí el token al lado de cada sesión y tocá <b>Guardar tokens</b>. Si borrás uno, se quita. ¿Tenés todos los códigos juntos? Pegalos abajo y se reparten solos.</div>
+      <details class="tok-pegar" id="tokl-pegar-box">
+        <summary>Pegar varios tokens de una vez</summary>
+        <div class="tok-pegar-body">
+          <textarea id="tokl-pegar" rows="4" placeholder="Un token por renglón, en el orden de las sesiones&#10;482913&#10;559120&#10;601337"></textarea>
+          <label class="switch-row" style="margin:10px 0;">
+            <span><b>Solo en las sesiones que no tienen token</b><small>Si lo apagás, reemplaza desde la primera sesión de la lista.</small></span>
+            <input type="checkbox" class="switch" id="tokl-solo-vacias" checked>
+          </label>
+          <button type="button" class="btn btn-line btn-sm" onclick="repartirTokens()">Repartir en orden</button>
+        </div>
+      </details>
+      <div class="tokl-barra">
+        <div class="seg seg-sm" id="tokl-filtro">
+          <button type="button" class="on" data-f="todas" onclick="tokLoteFiltro('todas')">Todas las sesiones</button>
+          <button type="button" data-f="vino" onclick="tokLoteFiltro('vino')">Solo las que vino</button>
+        </div>
+        <span class="hint" id="tokl-cuenta"></span>
+      </div>
+      <div id="tokl-lista" class="tokl-lista"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="cerrarModal('modal-tokens-lote')">Cancelar</button>
+      <button class="btn btn-primary" onclick="guardarTokensLote()">Guardar tokens</button>
     </div>
   </div>
 </div>
@@ -616,6 +694,184 @@ async function guardarFirma() {
   cerrarModal('modal-firma'); toast('Consentimiento guardado ✓', 'ok'); cargarConsent();
 }
 
-cargarPagos(); cargarAdjuntos(); cargarConsent();
+// ---- Tokens de la obra social ----
+let TOKENS = null, TOK_EDIT = null, TOKL_FILTRO = 'todas';
+const _ESTADO_SES = {
+  terminado: ['Vino', 'ok'], presente: ['Vino', 'ok'], en_curso: ['En box', 'ok'],
+  agendado: ['Agendado', 'muted-pill'], en_espera: ['Agendado', 'muted-pill'],
+};
+function _estSes(x) {
+  if ((x.estado === 'agendado' || x.estado === 'en_espera') && x.fecha < hoyISO()) return ['Sin registrar', 'warn'];
+  return _ESTADO_SES[x.estado] || [x.estado, ''];
+}
+function _txtSesion(x) {
+  return `${fechaLinda(x.fecha)}${x.hora ? ' · ' + x.hora : ''}`;
+}
+async function cargarTokens() {
+  const box = document.getElementById('tokens-box');
+  try { TOKENS = await apiGet('/api/paciente/' + PID + '/tokens'); } catch (e) { box.innerHTML = '<div class="empty">No se pudo cargar</div>'; return; }
+  const { tokens, sesiones, resumen } = TOKENS;
+  document.getElementById('tok-cuenta').textContent = tokens.length || '';
+  // Token en cada fila del historial
+  document.querySelectorAll('[data-token-turno]').forEach(el => {
+    const s = sesiones.find(x => String(x.turno_id) === el.dataset.tokenTurno);
+    el.textContent = s && s.numero ? 'Token ' + s.numero : '';
+  });
+  const faltan = resumen.vino_sin_token;
+  let html = '';
+  if (tokens.length || faltan) {
+    html += `<div class="tok-resumen">
+      <span><b>${tokens.length}</b> token${tokens.length === 1 ? '' : 's'} cargado${tokens.length === 1 ? '' : 's'}</span>
+      ${faltan ? `<span class="tok-falta">⚠ ${faltan} sesi${faltan === 1 ? 'ón' : 'ones'} que vino sin token</span>
+        <button class="btn btn-line btn-sm" onclick="abrirTokensLote('vino')">Completar</button>`
+        : (resumen.sesiones_vino ? '<span class="tok-ok">✓ Todas las sesiones que vino tienen token</span>' : '')}
+    </div>`;
+  }
+  if (!tokens.length) {
+    html += `<div class="empty"><b>Todavía no hay tokens</b><br>Se cargan al marcar que vino en Recepción, o acá con “+ Agregar token”.${sesiones.length ? '<br>Si ya tenés varios, usá “Cargar varios”.' : ''}</div>`;
+  } else {
+    html += tokens.slice().reverse().map(k => {
+      const ses = k.turno_id ? sesiones.find(x => x.turno_id === k.turno_id) : null;
+      const sub = ses ? 'Sesión ' + _txtSesion(ses) + ' · ' + _estSes(ses)[0]
+        : (k.turno_id ? 'Sesión borrada' : 'Sin sesión asociada');
+      return `<div class="tok-item">
+        <span class="tok-num">${escapeHtml(k.numero)}</span>
+        <div class="li-main"><div class="li-name">${escapeHtml(fechaLinda(k.fecha))}</div><div class="li-sub">${escapeHtml(sub)}</div></div>
+        <button class="btn btn-ghost btn-sm btn-ic" onclick="abrirToken(${k.id})" title="Editar token" aria-label="Editar"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9a2.8 2.8 0 00-4-4L4 16v4z"/></svg></button>
+      </div>`;
+    }).join('');
+  }
+  box.innerHTML = html;
+}
+
+function _opcionesSesion(sel, turnoActual) {
+  const ses = (TOKENS && TOKENS.sesiones) || [];
+  sel.innerHTML = '<option value="">Sin asociar a una sesión</option>' + ses.map(x => {
+    const otro = x.numero && x.turno_id !== turnoActual;
+    return `<option value="${x.turno_id}" data-fecha="${x.fecha}" ${x.turno_id === turnoActual ? 'selected' : ''}>${escapeHtml(_txtSesion(x) + ' — ' + _estSes(x)[0] + (otro ? ' (ya tiene token)' : ''))}</option>`;
+  }).join('');
+}
+async function abrirToken(id) {
+  if (!TOKENS) await cargarTokens();
+  const k = id ? TOKENS.tokens.find(x => x.id === id) : null;
+  TOK_EDIT = k ? k.id : null;
+  document.getElementById('tok-tit').textContent = k ? 'Editar token' : 'Agregar token';
+  document.getElementById('tok-borrar').style.display = k ? '' : 'none';
+  document.getElementById('tok-numero').value = k ? k.numero : '';
+  let turno = k ? k.turno_id : null;
+  if (!k) {
+    // Sugerir la sesión más reciente que vino y no tiene token (o la de hoy).
+    const hoy = hoyISO();
+    const cand = TOKENS.sesiones.filter(x => !x.numero && x.fecha <= hoy && ['terminado', 'presente', 'en_curso'].includes(x.estado));
+    if (cand.length) turno = cand[cand.length - 1].turno_id;
+  }
+  _opcionesSesion(document.getElementById('tok-turno'), turno);
+  const ses = TOKENS.sesiones.find(x => x.turno_id === turno);
+  document.getElementById('tok-fecha').value = k ? k.fecha : (ses ? ses.fecha : hoyISO());
+  abrirModal('modal-token');
+  setTimeout(() => document.getElementById('tok-numero').focus(), 80);
+}
+function tokSesionElegida() {
+  const op = document.getElementById('tok-turno').selectedOptions[0];
+  if (op && op.dataset.fecha) document.getElementById('tok-fecha').value = op.dataset.fecha;
+}
+async function guardarToken() {
+  const numero = document.getElementById('tok-numero').value.trim();
+  if (!numero) { toast('Escribí el número de token', 'alert'); return; }
+  const body = { numero, fecha: document.getElementById('tok-fecha').value, turno_id: document.getElementById('tok-turno').value || null };
+  const r = TOK_EDIT ? await api('/api/token/' + TOK_EDIT, body) : await api('/api/paciente/' + PID + '/token', body);
+  cerrarModal('modal-token');
+  toast(TOK_EDIT ? 'Token actualizado ✓' : 'Token guardado ✓', 'ok');
+  avisoTokenDuplicado(r.duplicado);
+  cargarTokens();
+}
+async function borrarToken() {
+  if (!TOK_EDIT || !await confirmar('¿Borrar este token?')) return;
+  await api('/api/token/' + TOK_EDIT + '/borrar');
+  cerrarModal('modal-token');
+  toast('Token borrado', 'ok');
+  cargarTokens();
+}
+document.getElementById('tok-numero').addEventListener('keydown', e => { if (e.key === 'Enter') guardarToken(); });
+
+// Cargar los tokens de todas las sesiones juntas
+async function abrirTokensLote(filtro) {
+  await cargarTokens();
+  TOKL_FILTRO = filtro || 'todas';
+  TOKL_EDITADO = {};
+  document.getElementById('tokl-pegar').value = '';
+  document.getElementById('tokl-pegar-box').open = false;
+  pintarTokensLote();
+  abrirModal('modal-tokens-lote');
+}
+function tokLoteFiltro(f) {
+  // Conservar lo que ya se escribió antes de redibujar
+  _leerLote();
+  TOKL_FILTRO = f;
+  pintarTokensLote();
+}
+let TOKL_EDITADO = {};
+function _leerLote() {
+  document.querySelectorAll('#tokl-lista .tok-input').forEach(inp => { TOKL_EDITADO[inp.dataset.turno] = inp.value; });
+}
+function pintarTokensLote() {
+  document.querySelectorAll('#tokl-filtro button').forEach(b => b.classList.toggle('on', b.dataset.f === TOKL_FILTRO));
+  const ses = TOKENS.sesiones.filter(x => TOKL_FILTRO !== 'vino' || ['terminado', 'presente', 'en_curso'].includes(x.estado));
+  const cont = document.getElementById('tokl-lista');
+  if (!ses.length) {
+    cont.innerHTML = `<div class="empty">${TOKL_FILTRO === 'vino' ? 'Todavía no hay sesiones en las que haya venido.' : 'Este paciente todavía no tiene turnos. Dale turnos primero o agregá tokens sueltos.'}</div>`;
+  } else {
+    const num = new Map(TOKENS.sesiones.map((x, i) => [x.turno_id, i + 1]));
+    cont.innerHTML = ses.map(x => {
+      const [et, ec] = _estSes(x);
+      const val = TOKL_EDITADO[x.turno_id] !== undefined ? TOKL_EDITADO[x.turno_id] : (x.numero || '');
+      return `<div class="tokl-row">
+        <span class="turno-num">${num.get(x.turno_id)}</span>
+        <div class="tokl-info"><b>${escapeHtml(_txtSesion(x))}</b><span class="pill ${ec}">${et}</span></div>
+        <input class="input tok-input" data-turno="${x.turno_id}" data-fecha="${x.fecha}" data-orig="${escapeHtml(x.numero || '')}" value="${escapeHtml(val)}" placeholder="Token" autocomplete="off" autocapitalize="characters" spellcheck="false">
+      </div>`;
+    }).join('');
+  }
+  const conTok = TOKENS.sesiones.filter(x => x.numero).length;
+  document.getElementById('tokl-cuenta').textContent = `${conTok} de ${TOKENS.sesiones.length} sesiones con token`;
+  // Enter pasa al siguiente casillero
+  const inputs = [...cont.querySelectorAll('.tok-input')];
+  inputs.forEach((inp, i) => inp.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); (inputs[i + 1] || inp).focus(); }
+  }));
+}
+function repartirTokens() {
+  const lista = document.getElementById('tokl-pegar').value.split(/[\n,;\t]+/).map(x => x.trim()).filter(Boolean);
+  if (!lista.length) { toast('Pegá los tokens, uno por renglón', 'alert'); return; }
+  const soloVacias = document.getElementById('tokl-solo-vacias').checked;
+  const inputs = [...document.querySelectorAll('#tokl-lista .tok-input')].filter(inp => !soloVacias || !inp.value.trim());
+  let n = 0;
+  inputs.forEach(inp => { if (n < lista.length) { inp.value = lista[n++]; inp.classList.add('tok-nuevo'); } });
+  document.getElementById('tokl-pegar-box').open = false;
+  const sobran = lista.length - n;
+  if (sobran > 0) toast(`Se repartieron ${n}. ${sobran === 1 ? 'Sobró 1 token' : 'Sobraron ' + sobran + ' tokens'}: no hay más sesiones${soloVacias ? ' sin token' : ''}.`, 'alert');
+  else toast(`Se ${n === 1 ? 'repartió 1 token' : 'repartieron ' + n + ' tokens'}. Revisalos y tocá Guardar.`, 'ok');
+}
+async function guardarTokensLote() {
+  _leerLote();
+  const items = [];
+  document.querySelectorAll('#tokl-lista .tok-input').forEach(inp => {
+    if (inp.value.trim() !== (inp.dataset.orig || '')) items.push({ turno_id: +inp.dataset.turno, fecha: inp.dataset.fecha, numero: inp.value.trim() });
+  });
+  if (!items.length) { cerrarModal('modal-tokens-lote'); toast('No hubo cambios'); return; }
+  const r = await api('/api/paciente/' + PID + '/tokens_lote', { items });
+  TOKL_EDITADO = {};
+  cerrarModal('modal-tokens-lote');
+  const partes = [];
+  if (r.guardados) partes.push(`${r.guardados} guardado${r.guardados === 1 ? '' : 's'}`);
+  if (r.borrados) partes.push(`${r.borrados} borrado${r.borrados === 1 ? '' : 's'}`);
+  toast('Tokens: ' + partes.join(' · '), 'ok');
+  if (r.duplicados && r.duplicados.length) {
+    toast('Ojo: ' + r.duplicados.map(d => d.numero + (d.paciente ? ' (ya estaba en ' + d.paciente + ')' : '')).join(', '), 'alert');
+  }
+  cargarTokens();
+}
+
+cargarPagos(); cargarAdjuntos(); cargarConsent(); cargarTokens();
 </script>
 {% endblock %}

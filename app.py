@@ -334,6 +334,16 @@ def init_db():
             nombre TEXT,
             monto REAL
         );
+
+        -- Tokens de la obra social (código que valida cada sesión).
+        CREATE TABLE IF NOT EXISTS tokens (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            paciente_id INTEGER,
+            turno_id INTEGER,
+            fecha TEXT,
+            numero TEXT,
+            creado TEXT
+        );
         """
     )
     db.commit()
@@ -857,6 +867,8 @@ def ficha(pid):
     ej_por_turno = {}
     for e in q("SELECT * FROM ejercicios WHERE paciente_id=? AND turno_id IS NOT NULL", (pid,)):
         ej_por_turno.setdefault(e["turno_id"], []).append(e)
+    tok_por_turno = {k["turno_id"]: k["numero"] for k in
+                     q("SELECT turno_id, numero FROM tokens WHERE paciente_id=? AND turno_id IS NOT NULL", (pid,))}
     historial = []
     hoy_iso = date.today().isoformat()
     meses = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]
@@ -897,6 +909,7 @@ def ficha(pid):
             "estado_cls": ec,
             "futuro": futuro,
             "sede": nombres_sede.get(h["sede_id"], "") if len(nombres_sede) > 1 else "",
+            "token": tok_por_turno.get(h["id"], ""),
             "ejercicios": ej_por_turno.get(h["id"], []),
         }
         if futuro and proximo is None:
@@ -1276,6 +1289,10 @@ def api_vino(tid):
         return jsonify(ok=False, error="Turno inexistente"), 404
     ya_conto = t["estado"] in ("presente", "en_curso", "terminado")
     run("UPDATE turnos SET estado='presente' WHERE id=?", (tid,))
+    d = request.get_json(force=True, silent=True) or {}
+    token_info = None
+    if (d.get("token") or "").strip():
+        token_info = _guardar_token(t["paciente_id"], d.get("token"), t["fecha"], tid)
     if not ya_conto:
         _descontar_sesion(t["paciente_id"])
         registrar_evento("vino", t["paciente_id"],
@@ -1283,7 +1300,7 @@ def api_vino(tid):
     p = q1("SELECT sesiones_totales, sesiones_usadas FROM pacientes WHERE id=?",
            (t["paciente_id"],))
     quedan = (p["sesiones_totales"] or 0) - (p["sesiones_usadas"] or 0)
-    return jsonify(ok=True, sesiones_quedan=quedan)
+    return jsonify(ok=True, sesiones_quedan=quedan, token=token_info)
 
 
 @app.route("/api/turno/<int:tid>/elegir_fecha", methods=["POST"])
@@ -1891,6 +1908,8 @@ def api_plan_confirmar():
 @app.route("/api/turno/<int:tid>/borrar", methods=["POST"])
 def api_borrar_turno(tid):
     run("DELETE FROM turnos WHERE id=?", (tid,))
+    # El token (si tenía) se conserva, pero ya no queda atado a ese turno.
+    run("UPDATE tokens SET turno_id=NULL WHERE turno_id=?", (tid,))
     return jsonify(ok=True)
 
 
@@ -2248,13 +2267,129 @@ def api_editar_paciente(pid):
 def api_borrar_paciente(pid):
     # Borrar el paciente arrastra sus registros para no dejar datos huérfanos.
     for t in ("turnos", "ejercicios", "evoluciones", "pagos",
-              "adjuntos", "consentimientos", "plantillas", "eventos"):
+              "adjuntos", "consentimientos", "plantillas", "eventos", "tokens"):
         try:
             run(f"DELETE FROM {t} WHERE paciente_id=?", (pid,))
         except Exception:
             pass
     run("DELETE FROM pacientes WHERE id=?", (pid,))
     return jsonify(ok=True)
+
+
+# --------------------------------------------------------------------------
+# API — tokens de la obra social
+# --------------------------------------------------------------------------
+def _token_duplicado(numero, excluir_id=None):
+    """Si ese número de token ya está cargado (en cualquier paciente), devuelve dónde."""
+    sql = """SELECT k.id, k.fecha, p.nombre, p.apellido FROM tokens k
+             LEFT JOIN pacientes p ON p.id=k.paciente_id WHERE k.numero=?"""
+    args = [numero]
+    if excluir_id:
+        sql += " AND k.id<>?"
+        args.append(excluir_id)
+    r = q1(sql + " LIMIT 1", tuple(args))
+    if not r:
+        return None
+    return {"paciente": f"{r['nombre'] or ''} {r['apellido'] or ''}".strip(), "fecha": r["fecha"]}
+
+
+def _guardar_token(pid, numero, fecha, turno_id=None, token_id=None):
+    """Crea o actualiza un token. Si viene atado a un turno que ya tenía token, lo reemplaza."""
+    numero = " ".join((numero or "").split())
+    fecha = (fecha or "").strip() or date.today().isoformat()
+    turno_id = int(turno_id) if str(turno_id or "").isdigit() else None
+    if not token_id and turno_id:
+        ex = q1("SELECT id FROM tokens WHERE turno_id=? AND paciente_id=?", (turno_id, pid))
+        if ex:
+            token_id = ex["id"]
+    dup = _token_duplicado(numero, token_id)
+    if token_id:
+        run("UPDATE tokens SET numero=?, fecha=?, turno_id=? WHERE id=?",
+            (numero, fecha, turno_id, token_id))
+    else:
+        token_id = run("INSERT INTO tokens (paciente_id, turno_id, fecha, numero, creado) VALUES (?,?,?,?,?)",
+                       (pid, turno_id, fecha, numero, datetime.now().isoformat(timespec="seconds")))
+    return {"id": token_id, "numero": numero, "fecha": fecha, "duplicado": dup}
+
+
+@app.route("/api/paciente/<int:pid>/tokens")
+def api_tokens_paciente(pid):
+    tokens = [dict(r) for r in q(
+        """SELECT k.id, k.numero, k.fecha, k.turno_id, t.hora, t.fecha AS turno_fecha, t.estado AS turno_estado
+           FROM tokens k LEFT JOIN turnos t ON t.id=k.turno_id
+           WHERE k.paciente_id=? ORDER BY k.fecha, k.id""", (pid,))]
+    por_turno = {k["turno_id"]: k for k in tokens if k["turno_id"]}
+    sesiones = []
+    for t in q("""SELECT id, fecha, hora, estado FROM turnos
+                  WHERE paciente_id=? AND estado NOT IN ('ausente','perdido')
+                  ORDER BY fecha, hora, id""", (pid,)):
+        k = por_turno.get(t["id"])
+        sesiones.append({"turno_id": t["id"], "fecha": t["fecha"], "hora": t["hora"] or "",
+                         "estado": t["estado"], "dia": dia_semana(t["fecha"]),
+                         "token_id": k["id"] if k else None, "numero": k["numero"] if k else ""})
+    vino = [x for x in sesiones if x["estado"] in ("presente", "en_curso", "terminado")]
+    return jsonify(ok=True, tokens=tokens, sesiones=sesiones, resumen={
+        "cargados": len(tokens),
+        "sesiones_vino": len(vino),
+        "vino_sin_token": sum(1 for x in vino if not x["numero"]),
+    })
+
+
+@app.route("/api/paciente/<int:pid>/token", methods=["POST"])
+def api_nuevo_token(pid):
+    d = request.get_json(force=True, silent=True) or {}
+    if not (d.get("numero") or "").strip():
+        return jsonify(ok=False, error="Escribí el número de token"), 400
+    if not q1("SELECT 1 FROM pacientes WHERE id=?", (pid,)):
+        return jsonify(ok=False, error="Paciente inexistente"), 404
+    r = _guardar_token(pid, d.get("numero"), d.get("fecha"), d.get("turno_id"))
+    return jsonify(ok=True, **r)
+
+
+@app.route("/api/token/<int:kid>", methods=["POST"])
+def api_editar_token(kid):
+    k = q1("SELECT * FROM tokens WHERE id=?", (kid,))
+    if not k:
+        return jsonify(ok=False, error="Token inexistente"), 404
+    d = request.get_json(force=True, silent=True) or {}
+    if not (d.get("numero") or "").strip():
+        return jsonify(ok=False, error="Escribí el número de token"), 400
+    turno = d.get("turno_id", k["turno_id"])
+    # Si lo pasan a un turno que ya tenía otro token, ese otro se desasocia.
+    if str(turno or "").isdigit():
+        run("UPDATE tokens SET turno_id=NULL WHERE turno_id=? AND id<>?", (int(turno), kid))
+    r = _guardar_token(k["paciente_id"], d.get("numero"), d.get("fecha") or k["fecha"],
+                       turno, token_id=kid)
+    return jsonify(ok=True, **r)
+
+
+@app.route("/api/token/<int:kid>/borrar", methods=["POST"])
+def api_borrar_token(kid):
+    run("DELETE FROM tokens WHERE id=?", (kid,))
+    return jsonify(ok=True)
+
+
+@app.route("/api/paciente/<int:pid>/tokens_lote", methods=["POST"])
+def api_tokens_lote(pid):
+    """Carga (o corrige) los tokens de varias sesiones juntas.
+    items: [{turno_id, fecha, numero}] — un número vacío borra el token de esa sesión."""
+    d = request.get_json(force=True, silent=True) or {}
+    guardados, borrados, duplicados = 0, 0, []
+    for it in (d.get("items") or []):
+        numero = (it.get("numero") or "").strip()
+        turno_id = it.get("turno_id")
+        if not numero:
+            if str(turno_id or "").isdigit():
+                n = q1("SELECT COUNT(*) c FROM tokens WHERE turno_id=? AND paciente_id=?", (int(turno_id), pid))["c"]
+                if n:
+                    run("DELETE FROM tokens WHERE turno_id=? AND paciente_id=?", (int(turno_id), pid))
+                    borrados += n
+            continue
+        r = _guardar_token(pid, numero, it.get("fecha"), turno_id)
+        guardados += 1
+        if r["duplicado"]:
+            duplicados.append({"numero": r["numero"], **r["duplicado"]})
+    return jsonify(ok=True, guardados=guardados, borrados=borrados, duplicados=duplicados)
 
 
 @app.route("/api/paciente/<int:pid>/ejercicio", methods=["POST"])
