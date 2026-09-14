@@ -2,50 +2,65 @@
 {% block title %}Pacientes — KDYM{% endblock %}
 
 {% block content %}
-<div class="row" style="align-items:center; margin-bottom:14px;">
-  <div class="grow">
-    <div class="page-title" style="margin-bottom:2px;">Pacientes</div>
-    <div class="muted">{{ pacientes|length }} paciente(s) cargado(s)</div>
+<div class="page-head">
+  <div class="page-head-txt">
+    <div class="page-title">Pacientes</div>
+    <div class="page-sub" id="pac-sub">{{ pacientes|length }} paciente{{ '' if pacientes|length == 1 else 's' }}{% set hoy_n = pacientes|selectattr('hoy')|list|length %}{% if hoy_n %} · <b>{{ hoy_n }}</b> con turno hoy{% endif %}</div>
   </div>
-  <div class="seg" id="pac-view">
-    <button data-v="grid" onclick="cambiarVistaPac('grid')" title="Ver en tarjetas">▦ Tarjetas</button>
-    <button data-v="list" onclick="cambiarVistaPac('list')" title="Ver en lista">☰ Lista</button>
+  <div class="page-head-actions">
+    <button class="btn btn-primary" onclick="abrirNuevoPaciente(irAFicha)" data-tour="nuevo-paciente">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      Nuevo paciente
+    </button>
   </div>
-  <button class="btn btn-primary" onclick="abrirNuevoPaciente(irAFicha)">+ Nuevo paciente</button>
 </div>
 
-<div class="field">
-  <input class="input" id="buscar" placeholder=" Buscar por nombre, apellido o DNI…" autocomplete="off">
+<div class="pac-toolbar">
+  <input class="input input-buscar" id="buscar" placeholder="Buscar por nombre, apellido, DNI u obra social…" autocomplete="off" data-tour="pac-buscar">
+  {% if sedes and sedes|length > 1 %}
+  <div class="seg" id="pac-sede-filtro" data-tour="pac-sede">
+    <button class="on" data-sede="todas" onclick="filtrarSede('todas')">Todas</button>
+    {% for s in sedes %}
+    <button data-sede="{{ s.id }}" onclick="filtrarSede('{{ s.id }}')">{{ s.nombre }}</button>
+    {% endfor %}
+  </div>
+  {% endif %}
+  <div class="seg" id="pac-view" data-tour="pac-vista">
+    <button data-v="grid" onclick="cambiarVistaPac('grid')" title="Ver en tarjetas" aria-label="Tarjetas">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="4" y="4" width="7" height="7" rx="1.6"/><rect x="13" y="4" width="7" height="7" rx="1.6"/><rect x="4" y="13" width="7" height="7" rx="1.6"/><rect x="13" y="13" width="7" height="7" rx="1.6"/></svg>
+    </button>
+    <button data-v="list" onclick="cambiarVistaPac('list')" title="Ver en lista" aria-label="Lista">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></svg>
+    </button>
+  </div>
 </div>
-
-{% if sedes and sedes|length > 1 %}
-<div class="pac-sede-filtro" id="pac-sede-filtro">
-  <button class="dia-chip on" data-sede="todas" onclick="filtrarSede('todas')">Ambas sedes</button>
-  {% for s in sedes %}
-  <button class="dia-chip" data-sede="{{ s.id }}" onclick="filtrarSede('{{ s.id }}')">{{ s.nombre }}</button>
-  {% endfor %}
-</div>
-{% endif %}
 
 <div class="pac-grid stagger-in" id="lista">
   {% for p in pacientes %}
   {% if loop.first and p.hoy %}<div class="pac-sep">Con turno hoy</div>{% endif %}
   {% if pacientes[0].hoy and not p.hoy and pacientes[loop.index0 - 1].hoy %}<div class="pac-sep">Todos los pacientes</div>{% endif %}
-  <a href="{{ url_for('ficha', pid=p.id) }}" class="pac-card {{ 'row-hoy' if p.hoy }}" data-nombre="{{ (p.nombre_completo ~ ' ' ~ p.dni ~ ' ' ~ p.obra_social)|lower }}" data-sedes="{{ p.sedes|join(',') }}">
+  {% set pct = ((p.sesiones_usadas / p.sesiones_totales * 100) if p.sesiones_totales else 0)|round|int %}
+  <a href="{{ url_for('ficha', pid=p.id) }}" class="pac-card {{ 'row-hoy' if p.hoy }}" data-nombre="{{ (p.nombre_completo ~ ' ' ~ p.dni ~ ' ' ~ p.obra_social ~ ' ' ~ p.telefono)|lower }}" data-sedes="{{ p.sedes|join(',') }}" data-hoy="{{ '1' if p.hoy else '' }}">
     <div class="avatar">{{ (p.nombre[:1] ~ p.apellido[:1])|upper }}</div>
     <div class="li-main grow">
-      <div class="li-name">{{ p.nombre_completo }}{% if p.hoy %} <span class="pill ok" style="margin-left:4px;">Hoy</span>{% endif %}</div>
-      <div class="pac-diag">{% if p.obra_social %}<span class="pill">{{ p.obra_social }}</span> {% endif %}{{ p.diagnostico or 'Sin diagnóstico' }}</div>
+      <div class="li-name">{{ p.nombre_completo }}{% if p.hoy %} <span class="pill ok">Hoy</span>{% endif %}</div>
+      <div class="pac-diag">{% if p.obra_social %}<span class="pill">{{ p.obra_social }}</span> {% endif %}{{ p.diagnostico or 'Sin diagnóstico cargado' }}</div>
       <div class="pac-card-foot">
-        <span class="pill {{ 'danger' if p.sesiones_quedan <= 0 else ('warn' if p.sesiones_quedan <= 1 else '') }}">
-          {{ p.sesiones_quedan }} / {{ p.sesiones_totales }} sesiones
+        {% if p.sesiones_totales %}
+        <div class="pac-prog {{ 'danger' if p.sesiones_quedan <= 0 else ('warn' if p.sesiones_quedan <= 1 else '') }}"><span style="width:{{ pct }}%"></span></div>
+        <span class="pac-ses {{ 'danger' if p.sesiones_quedan <= 0 else ('warn' if p.sesiones_quedan <= 1 else '') }}">
+          {% if p.sesiones_quedan <= 0 %}Sin sesiones{% else %}{{ p.sesiones_quedan }} de {{ p.sesiones_totales }} restantes{% endif %}
         </span>
+        {% else %}
+        <span class="pac-ses muted">Sin plan de sesiones</span>
+        {% endif %}
       </div>
     </div>
   </a>
   {% else %}
-  <div class="empty">Todavía no hay pacientes. Cargá el primero con “+ Nuevo paciente”.</div>
+  <div class="card" style="grid-column:1/-1;"><div class="empty"><b>Todavía no hay pacientes</b><br>Cargá el primero y dale sus turnos en el mismo paso.<br><button class="btn btn-primary btn-sm" onclick="abrirNuevoPaciente(irAFicha)">+ Nuevo paciente</button></div></div>
   {% endfor %}
+  <div class="card pac-nada" id="pac-nada" style="display:none; grid-column:1/-1;"><div class="empty"><b>No encontré pacientes</b><br>Probá con otra parte del nombre o el DNI.</div></div>
 </div>
 
 {% include "_paciente_modal.html" %}
@@ -56,17 +71,26 @@
 <script>
 let PAC_SEDE = 'todas';
 function aplicarFiltros() {
-  const t = (document.getElementById('buscar').value || '').trim().toLowerCase();
+  const t = _sinAcentos((document.getElementById('buscar').value || '').trim());
+  let visibles = 0, hoyVis = 0;
   document.querySelectorAll('#lista .pac-card').forEach(it => {
-    const okTexto = it.dataset.nombre.includes(t);
+    const okTexto = _sinAcentos(it.dataset.nombre).includes(t);
     const sedes = (it.dataset.sedes || '').split(',').filter(Boolean);
     const okSede = PAC_SEDE === 'todas' || sedes.includes(PAC_SEDE);
-    it.style.display = (okTexto && okSede) ? '' : 'none';
+    const ok = okTexto && okSede;
+    it.style.display = ok ? '' : 'none';
+    if (ok) { visibles++; if (it.dataset.hoy) hoyVis++; }
   });
+  // Separadores: sólo si su grupo tiene algo visible.
+  const seps = document.querySelectorAll('#lista .pac-sep');
+  if (seps[0]) seps[0].style.display = hoyVis ? '' : 'none';
+  if (seps[1]) seps[1].style.display = (hoyVis && visibles > hoyVis) ? '' : 'none';
+  const nada = document.getElementById('pac-nada');
+  if (nada) nada.style.display = visibles ? 'none' : '';
 }
 function filtrarSede(id) {
   PAC_SEDE = id;
-  document.querySelectorAll('#pac-sede-filtro .dia-chip').forEach(b =>
+  document.querySelectorAll('#pac-sede-filtro button').forEach(b =>
     b.classList.toggle('on', b.dataset.sede === id));
   aplicarFiltros();
 }

@@ -64,23 +64,46 @@ function render() {
   pintarSala();
 }
 
+const _IC_STAT = {
+  turnos: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>',
+  vinieron: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.2 4.2L19 7"/></svg>',
+  box: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="13" r="7.5"/><path d="M12 9.5V13l2.5 1.5M9.5 2.5h5"/></svg>',
+  presentes: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="8" r="3.8"/><path d="M4.5 20c.7-3.7 3.7-5.8 7.5-5.8s6.8 2.1 7.5 5.8"/></svg>',
+  porvenir: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>',
+  novino: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M7 7l10 10M17 7L7 17"/></svg>',
+};
 function pintarStats() {
   const s = ESTADO.stats;
   const items = [
-    [s.total, 'Turnos hoy'],
-    [s.atendidos, 'Vinieron'],
-    [s.en_curso, 'En box'],
-    [s.presentes, 'Presentes'],
-    [s.pendientes, 'Por venir'],
-    [s.ausentes, 'No vinieron'],
+    [s.total, 'Turnos hoy', 'c-navy', 'turnos'],
+    [s.atendidos, 'Vinieron', 'c-verde', 'vinieron'],
+    [s.en_curso, 'En box ahora', '', 'box'],
+    [s.presentes, 'Esperando', 'c-violeta', 'presentes'],
+    [s.pendientes, 'Por venir', 'c-gris', 'porvenir'],
+    [s.ausentes, 'No vinieron', 'c-rojo', 'novino'],
   ];
-  document.getElementById('stats').innerHTML = items.map(([n, l]) =>
-    `<div class="stat"><div class="n">${n}</div><div class="l">${l}</div></div>`
+  const html = items.map(([n, l, c, ic]) =>
+    `<div class="stat ${c}"><span class="stat-ic">${_IC_STAT[ic]}</span><div class="n">${n}</div><div class="l">${l}</div></div>`
   ).join('');
+  const cont = document.getElementById('stats');
+  if (cont.dataset.h !== html) { cont.innerHTML = html; cont.dataset.h = html; }
 }
 
+const _IC_BOX_LIBRE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14M5 12h14"/></svg>';
+function _barraBox(restante, totalSeg) {
+  const total = Math.max(1, totalSeg);
+  const pct = Math.max(0, Math.min(100, 100 * (total - restante) / total));
+  return `<div class="box-prog"><span style="width:${pct}%"></span></div>`;
+}
 function pintarBoxes() {
   const cont = document.getElementById('boxes');
+  const libres = ESTADO.boxes.filter(b => !b.ocupado).length;
+  const cuenta = document.getElementById('boxes-cuenta');
+  if (cuenta) cuenta.textContent = ESTADO.boxes.length ? `${libres} libre${libres === 1 ? '' : 's'} de ${ESTADO.boxes.length}` : '';
+  if (!ESTADO.boxes.length) {
+    cont.innerHTML = `<div class="card box-vacio"><div class="empty"><b>Esta sede todavía no tiene boxes</b><br>Agregá los boxes para empezar a mandar pacientes.<br><button class="btn btn-primary btn-sm" onclick="agregarBox()">+ Agregar el primer box</button></div></div>`;
+    return;
+  }
   cont.innerHTML = ESTADO.boxes.map(b => {
     // Modo prueba (simulación de 10s) en un box libre.
     if (!b.ocupado && TESTS[b.id] !== undefined) {
@@ -92,8 +115,9 @@ function pintarBoxes() {
           <span class="box-badge ${venc ? 'badge-vencido' : 'badge-ocupado'}">${venc ? '¡Terminó!' : 'Prueba'}</span>
         </div>
         <div class="box-pac">Prueba de alarma</div>
-        <div class="box-diag"></div>
-        <div class="timer" data-restante="${rest}">${fmt(rest)}</div>
+        <div class="box-diag">Suena a los 10 segundos</div>
+        <div class="timer" data-restante="${rest}" data-total="10">${fmt(rest)}</div>
+        ${_barraBox(rest, 10)}
         <div class="box-actions">
           <button class="btn btn-ok btn-sm btn-block" onclick="terminarPrueba(${b.id})">✓ Terminar prueba</button>
         </div>
@@ -103,19 +127,22 @@ function pintarBoxes() {
       return `<div class="box libre">
         <div class="box-head">
           <span class="box-nom">${escapeHtml(b.nombre)}</span>
-          <span class="box-badge badge-libre">Libre</span>
+          <span class="box-badge badge-libre"><i></i>Libre</span>
+          <button class="box-quitar" onclick="borrarBox(${b.id})" title="Quitar box" aria-label="Quitar box">&times;</button>
         </div>
-        <div class="box-libre-txt">Disponible</div>
-        <div class="box-actions">
-          <button class="btn btn-primary btn-sm grow" onclick="ponerEnBox(${b.id}, '${escapeJs(b.nombre)}')">+ Paciente</button>
-          <button class="btn btn-line btn-sm" onclick="probarBox(${b.id})" title="Probar alarma (10 segundos)">Prueba</button>
-          <button class="btn btn-danger-soft btn-sm" onclick="borrarBox(${b.id})" title="Quitar box">✕</button>
+        <button class="box-libre-cta" onclick="ponerEnBox(${b.id}, '${escapeJs(b.nombre)}')">
+          <span class="box-libre-ic">${_IC_BOX_LIBRE}</span>
+          <span>Poner paciente</span>
+        </button>
+        <div class="box-actions solo-demo">
+          <button class="btn btn-line btn-sm btn-block" onclick="probarBox(${b.id})" title="Probar alarma (10 segundos)">Probar alarma</button>
         </div>
       </div>`;
     }
     const venc = b.vencido;
+    const totalSeg = (b.duracion || 30) * 60;
     const wa = (venc && CONFIG.wa_kine)
-      ? `<button class="btn btn-ghost btn-sm" onclick="avisarWa('${escapeJs(b.paciente)}','${escapeJs(b.nombre)}')" title="Avisar por WhatsApp">WA</button>` : '';
+      ? `<button class="btn btn-wa btn-sm" onclick="avisarWa('${escapeJs(b.paciente)}','${escapeJs(b.nombre)}')" title="Avisar a la kinesióloga por WhatsApp">WhatsApp</button>` : '';
     return `<div class="box ocupado ${venc ? 'vencido' : ''}" data-box="${b.id}">
       <div class="box-head">
         <span class="box-nom">${escapeHtml(b.nombre)}</span>
@@ -124,10 +151,11 @@ function pintarBoxes() {
       </div>
       <span class="box-pac clicky" onclick="verPerfil(${b.paciente_id})">${escapeHtml(b.paciente)}</span>
       <div class="box-diag">${escapeHtml(b.diagnostico || '')}</div>
-      <div class="timer" data-restante="${b.restante_seg}">${fmt(b.restante_seg)}</div>
+      <div class="timer" data-restante="${b.restante_seg}" data-total="${totalSeg}">${fmt(b.restante_seg)}</div>
+      ${_barraBox(b.restante_seg, totalSeg)}
       <div class="box-actions ${venc ? 'box-actions-venc' : ''}">
         <button class="btn btn-ok btn-sm grow" onclick="terminar(${b.turno_id})">✓ Terminar</button>
-        <button class="btn ${venc ? 'btn-primary' : 'btn-line'} btn-sm grow" onclick="agregarTiempo(${b.turno_id})">+ Agregar tiempo</button>
+        <button class="btn ${venc ? 'btn-primary' : 'btn-line'} btn-sm grow" onclick="agregarTiempo(${b.turno_id})">+ Tiempo</button>
         ${wa}
       </div>
     </div>`;
@@ -141,8 +169,10 @@ function pintarSala() {
   const cont = document.getElementById('sala-list');
   const todos = (ESTADO.sala || []).flatMap(g => g.turnos);
   let html;
+  const sc = document.getElementById('sala-cuenta');
+  if (sc) sc.textContent = todos.length ? todos.length + ' turno' + (todos.length === 1 ? '' : 's') : '';
   if (!todos.length) {
-    html = '<div class="card"><div class="empty">No hay turnos cargados para hoy</div></div>';
+    html = '<div class="card"><div class="empty"><b>No hay turnos para hoy</b><br>Cuando des turnos desde la Agenda van a aparecer acá, ordenados por hora.<br><a class="btn btn-line btn-sm" href="/agenda?accion=agregar-turnos">Agregar turnos</a></div></div>';
   } else {
     const proximos = todos.filter(t => ['agendado', 'en_espera', 'presente'].includes(t.estado));
     const enBox = todos.filter(t => t.estado === 'en_curso');
@@ -165,7 +195,7 @@ function pintarSala() {
 function seccionProximos(turnos) {
   if (!turnos.length) {
     return `<div class="sala-sec"><div class="sala-sec-h">Próximos</div>
-      <div class="card"><div class="empty">Nadie por venir por ahora</div></div></div>`;
+      <div class="card"><div class="empty">Nadie más por venir por ahora</div></div></div>`;
   }
   const grupos = {};
   turnos.forEach(t => { const h = t.hora || 'Sin hora'; (grupos[h] = grupos[h] || []).push(t); });
@@ -230,9 +260,9 @@ async function cancelarNoVino(tid) {
   refrescar();
 }
 async function reprogramarAusente(tid, nombre) {
-  if (!confirm('¿Reprogramar el turno de ' + nombre + ' a su próxima fecha disponible?')) return;
+  if (!await confirmar('¿Reprogramar el turno de ' + nombre + ' a su próxima fecha disponible?')) return;
   const r = await api(`/api/turno/${tid}/reprogramar`);
-  toast('Reprogramado al ' + r.fecha + ' ✓', 'ok');
+  toast('Reprogramado al ' + fechaLinda(r.fecha), 'ok');
   refrescar();
 }
 
@@ -272,7 +302,7 @@ async function verPerfil(pid) {
   abrirModal('modal-perfil');
   document.getElementById('perfil-nombre').textContent = 'Perfil';
   document.getElementById('perfil-ficha').href = '/paciente/' + pid;
-  document.getElementById('perfil-body').innerHTML = '<div class="empty">Cargando…</div>';
+  document.getElementById('perfil-body').innerHTML = '<div class="cargando"></div>';
   let p;
   try { p = await apiGet('/api/paciente/' + pid + '/resumen'); } catch (e) { return; }
   if (!p || p.ok === false) { document.getElementById('perfil-body').innerHTML = '<div class="empty">No se pudo cargar</div>'; return; }
@@ -282,7 +312,7 @@ async function verPerfil(pid) {
     `<span class="chip-dia">${escapeHtml(x.dia)}${x.hora ? ' · ' + escapeHtml(x.hora) : ''}</span>`).join('') || '—';
   const sesClass = p.sesiones_quedan <= 1 ? 'warn' : '';
   const prox = p.proximo_turno
-    ? `${escapeHtml(p.proximo_turno.fecha)}${p.proximo_turno.hora ? ' · ' + escapeHtml(p.proximo_turno.hora) : ''}`
+    ? `${escapeHtml(fechaLinda(p.proximo_turno.fecha))}${p.proximo_turno.hora ? ' · ' + escapeHtml(p.proximo_turno.hora) : ''}`
     : 'sin turno agendado';
   const ejs = (p.ejercicios || []).length
     ? p.ejercicios.map(e => {
@@ -311,7 +341,7 @@ async function verPerfil(pid) {
 
 // ---- Vino / No vino ----
 async function vino(tid) {
-  if (!confirm('¿Confirmás que vino? Se le cuenta la sesión.')) return;
+  if (!await confirmar('¿Confirmás que vino? Se le cuenta la sesión.')) return;
   const r = await api(`/api/turno/${tid}/vino`);
   toast(`Vino ✓ — sesión contada · quedan ${r.sesiones_quedan}`, 'ok');
   refrescar();
@@ -342,17 +372,17 @@ function noVino(tid) {
   apiGet('/api/turno/' + tid + '/reprogramar_preview').then(pv => {
     NOVINO_PREVIEW = pv;
     document.getElementById('novino-horarios').innerHTML +=
-      `<br>Reprogramar lo mueve al <b>${pv.fecha}${pv.hora ? ' a las ' + pv.hora : ''}</b>.`;
+      `<br>Reprogramar lo mueve al <b>${fechaLinda(pv.fecha)}${pv.hora ? ' a las ' + pv.hora : ''}</b>.`;
   }).catch(() => {});
 }
 
 let NOVINO_PREVIEW = null;
 async function reprogNovino() {
-  const dest = NOVINO_PREVIEW ? (NOVINO_PREVIEW.fecha + (NOVINO_PREVIEW.hora ? ' a las ' + NOVINO_PREVIEW.hora : '')) : 'la próxima fecha';
-  if (!confirm('Se reprograma al ' + dest + '. ¿Confirmar?')) return;
+  const dest = NOVINO_PREVIEW ? (fechaLinda(NOVINO_PREVIEW.fecha) + (NOVINO_PREVIEW.hora ? ' a las ' + NOVINO_PREVIEW.hora : '')) : 'la próxima fecha';
+  if (!await confirmar('Se reprograma al ' + dest + '. ¿Confirmar?')) return;
   const r = await api(`/api/turno/${NOVINO.turno_id}/reprogramar`);
   cerrarModal('modal-novino');
-  toast('Reprogramado al ' + r.fecha + ' ✓', 'ok');
+  toast('Reprogramado al ' + fechaLinda(r.fecha), 'ok');
   refrescar();
 }
 async function elegirFechaNovino() {
@@ -360,7 +390,7 @@ async function elegirFechaNovino() {
   if (!f) { toast('Elegí una fecha', 'alert'); return; }
   const r = await api(`/api/turno/${NOVINO.turno_id}/elegir_fecha`, { fecha: f });
   cerrarModal('modal-novino');
-  toast('Turno movido al ' + r.fecha + ' ✓', 'ok');
+  toast('Turno movido al ' + fechaLinda(r.fecha), 'ok');
   refrescar();
 }
 function dejarDespues() {
@@ -375,6 +405,9 @@ function tick() {
     el.dataset.restante = r;
     el.textContent = fmt(r);
     const box = el.closest('.box');
+    const tot = +el.dataset.total || 0;
+    const bar = box && box.querySelector('.box-prog span');
+    if (bar && tot) bar.style.width = Math.max(0, Math.min(100, 100 * (tot - r) / tot)) + '%';
     if (r <= 0 && box && !box.classList.contains('vencido')) {
       box.classList.add('vencido');
       const badge = box.querySelector('.box-badge');
@@ -456,7 +489,7 @@ async function confirmarEjHoy() {
 }
 
 async function agregarTiempo(tid) {
-  const m = prompt('¿Cuántos minutos agregar?', '10');
+  const m = await pedirTexto('¿Cuántos minutos agregar?', '10', { tipo: 'number', ok: 'Agregar' });
   if (!m) return;
   const min = parseInt(m, 10);
   if (!min || min <= 0) { toast('Poné un número de minutos', 'alert'); return; }
@@ -486,13 +519,13 @@ document.getElementById('iniciar-confirm').addEventListener('click', async () =>
 });
 
 async function agregarBox() {
-  const nombre = prompt('Nombre del box:', 'Box ' + (ESTADO.boxes.length + 1));
-  if (!nombre) return;
+  const nombre = await pedirTexto('Nombre del nuevo box', 'Box ' + (ESTADO.boxes.length + 1), { ok: 'Agregar box' });
+  if (!nombre || !nombre.trim()) return;
   await api('/api/box', { nombre });
   refrescar();
 }
 async function borrarBox(id) {
-  if (!confirm('¿Quitar este box de la sala?')) return;
+  if (!await confirmar('¿Quitar este box de la sala?')) return;
   await api(`/api/box/${id}/borrar`);
   refrescar();
 }
@@ -505,7 +538,7 @@ function ponerEnBox(boxId, nombre) {
   const pres = ESTADO.presentes || [];
   const cont = document.getElementById('abox-resultados');
   if (!pres.length) {
-    cont.innerHTML = '<div class="empty">No hay pacientes presentes.<br>Marcá ✓ Vino en la sala del día primero.</div>';
+    cont.innerHTML = '<div class="empty con-ic"><b>No hay pacientes esperando</b><br>Primero marcá <b>✓ Vino</b> en la sala del día (o usá Registrar llegada).</div>';
   } else {
     cont.innerHTML = pres.map(p => `
       <div class="list-item">
@@ -529,7 +562,7 @@ async function confirmarAbox(turnoId) {
 function abrirCheckin() {
   document.getElementById('checkin-buscar').value = '';
   document.getElementById('checkin-resultados').innerHTML =
-    '<div class="empty">Escribí un nombre para buscar</div>';
+    '<div class="empty">Escribí nombre, apellido o DNI</div>';
   abrirModal('modal-checkin');
   setTimeout(() => document.getElementById('checkin-buscar').focus(), 100);
 }
@@ -543,7 +576,7 @@ document.getElementById('checkin-buscar').addEventListener('input', e => {
 
 async function buscarPacientes(term) {
   const cont = document.getElementById('checkin-resultados');
-  if (!term) { cont.innerHTML = '<div class="empty">Escribí un nombre para buscar</div>'; return; }
+  if (!term) { cont.innerHTML = '<div class="empty">Escribí nombre, apellido o DNI</div>'; return; }
   const rows = await apiGet('/api/pacientes?q=' + encodeURIComponent(term));
   if (!rows.length) { cont.innerHTML = '<div class="empty">Sin resultados</div>'; return; }
   cont.innerHTML = rows.map(p => `
@@ -558,7 +591,7 @@ async function buscarPacientes(term) {
 }
 
 async function registrarLlegada(pid, nombre) {
-  const hoy = new Date().toISOString().slice(0, 10);
+  const hoy = hoyISO();
   const hora = new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' });
   const est = await apiGet('/api/estado');
   const enSala = (est.sala || []).flatMap(g => g.turnos)
@@ -574,7 +607,7 @@ async function registrarLlegada(pid, nombre) {
 
 // ---- WhatsApp ----
 function waLink(msg) {
-  return 'https://wa.me/' + (CONFIG.wa_kine || '').replace(/[^0-9]/g, '') +
+  return 'https://wa.me/' + waNumeroAR(CONFIG.wa_kine) +
     '?text=' + encodeURIComponent(msg);
 }
 function avisarWa(paciente, box) {

@@ -2,31 +2,40 @@
 {% block title %}Plantillas — KDYM{% endblock %}
 
 {% block content %}
-<div class="row" style="align-items:center; margin-bottom:6px;">
-  <div class="grow">
-    <div class="page-title" style="margin-bottom:2px;">Plantillas ortopédicas</div>
-    <div class="muted">Pedidos de plantillas RPG — de todas las sedes</div>
+<div class="page-head">
+  <div class="page-head-txt">
+    <div class="page-title">Plantillas ortopédicas</div>
+    <div class="page-sub" id="pl-sub">Pedidos de plantillas de todas las sedes</div>
   </div>
+  <div class="page-head-actions">
+    <button class="btn btn-primary" onclick="abrirNuevaPlantilla()" data-tour="nueva-plantilla">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      Nueva plantilla
+    </button>
+  </div>
+</div>
+
+<div class="pac-toolbar">
+  <input class="input input-buscar" id="pl-buscar" placeholder="Buscar por paciente o teléfono…" autocomplete="off">
   <div class="seg" id="pl-view">
-    <button data-v="grid" onclick="cambiarVistaPl('grid')" title="Ver en tarjetas">▦ Tarjetas</button>
-    <button data-v="list" onclick="cambiarVistaPl('list')" title="Ver en lista">☰ Lista</button>
+    <button data-v="grid" onclick="cambiarVistaPl('grid')" title="Ver en tarjetas" aria-label="Tarjetas">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><rect x="4" y="4" width="7" height="7" rx="1.6"/><rect x="13" y="4" width="7" height="7" rx="1.6"/><rect x="4" y="13" width="7" height="7" rx="1.6"/><rect x="13" y="13" width="7" height="7" rx="1.6"/></svg>
+    </button>
+    <button data-v="list" onclick="cambiarVistaPl('list')" title="Ver en lista" aria-label="Lista">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M9 6h11M9 12h11M9 18h11M4.5 6h.01M4.5 12h.01M4.5 18h.01"/></svg>
+    </button>
   </div>
-  <button class="btn btn-primary" onclick="abrirNuevaPlantilla()">+ Nueva plantilla</button>
 </div>
 
-<div class="field" style="margin-top:12px;">
-  <input class="input" id="pl-buscar" placeholder="Buscar por paciente…" autocomplete="off">
+<div class="pl-tabs" id="pl-filtros" data-tour="pl-filtros">
+  <button class="on" data-f="todas" onclick="filtrarPlantillas('todas')">Todas <span></span></button>
+  <button data-f="pedida" onclick="filtrarPlantillas('pedida')">Pedidas <span></span></button>
+  <button data-f="fabricacion" onclick="filtrarPlantillas('fabricacion')">En fabricación <span></span></button>
+  <button data-f="lista" onclick="filtrarPlantillas('lista')">Listas para retirar <span></span></button>
+  <button data-f="entregada" onclick="filtrarPlantillas('entregada')">Entregadas <span></span></button>
 </div>
 
-<div class="seg" id="pl-filtros" style="margin-bottom:14px;">
-  <button class="on" data-f="todas" onclick="filtrarPlantillas('todas')">Todas</button>
-  <button data-f="pedida" onclick="filtrarPlantillas('pedida')">Pedidas</button>
-  <button data-f="fabricacion" onclick="filtrarPlantillas('fabricacion')">En fabricación</button>
-  <button data-f="lista" onclick="filtrarPlantillas('lista')">Listas</button>
-  <button data-f="entregada" onclick="filtrarPlantillas('entregada')">Entregadas</button>
-</div>
-
-<div id="pl-lista" class="pl-grid"><div class="empty">Cargando…</div></div>
+<div id="pl-lista" class="pl-grid" data-tour="pl-lista"><div class="card"><div class="cargando"></div></div></div>
 
 <!-- Modal: nueva / editar plantilla -->
 <div class="modal-bg" id="modal-plantilla">
@@ -44,7 +53,7 @@
         </div>
         <div class="field" id="pl-buscar-wrap">
           <label>Paciente *</label>
-          <input class="input" id="pl-pac-buscar" placeholder="Buscar paciente…" autocomplete="off">
+          <input class="input input-buscar" id="pl-pac-buscar" placeholder="Buscar paciente…" autocomplete="off">
           <div id="pl-pac-res"></div>
           <div id="pl-pac-elegido" class="hint"></div>
         </div>
@@ -128,7 +137,7 @@ apiGet('/api/config').then(c => { PL_CONFIG = c || {}; }).catch(() => {});
 
 // Avisar por WhatsApp que las plantillas están listas para retirar.
 function avisarPlantilla(tel, nombre) {
-  tel = (tel || '').replace(/[^0-9]/g, '');
+  tel = waNumeroAR(tel);
   if (!tel) { toast('Esa persona no tiene teléfono cargado', 'alert'); return; }
   const nom = (nombre || '').split(' ')[0];
   let msg = `Hola ${nom}, ya podés retirar tus plantillas en KDYM.`;
@@ -138,17 +147,18 @@ function avisarPlantilla(tel, nombre) {
   window.open('https://wa.me/' + tel + '?text=' + encodeURIComponent(msg), '_blank');
 }
 
-function fMoneda(v) { return v ? ('$' + v) : ''; }
+function fMoneda(v) { return v ? plata(String(v).replace(/[^0-9.,]/g, '').replace(/\./g, '').replace(',', '.')) : ''; }
 function fFecha(s) {
   if (!s) return '';
   const d = new Date(s + 'T12:00:00');
-  return d.toLocaleDateString('es-AR', { day: 'numeric', month: 'short' });
+  return d.toLocaleDateString('es-AR', { day: 'numeric', month: 'short' }).replace('.', '');
 }
+function _num(v) { return +String(v || '').replace(/[^0-9.,]/g, '').replace(/\./g, '').replace(',', '.') || 0; }
 
 async function cargarPlantillas() {
   const cont = document.getElementById('pl-lista');
   let d;
-  try { d = await apiGet('/api/plantillas'); } catch (e) { cont.innerHTML = '<div class="empty">No se pudo cargar</div>'; return; }
+  try { d = await apiGet('/api/plantillas'); } catch (e) { cont.innerHTML = '<div class="card"><div class="empty">No se pudo cargar</div></div>'; return; }
   PLANTILLAS = d.plantillas || [];
   pintarPlantillas();
 }
@@ -159,48 +169,66 @@ function filtrarPlantillas(f) {
   pintarPlantillas();
 }
 
+const PL_ORDEN = ['pedida', 'fabricacion', 'lista', 'entregada'];
 function pintarPlantillas() {
   const cont = document.getElementById('pl-lista');
-  const term = (document.getElementById('pl-buscar').value || '').trim().toLowerCase();
+  const term = _sinAcentos((document.getElementById('pl-buscar').value || '').trim());
+  // Contadores de cada pestaña
+  document.querySelectorAll('#pl-filtros button').forEach(b => {
+    const f = b.dataset.f;
+    const n = f === 'todas' ? PLANTILLAS.length : PLANTILLAS.filter(p => p.estado === f).length;
+    b.querySelector('span').textContent = n || '';
+  });
+  const listas = PLANTILLAS.filter(p => p.estado === 'lista').length;
+  document.getElementById('pl-sub').innerHTML = PLANTILLAS.length
+    ? `${PLANTILLAS.length} pedido${PLANTILLAS.length === 1 ? '' : 's'}${listas ? ` · <b>${listas}</b> para avisar que están listas` : ''}`
+    : 'Pedidos de plantillas de todas las sedes';
+
   let items = PLANTILLAS;
   if (PL_FILTRO !== 'todas') items = items.filter(p => p.estado === PL_FILTRO);
-  if (term) items = items.filter(p => p.paciente.toLowerCase().includes(term));
-  if (!items.length) { cont.innerHTML = '<div class="empty">No hay plantillas en esta vista.</div>'; return; }
+  if (term) items = items.filter(p => _sinAcentos(p.paciente + ' ' + (p.telefono || '')).includes(term));
+  if (!PLANTILLAS.length) {
+    cont.innerHTML = '<div class="card" style="grid-column:1/-1;"><div class="empty"><b>Todavía no hay pedidos</b><br>Cargá el primer pedido de plantillas y seguí su estado hasta la entrega.<br><button class="btn btn-primary btn-sm" onclick="abrirNuevaPlantilla()">+ Nueva plantilla</button></div></div>';
+    return;
+  }
+  if (!items.length) { cont.innerHTML = '<div class="card" style="grid-column:1/-1;"><div class="empty">No hay plantillas en esta vista.</div></div>'; return; }
 
   cont.innerHTML = items.map(p => {
     const est = PL_EST[p.estado] || PL_EST.pedida;
-    const pago = (p.precio || p.senia)
-      ? `<span class="pl-pago">${fMoneda(p.precio)}${p.senia ? ' · seña ' + fMoneda(p.senia) : ''}</span>` : '';
+    const idx = PL_ORDEN.indexOf(p.estado);
+    const precio = _num(p.precio), senia = _num(p.senia);
     const fechas = [
       p.fecha_molde ? 'Molde ' + fFecha(p.fecha_molde) : '',
       p.fecha_entrega ? 'Entrega ' + fFecha(p.fecha_entrega) : '',
     ].filter(Boolean).join(' · ');
-    return `<div class="card pl-card">
+    const pasos = PL_ORDEN.map((k, i) => `<button class="pl-paso ${i < idx ? 'hecho' : ''} ${i === idx ? 'on' : ''}" onclick="cambiarEstado(${p.id}, '${k}')" title="Marcar como ${PL_EST[k].txt}"><i></i><span>${({ pedida: 'Pedida', fabricacion: 'Fabricación', lista: 'Lista', entregada: 'Entregada' })[k]}</span></button>`).join('');
+    return `<div class="card pl-card est-${p.estado}">
       <div class="pl-top">
         <div class="avatar">${iniciales(p.paciente)}</div>
         <div class="li-main">
           ${p.es_paciente
             ? `<a href="/paciente/${p.paciente_id}" class="li-name">${escapeHtml(p.paciente)}</a>`
             : `<span class="li-name">${escapeHtml(p.paciente)}</span>`}
-          <div class="li-sub">
+          <div class="pl-meta">
             <span class="pill">${escapeHtml(p.sede_nombre)}</span>
-            <span class="pill ${est.cls}">${est.txt}</span>
             ${!p.es_paciente ? '<span class="pill muted-pill">Sin ficha</span>' : ''}
-            ${p.telefono ? `<span class="muted" style="font-size:12px;">Tel ${escapeHtml(p.telefono)}</span>` : ''}
-            ${fechas ? `<span class="muted" style="font-size:12px;">${escapeHtml(fechas)}</span>` : ''}
+            ${p.telefono ? `<span>${escapeHtml(p.telefono)}</span>` : ''}
           </div>
         </div>
-        ${pago}
+        <span class="pill ${est.cls}">${est.txt}</span>
+      </div>
+      <div class="pl-pasos">${pasos}</div>
+      <div class="pl-datos">
+        ${fechas ? `<span>${escapeHtml(fechas)}</span>` : '<span class="muted">Sin fechas cargadas</span>'}
+        ${precio ? `<span class="pl-plata">${plata(precio)}${senia ? ` <small>· seña ${plata(senia)} · resta <b>${plata(Math.max(0, precio - senia))}</b></small>` : ''}</span>` : ''}
       </div>
       ${p.notas ? `<div class="pl-notas">${escapeHtml(p.notas)}</div>` : ''}
       <div class="pl-actions">
-        <select class="input pl-estado-sel" onchange="cambiarEstado(${p.id}, this.value)">
-          ${Object.keys(PL_EST).map(k => `<option value="${k}" ${k === p.estado ? 'selected' : ''}>${PL_EST[k].txt}</option>`).join('')}
-        </select>
-        ${p.es_paciente ? `<button class="btn btn-line btn-sm" onclick="agTurnosPlantilla(${p.paciente_id}, '${escapeJs(p.paciente)}')">Agregar turnos</button>` : ''}
-        ${p.telefono ? `<button class="btn btn-sm ${p.estado === 'lista' ? 'btn-wa' : 'btn-line'}" onclick="avisarPlantilla('${escapeJs(p.telefono)}', '${escapeJs(p.paciente)}')">Avisar por WhatsApp</button>` : ''}
-        <button class="btn btn-ghost btn-sm" onclick="editarPlantilla(${p.id})">✎ Editar</button>
-        <button class="btn btn-danger-soft btn-sm" onclick="borrarPlantilla(${p.id})">✕</button>
+        ${p.telefono ? `<button class="btn btn-sm ${p.estado === 'lista' ? 'btn-wa' : 'btn-ghost'}" onclick="avisarPlantilla('${escapeJs(p.telefono)}', '${escapeJs(p.paciente)}')">${p.estado === 'lista' ? 'Avisar que está lista' : 'WhatsApp'}</button>` : ''}
+        ${p.es_paciente ? `<button class="btn btn-ghost btn-sm" onclick="agTurnosPlantilla(${p.paciente_id}, '${escapeJs(p.paciente)}')">Turnos</button>` : ''}
+        <span class="grow"></span>
+        <button class="btn btn-ghost btn-sm" onclick="editarPlantilla(${p.id})">Editar</button>
+        <button class="btn btn-ghost btn-sm btn-ic pl-borrar" onclick="borrarPlantilla(${p.id})" title="Borrar pedido" aria-label="Borrar">&times;</button>
       </div>
     </div>`;
   }).join('');
@@ -208,7 +236,7 @@ function pintarPlantillas() {
 
 async function cambiarEstado(id, estado) {
   await api('/api/plantilla/' + id, { estado });
-  toast('Estado actualizado ✓', 'ok');
+  toast('Estado: ' + (PL_EST[estado] || {}).txt, 'ok');
   cargarPlantillas();
 }
 
@@ -286,7 +314,7 @@ async function guardarPlantilla() {
 }
 
 async function borrarPlantilla(id) {
-  if (!confirm('¿Borrar este pedido de plantilla?')) return;
+  if (!await confirmar('¿Borrar este pedido de plantilla?')) return;
   await api('/api/plantilla/' + id + '/borrar');
   toast('Plantilla borrada', 'ok');
   cargarPlantillas();

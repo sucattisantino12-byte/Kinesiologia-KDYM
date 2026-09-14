@@ -21,6 +21,14 @@ import glob
 import time
 from datetime import datetime, date, timedelta
 
+# Hora de Argentina. Los servidores en la nube (Railway) corren en UTC: sin esto,
+# "hoy" cambiaba a las 21 h y el "no vino" automático marcaba ausentes 3 horas antes.
+# '<-03>3' es UTC-3 fijo (Argentina no usa horario de verano) y no necesita tzdata.
+if not os.environ.get("TZ"):
+    os.environ["TZ"] = "<-03>3"
+if hasattr(time, "tzset"):
+    time.tzset()
+
 from flask import (
     Flask, g, render_template, request, jsonify, redirect, url_for, abort,
     Response, send_file
@@ -697,12 +705,13 @@ def inject_sedes():
         # que "En sesión ahora" no muestre 0 y después salte al número real.
         nb = q1("SELECT COUNT(*) c FROM boxes WHERE activo=1 AND sede_id=?",
                 (actual,)) if actual else None
+        demo = (q1("SELECT valor FROM config WHERE clave='modo_demo'") or {"valor": "0"})["valor"] == "1"
         return {"sedes_all": sedes, "sede_actual_id": actual,
                 "sede_actual_nombre": nombre,
-                "side_boxes_n": (nb["c"] if nb else 0)}
+                "side_boxes_n": (nb["c"] if nb else 0), "modo_demo": demo}
     except Exception:
         return {"sedes_all": [], "sede_actual_id": None,
-                "sede_actual_nombre": "", "side_boxes_n": 0}
+                "sede_actual_nombre": "", "side_boxes_n": 0, "modo_demo": False}
 
 
 # --------------------------------------------------------------------------
@@ -799,22 +808,63 @@ def ficha(pid):
     for e in q("SELECT * FROM ejercicios WHERE paciente_id=? AND turno_id IS NOT NULL", (pid,)):
         ej_por_turno.setdefault(e["turno_id"], []).append(e)
     historial = []
+    hoy_iso = date.today().isoformat()
+    meses = ["ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic"]
+    nombres_sede = {s["id"]: s["nombre"] for s in sedes_list()}
+    proximo = None
     for h in hist_rows:
-        historial.append({
+        est = h["estado"]
+        pasado = (h["fecha"] or "") < hoy_iso
+        # Texto y color del estado, pensado para la recepción.
+        if est == "terminado":
+            et, ec = "Vino", "ok"
+        elif est in ("presente", "en_curso"):
+            et, ec = ("En box" if est == "en_curso" else "Presente"), "ok"
+        elif est == "ausente":
+            et, ec = "No vino", "danger"
+        elif est == "perdido":
+            et, ec = "Perdido", "danger"
+        elif pasado:
+            et, ec = "Sin registrar", "warn"
+        elif h["fecha"] == hoy_iso:
+            et, ec = "Hoy", ""
+        else:
+            et, ec = "Agendado", "muted-pill"
+        try:
+            y, m, d = map(int, (h["fecha"] or "").split("-"))
+            flinda = f"{d} {meses[m - 1]} {y}" if y != date.today().year else f"{d} {meses[m - 1]}"
+        except Exception:
+            flinda = h["fecha"] or ""
+        futuro = not pasado and est in ("agendado", "en_espera")
+        item = {
             "id": h["id"],
             "fecha": h["fecha"],
+            "fecha_linda": flinda,
             "hora": h["hora"] or "",
             "dia": dia_semana(h["fecha"]),
-            "estado": h["estado"],
+            "estado": est,
+            "estado_txt": et,
+            "estado_cls": ec,
+            "futuro": futuro,
+            "sede": nombres_sede.get(h["sede_id"], "") if len(nombres_sede) > 1 else "",
             "ejercicios": ej_por_turno.get(h["id"], []),
-        })
+        }
+        if futuro and proximo is None:
+            proximo = item
+        historial.append(item)
+    stats_turnos = {
+        "vino": sum(1 for x in historial if x["estado"] in ("terminado", "presente", "en_curso")),
+        "no_vino": sum(1 for x in historial if x["estado"] in ("ausente", "perdido")),
+        "pendientes": sum(1 for x in historial if x["futuro"]),
+    }
     evo = q(
         "SELECT * FROM evoluciones WHERE paciente_id=? ORDER BY fecha DESC, id DESC",
         (pid,),
     )
     return render_template(
-        "ficha.html", activo="pacientes", p=paciente_dict(p),
+        "ficha.html", activo="ficha", p=paciente_dict(p),
         ejercicios=exs, historial=historial, evoluciones=evo,
+        proximo=proximo, stats_turnos=stats_turnos,
     )
 
 
@@ -855,6 +905,40 @@ self.addEventListener('notificationclick', function(e){
 @app.route("/sw.js")
 def sw_js():
     return Response(_SW_JS, mimetype="application/javascript")
+
+
+# Manifest: permite "instalar" la app en el celular o la compu (ícono propio,
+# pantalla completa, sin barra del navegador).
+@app.route("/manifest.webmanifest")
+def manifest():
+    try:
+        v = int(os.path.getmtime(os.path.join(BASE_DIR, "static", "icons", "icon-512.png")))
+    except Exception:
+        v = 0
+    data = {
+        "name": "KDYM · Kinesiología",
+        "short_name": "KDYM",
+        "description": "Recepción, agenda y pacientes del centro de kinesiología.",
+        "start_url": "/recepcion",
+        "scope": "/",
+        "display": "standalone",
+        "orientation": "any",
+        "background_color": "#F5F7FB",
+        "theme_color": "#0F2350",
+        "lang": "es-AR",
+        "icons": [
+            {"src": f"/static/icons/icon-192.png?v={v}", "sizes": "192x192", "type": "image/png"},
+            {"src": f"/static/icons/icon-512.png?v={v}", "sizes": "512x512", "type": "image/png"},
+            {"src": f"/static/icons/maskable-512.png?v={v}", "sizes": "512x512",
+             "type": "image/png", "purpose": "maskable"},
+        ],
+        "shortcuts": [
+            {"name": "Recepción", "url": "/recepcion"},
+            {"name": "Agenda", "url": "/agenda"},
+            {"name": "Pacientes", "url": "/pacientes"},
+        ],
+    }
+    return Response(json.dumps(data, ensure_ascii=False), mimetype="application/manifest+json")
 
 
 # --------------------------------------------------------------------------
@@ -2007,11 +2091,19 @@ def api_paciente_resumen(pid):
     return jsonify(ok=True, **d)
 
 
+def _nombre_prolijo(txt):
+    """'juan perez' o 'JUAN PEREZ' -> 'Juan Perez'. Si ya viene mezclado (McDonald), se respeta."""
+    txt = " ".join((txt or "").split())
+    if txt and (txt.islower() or txt.isupper()):
+        return " ".join(w[:1].upper() + w[1:].lower() for w in txt.split(" "))
+    return txt
+
+
 @app.route("/api/paciente", methods=["POST"])
 def api_nuevo_paciente():
     d = request.get_json(force=True, silent=True) or {}
-    nombre = (d.get("nombre") or "").strip()
-    apellido = (d.get("apellido") or "").strip()
+    nombre = _nombre_prolijo(d.get("nombre"))
+    apellido = _nombre_prolijo(d.get("apellido"))
     if not nombre or not apellido:
         return jsonify(ok=False, error="Nombre y apellido son obligatorios"), 400
     pid = run(
@@ -2040,7 +2132,7 @@ def api_editar_paciente(pid):
              sesiones_totales=?, sesiones_usadas=?, dias=?, notas=?
            WHERE id=?""",
         (
-            (d.get("nombre") or "").strip(), (d.get("apellido") or "").strip(),
+            _nombre_prolijo(d.get("nombre")), _nombre_prolijo(d.get("apellido")),
             (d.get("dni") or "").strip(), (d.get("telefono") or "").strip(),
             (d.get("obra_social") or "").strip(), (d.get("diagnostico") or "").strip(),
             int(d.get("sesiones_totales") or 0), int(d.get("sesiones_usadas") or 0),
@@ -2681,19 +2773,36 @@ def api_reportes():
         ini = date.today().replace(day=1).isoformat()
         fin = date.today().isoformat()
 
+    sede_f = request.args.get("sede", type=int)
+    sf_sql, sf_args = ("AND sede_id=?", (sede_f,)) if sede_f else ("", ())
+
     def cnt(extra="", args=()):
-        return q1(f"SELECT COUNT(*) c FROM turnos WHERE fecha>=? AND fecha<? {extra}",
-                  (ini, fin, *args))["c"]
+        return q1(f"SELECT COUNT(*) c FROM turnos WHERE fecha>=? AND fecha<? {sf_sql} {extra}",
+                  (ini, fin, *sf_args, *args))["c"]
 
     total = cnt()
     vinieron = cnt("AND estado IN ('presente','en_curso','terminado')")
     ausentes = cnt("AND estado IN ('ausente','perdido')")
-    por_sede = [{"sede": s["nombre"],
-                 "cant": cnt("AND sede_id=?", (s["id"],))} for s in sedes_list()]
+    hoy_iso = date.today().isoformat()
+    pendientes = cnt("AND estado IN ('agendado','en_espera') AND fecha>=?", (hoy_iso,))
+    # Turnos de días que ya pasaron y nadie marcó si vino o no.
+    sin_registrar = cnt("AND estado IN ('agendado','en_espera') AND fecha<?", (hoy_iso,))
+    # Turnos por día del mes (para el gráfico).
+    por_dia = {r["fecha"]: {"total": r["c"], "vinieron": r["v"], "ausentes": r["a"]} for r in q(
+        f"""SELECT fecha, COUNT(*) c,
+                   SUM(CASE WHEN estado IN ('presente','en_curso','terminado') THEN 1 ELSE 0 END) v,
+                   SUM(CASE WHEN estado IN ('ausente','perdido') THEN 1 ELSE 0 END) a
+            FROM turnos WHERE fecha>=? AND fecha<? {sf_sql} GROUP BY fecha""", (ini, fin, *sf_args))}
+    ing = q1(f"SELECT COALESCE(SUM(monto),0) s, COUNT(*) c FROM pagos WHERE fecha>=? AND fecha<? {sf_sql}",
+             (ini, fin, *sf_args))
+    por_sede = [{"sede": s["nombre"], "id": s["id"],
+                 "cant": q1("SELECT COUNT(*) c FROM turnos WHERE fecha>=? AND fecha<? AND sede_id=?",
+                            (ini, fin, s["id"]))["c"]} for s in sedes_list()]
     filas_os = q(
         """SELECT COALESCE(NULLIF(TRIM(p.obra_social),''),'Sin obra social') os, COUNT(*) c
            FROM turnos t JOIN pacientes p ON p.id=t.paciente_id
-           WHERE t.fecha>=? AND t.fecha<? GROUP BY os ORDER BY c DESC""", (ini, fin))
+           WHERE t.fecha>=? AND t.fecha<? """ + ("AND t.sede_id=? " if sede_f else "") +
+        """GROUP BY os ORDER BY c DESC""", (ini, fin, *sf_args))
     por_os = [{"obra_social": r["os"], "cant": r["c"]} for r in filas_os]
 
     # Cobros pendientes: saldo (precio_sesion * usadas - pagado) agrupado por obra social.
@@ -2713,7 +2822,11 @@ def api_reportes():
 
     return jsonify({
         "mes": mes, "total": total, "vinieron": vinieron, "ausentes": ausentes,
-        "asistencia_pct": round(100 * vinieron / total) if total else 0,
+        # La asistencia se mide sobre los turnos que ya se resolvieron (vino / no vino),
+        # no sobre los que todavía no llegaron.
+        "asistencia_pct": round(100 * vinieron / (vinieron + ausentes)) if (vinieron + ausentes) else None,
+        "pendientes": pendientes, "sin_registrar": sin_registrar, "por_dia": por_dia,
+        "ingresos": round(ing["s"] or 0, 2), "pagos_cant": ing["c"],
         "por_sede": por_sede, "por_obra_social": por_os, "cobros_pendientes": cobros,
     })
 

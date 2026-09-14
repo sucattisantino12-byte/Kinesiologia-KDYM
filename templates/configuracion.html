@@ -2,111 +2,125 @@
 {% block title %}Configuración — KDYM{% endblock %}
 
 {% block content %}
-<div class="page-title" style="margin-bottom:16px;">Configuración</div>
-
-<div class="section-title">Apariencia</div>
-<div class="card card-pad" style="margin-bottom:8px;">
-  <label class="sound-toggle" style="font-size:15px;">
-    <input type="checkbox" id="cfg-tema-oscuro"> Modo oscuro
-  </label>
-  <div class="hint" style="margin-top:6px;">Se guarda en este dispositivo.</div>
-</div>
-
-<div class="section-title">Alarma de los boxes</div>
-<div class="card card-pad" style="margin-bottom:8px;">
-  <div class="field">
-    <label class="sound-toggle" style="font-size:15px;">
-      <input type="checkbox" id="cfg-alarma-on"> Alarma encendida
-    </label>
-  </div>
-  <div class="field">
-    <label>Sonido de la alarma</label>
-    <select class="input" id="cfg-alarma">
-      <option value="campana">Campana</option>
-      <option value="triple">Triple beep</option>
-      <option value="suave">Suave</option>
-      <option value="sirena">Sirena</option>
-      <option value="fuerte">Fuerte</option>
-      <option value="sirena_intensa">Sirena intensa</option>
-      <option value="timbre">Timbre</option>
-      <option value="alarma">Alarma reloj</option>
-    </select>
-  </div>
-  <button class="btn btn-primary" onclick="probarAlarma()">▶ Probar este sonido</button>
-  <div class="hint" style="margin-top:8px;">Este es el sonido que va a sonar cuando termine un box. El cambio se guarda solo, en este dispositivo.</div>
-</div>
-
-<div class="section-title">Sedes y tope de turnos por horario</div>
-<div class="card card-pad" style="margin-bottom:8px;">
-  <div class="hint" style="margin-bottom:10px;">El <b>tope</b> es cuántos turnos podés dar en un mismo horario (ej: si tenés 4 boxes, poné 4). Si un horario llega al tope, la app no deja dar más turnos y lo marca en rojo.</div>
-  <div id="sedes-cfg"><div class="empty">Cargando…</div></div>
-</div>
-
-<div class="section-title">Tolerancia para “no vino” automático</div>
-<div class="card card-pad" style="margin-bottom:8px;">
-  <div class="hint" style="margin-bottom:10px;">Si un paciente no llegó pasados estos minutos de su horario, la app lo marca solo como <b>“No vino”</b> (se puede cancelar o reprogramar desde recepción).</div>
-  <div class="row" style="align-items:flex-end; gap:10px;">
-    <div class="field" style="max-width:160px; margin:0;">
-      <label>Minutos de tolerancia</label>
-      <input class="input" id="cfg-tolerancia" type="number" min="0" placeholder="30">
-    </div>
-    <button class="btn btn-primary" onclick="guardarTolerancia()">Guardar</button>
+<div class="page-head">
+  <div class="page-head-txt">
+    <div class="page-title">Configuración</div>
+    <div class="page-sub">Ajustes del centro y de este dispositivo</div>
   </div>
 </div>
 
-<div class="section-title">Precios de sesión</div>
-<div class="card card-pad" style="margin-bottom:8px;">
-  <div class="hint" style="margin-bottom:10px;">Cargá los precios que usás (sesión normal, oferta, bono, etc.). Después los elegís rápido al registrar un pago en la ficha.</div>
-  <div class="row" style="align-items:flex-end; gap:8px;">
-    <div class="field grow" style="margin:0;"><label>Nombre</label><input class="input" id="pr-nombre" placeholder="Ej: Sesión normal, Oferta 10 sesiones…"></div>
-    <div class="field" style="max-width:130px; margin:0;"><label>Monto</label><input class="input" id="pr-monto" inputmode="decimal" placeholder="$"></div>
-    <button class="btn btn-primary" onclick="agregarPrecioPreset()">Agregar</button>
+<div class="cfg-layout">
+  <nav class="cfg-indice" data-tour="cfg-indice">
+    <a href="#cfg-dispositivo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg>Este dispositivo</a>
+    <a href="#cfg-sedes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6.5-5.2-6.5-10A6.5 6.5 0 0112 4.5 6.5 6.5 0 0118.5 11c0 4.8-6.5 10-6.5 10z"/><circle cx="12" cy="11" r="2.2"/></svg>Sedes y tope</a>
+    <a href="#cfg-horario"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>Horario del centro</a>
+    <a href="#cfg-asistencia"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.8"/><path d="M4.5 20c.7-3.7 3.7-5.8 7.5-5.8M16 16l4 4M20 16l-4 4"/></svg>No vino automático</a>
+    <a href="#cfg-feriados"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4M9 14l6 4M15 14l-6 4"/></svg>Feriados</a>
+    <a href="#cfg-precios"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2.5"/><circle cx="12" cy="12" r="2.6"/></svg>Precios</a>
+    <a href="#cfg-whatsapp"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l1.3-4A8 8 0 1112 20a8 8 0 01-4-1.1z"/></svg>WhatsApp y avisos</a>
+    <a href="#cfg-datos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="7.5" ry="3"/><path d="M4.5 6v6c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3V6M4.5 12v6c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3v-6"/></svg>Copia de seguridad</a>
+    <a href="#cfg-demo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6M10 3v6l-5.5 9.5A1.7 1.7 0 006 21h12a1.7 1.7 0 001.5-2.5L14 9V3"/><path d="M7.5 15h9"/></svg>Modo demo</a>
+  </nav>
+
+  <div class="cfg-main">
+    <section class="card cfg-card" id="cfg-dispositivo">
+      <div class="cfg-card-head"><span class="cfg-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg></span><div><h3>Este dispositivo</h3><p>Se guarda solo en este celular o computadora.</p></div></div>
+      <label class="switch-row">
+        <span><b>Modo oscuro</b><small>Pantalla oscura, más cómoda de noche.</small></span>
+        <input type="checkbox" class="switch" id="cfg-tema-oscuro">
+      </label>
+      <div class="cfg-sep"></div>
+      <label class="switch-row">
+        <span><b>Alarma de los boxes</b><small>Suena y vibra cuando termina una sesión.</small></span>
+        <input type="checkbox" class="switch" id="cfg-alarma-on">
+      </label>
+      <div class="cfg-fila" style="margin-top:12px;">
+        <div class="field grow" style="margin:0;">
+          <label>Sonido de la alarma</label>
+          <select class="input" id="cfg-alarma">
+            <option value="campana">Campana</option>
+            <option value="triple">Triple beep</option>
+            <option value="suave">Suave</option>
+            <option value="sirena">Sirena</option>
+            <option value="fuerte">Fuerte</option>
+            <option value="sirena_intensa">Sirena intensa</option>
+            <option value="timbre">Timbre</option>
+            <option value="alarma">Alarma reloj</option>
+          </select>
+        </div>
+        <button class="btn btn-ghost" onclick="probarAlarma()">▶ Probar</button>
+      </div>
+    </section>
+
+    <section class="card cfg-card" id="cfg-sedes">
+      <div class="cfg-card-head"><span class="cfg-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6.5-5.2-6.5-10A6.5 6.5 0 0112 4.5 6.5 6.5 0 0118.5 11c0 4.8-6.5 10-6.5 10z"/><circle cx="12" cy="11" r="2.2"/></svg></span><div><h3>Sedes y tope de turnos por horario</h3><p>El <b>tope</b> es cuántos turnos se pueden dar a la misma hora (normalmente, la cantidad de boxes). Si un horario llega al tope, se marca en rojo y no deja dar más.</p></div></div>
+      <div id="sedes-cfg"><div class="cargando"></div></div>
+    </section>
+
+    <section class="card cfg-card" id="cfg-horario">
+      <div class="cfg-card-head"><span class="cfg-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg></span><div><h3>Días y horario del centro</h3><p>Qué días abre y en qué horario. La agenda sólo ofrece turnos dentro de este horario.</p></div></div>
+      <div id="centro-horarios"></div>
+      <div class="cfg-acciones"><button class="btn btn-primary" onclick="guardarCentro()">Guardar horario</button></div>
+    </section>
+
+    <section class="card cfg-card" id="cfg-asistencia">
+      <div class="cfg-card-head"><span class="cfg-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.8"/><path d="M4.5 20c.7-3.7 3.7-5.8 7.5-5.8M16 16l4 4M20 16l-4 4"/></svg></span><div><h3>“No vino” automático</h3><p>Si un paciente no llegó pasados estos minutos de su horario, la app lo marca sola como <b>No vino</b>. Se puede deshacer o reprogramar desde Recepción.</p></div></div>
+      <div class="cfg-fila">
+        <div class="field" style="max-width:180px; margin:0;">
+          <label>Minutos de tolerancia</label>
+          <input class="input" id="cfg-tolerancia" type="number" min="0" placeholder="30">
+        </div>
+        <button class="btn btn-primary" onclick="guardarTolerancia()">Guardar</button>
+      </div>
+    </section>
+
+    <section class="card cfg-card" id="cfg-feriados">
+      <div class="cfg-card-head"><span class="cfg-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4M9 14l6 4M15 14l-6 4"/></svg></span><div><h3>Feriados</h3><p>En estos días no se dan turnos. También podés marcarlos tocando un día en la Agenda.</p></div></div>
+      <div class="cfg-acciones" style="margin-top:0;"><button class="btn btn-ghost" onclick="cargarFeriadosAr()">Cargar feriados de Argentina</button></div>
+      <div id="feriados-lista" style="margin-top:10px;"></div>
+    </section>
+
+    <section class="card cfg-card" id="cfg-precios">
+      <div class="cfg-card-head"><span class="cfg-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2.5"/><circle cx="12" cy="12" r="2.6"/></svg></span><div><h3>Precios de sesión</h3><p>Los precios que usan (sesión, bono, oferta…). Después se eligen con un toque al registrar un pago.</p></div></div>
+      <div class="cfg-fila">
+        <div class="field grow" style="margin:0;"><label>Nombre</label><input class="input" id="pr-nombre" placeholder="Ej: Sesión particular, Bono 10 sesiones…"></div>
+        <div class="field" style="max-width:140px; margin:0;"><label>Monto</label><input class="input" id="pr-monto" inputmode="decimal" placeholder="$"></div>
+        <button class="btn btn-primary" onclick="agregarPrecioPreset()">Agregar</button>
+      </div>
+      <div id="precios-lista" style="margin-top:10px;"></div>
+    </section>
+
+    <section class="card cfg-card" id="cfg-whatsapp">
+      <div class="cfg-card-head"><span class="cfg-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l1.3-4A8 8 0 1112 20a8 8 0 01-4-1.1z"/></svg></span><div><h3>WhatsApp y avisos</h3><p>Números y datos que usan los mensajes que arma la app.</p></div></div>
+      <div class="field">
+        <label>WhatsApp de la kinesióloga</label>
+        <input class="input" id="cfg-wa" inputmode="tel" placeholder="Ej: 11 5678-9012">
+        <div class="hint">Cuando termina una sesión aparece un botón en el box para avisarle.</div>
+      </div>
+      <div class="grid2">
+        <div class="field"><label>Horario de retiro de plantillas</label><input class="input" id="cfg-retiro-horario" placeholder="Ej: Lun a Vie de 9 a 18 hs"></div>
+        <div class="field"><label>Dirección de retiro</label><input class="input" id="cfg-retiro-dir" placeholder="Ej: Av. Rivadavia 1234, Morón"></div>
+      </div>
+      <div class="cfg-acciones"><button class="btn btn-primary" onclick="guardarWa(); guardarRetiro();">Guardar</button></div>
+    </section>
+
+    <section class="card cfg-card" id="cfg-datos">
+      <div class="cfg-card-head"><span class="cfg-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="7.5" ry="3"/><path d="M4.5 6v6c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3V6M4.5 12v6c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3v-6"/></svg></span><div><h3>Copia de seguridad</h3><p>Descargá todos los datos (pacientes, turnos, ejercicios, evolución, pagos) y guardalos en Drive o un pendrive cada tanto.</p></div></div>
+      <div class="cfg-acciones" style="margin-top:0;"><a class="btn btn-primary" href="/api/backup">Descargar copia de seguridad</a></div>
+    </section>
+
+    <section class="card cfg-card" id="cfg-demo">
+      <div class="cfg-card-head"><span class="cfg-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6M10 3v6l-5.5 9.5A1.7 1.7 0 006 21h12a1.7 1.7 0 001.5-2.5L14 9V3"/><path d="M7.5 15h9"/></svg></span><div><h3>Modo demo</h3><p>Para mostrar la app o probarla: agrega botones para cargar datos de ejemplo, simular la agenda y probar la alarma de un box.</p></div></div>
+      <label class="switch-row">
+        <span><b>Activar modo demo</b><small>Dejalo apagado en el uso diario del centro.</small></span>
+        <input type="checkbox" class="switch" id="cfg-demo-on" {{ 'checked' if modo_demo }}>
+      </label>
+      <div class="solo-demo cfg-demo-box">
+        <div class="hint" style="margin:0 0 10px;">Carga pacientes de ejemplo con turnos repartidos en el día de hoy. No borra tus datos: se suman a los que ya tenés.</div>
+        <button class="btn btn-ghost" onclick="cargarPrueba()">+ Cargar pacientes de prueba (hoy)</button>
+      </div>
+    </section>
   </div>
-  <div id="precios-lista" style="margin-top:12px;"></div>
-</div>
-
-<div class="section-title">Feriados (días sin turnos)</div>
-<div class="card card-pad" style="margin-bottom:8px;">
-  <div class="hint" style="margin-bottom:10px;">En estos días no se pueden dar turnos. También podés marcar/quitar feriados haciendo clic en un día del calendario, en la Agenda.</div>
-  <button class="btn btn-primary" onclick="cargarFeriadosAr()">Cargar feriados de Argentina</button>
-  <div id="feriados-lista" style="margin-top:12px;"></div>
-</div>
-
-<div class="section-title">Aviso por WhatsApp</div>
-<div class="card card-pad">
-  <div class="field">
-    <label>WhatsApp de la kinesióloga</label>
-    <input class="input" id="cfg-wa" inputmode="numeric" placeholder="Ej: 5491156789012">
-    <div class="hint">Código de país + área + número, sin “+” ni espacios (Argentina: 549 + área + número). Cuando termina una sesión aparece un botón en el box para avisarle.</div>
-  </div>
-  <button class="btn btn-primary" onclick="guardarWa()">Guardar WhatsApp</button>
-</div>
-
-<div class="section-title">Retiro de plantillas</div>
-<div class="card card-pad" style="margin-bottom:8px;">
-  <div class="hint" style="margin-bottom:10px;">Se usa en el mensaje de WhatsApp "Avisar que sus plantillas están listas".</div>
-  <div class="field"><label>Horario de retiro</label><input class="input" id="cfg-retiro-horario" placeholder="Ej: Lun a Vie de 9 a 18 hs"></div>
-  <div class="field"><label>Dirección de retiro</label><input class="input" id="cfg-retiro-dir" placeholder="Ej: Av. Rivadavia 1234, Morón"></div>
-  <button class="btn btn-primary" onclick="guardarRetiro()">Guardar</button>
-</div>
-
-<div class="section-title">Días y horario del centro</div>
-<div class="card card-pad" style="margin-bottom:8px;">
-  <div class="hint" style="margin-bottom:10px;">Marcá los días que abre el centro y el horario de cada uno (puede ser distinto por día).</div>
-  <div id="centro-horarios"></div>
-  <button class="btn btn-primary" style="margin-top:10px;" onclick="guardarCentro()">Guardar horario</button>
-</div>
-
-<div class="section-title">Datos de prueba</div>
-<div class="card card-pad" style="margin-bottom:8px;">
-  <div class="hint" style="margin-bottom:10px;">Carga pacientes de ejemplo con turnos repartidos en todo el día de hoy, para probar la sala del día, los boxes y la agenda. No borra tus datos: se suman a los que ya tenés.</div>
-  <button class="btn btn-primary" onclick="cargarPrueba()">+ Cargar pacientes de prueba (hoy)</button>
-</div>
-
-<div class="section-title">Copia de seguridad</div>
-<div class="card card-pad">
-  <div class="hint" style="margin-bottom:10px;">Descargá una copia de todos los datos (pacientes, turnos, ejercicios, evolución). Guardala en un lugar seguro (pendrive, Drive) cada tanto.</div>
-  <a class="btn btn-primary" href="/api/backup">Descargar copia de seguridad</a>
 </div>
 {% endblock %}
 
@@ -139,11 +153,11 @@ function pintarCentroHor() {
     const on = CENTRO_HOR[i] != null;
     const a = on ? CENTRO_HOR[i].a : '08:00';
     const c = on ? CENTRO_HOR[i].c : '20:00';
-    return `<div class="centro-dia">
-      <label class="sound-toggle" style="min-width:104px;"><input type="checkbox" ${on ? 'checked' : ''} onchange="centroToggle(${i}, this.checked)"> ${d}</label>
-      <input class="input" type="time" value="${a}" ${on ? '' : 'disabled'} oninput="centroSet(${i},'a',this.value)">
+    return `<div class="centro-dia ${on ? '' : 'cerrado'}">
+      <label class="centro-dia-sw"><input type="checkbox" class="switch" ${on ? 'checked' : ''} onchange="centroToggle(${i}, this.checked)"> <span>${d}</span></label>
+      ${on ? `<input class="input" type="time" value="${a}" oninput="centroSet(${i},'a',this.value)">
       <span class="muted">a</span>
-      <input class="input" type="time" value="${c}" ${on ? '' : 'disabled'} oninput="centroSet(${i},'c',this.value)">
+      <input class="input" type="time" value="${c}" oninput="centroSet(${i},'c',this.value)">` : '<span class="centro-cerrado">Cerrado</span>'}
     </div>`;
   }).join('');
 }
@@ -162,16 +176,15 @@ apiGet('/api/config').then(c => {
   pintarCentroHor();
 });
 async function guardarWa() {
-  const wa = document.getElementById('cfg-wa').value.replace(/[^0-9]/g, '');
+  const wa = waNumeroAR(document.getElementById('cfg-wa').value);
   await api('/api/config', { wa_kine: wa });
-  toast('WhatsApp guardado ✓', 'ok');
 }
 async function guardarRetiro() {
   await api('/api/config', {
     retiro_horario: document.getElementById('cfg-retiro-horario').value.trim(),
     retiro_direccion: document.getElementById('cfg-retiro-dir').value.trim(),
   });
-  toast('Datos de retiro guardados ✓', 'ok');
+  toast('Datos guardados ✓', 'ok');
 }
 async function guardarCentro() {
   await api('/api/config', { centro_horarios: JSON.stringify(CENTRO_HOR) });
@@ -185,8 +198,9 @@ async function cargarSedes() {
   cont.innerHTML = (d.sedes || []).map(s => `
     <div class="sede-cfg-row">
       <div class="sede-cfg-main">
+        <label class="cfg-mini-lbl">Nombre</label>
         <input class="input" value="${(s.nombre || '').replace(/"/g, '&quot;')}" id="sede-nom-${s.id}">
-        <div class="hint" style="margin-top:4px;">${s.boxes} box(es) en esta sede${s.actual ? ' · <b>estás acá</b>' : ''}</div>
+        <div class="hint" style="margin-top:4px;">${s.boxes} box${s.boxes === 1 ? '' : 'es'} en esta sede${s.actual ? ' · <b>estás acá</b>' : ''}</div>
       </div>
       <div class="sede-cfg-tope">
         <label>Tope</label>
@@ -224,14 +238,20 @@ async function cargarFeriados() {
   const cont = document.getElementById('feriados-lista');
   let f;
   try { f = await apiGet('/api/feriados'); } catch (e) { return; }
-  const fechas = Object.keys(f).sort();
-  if (!fechas.length) { cont.innerHTML = '<div class="empty" style="font-size:13px;">No hay feriados cargados.</div>'; return; }
-  cont.innerHTML = fechas.map(fe => `
+  const hoy = hoyISO();
+  const todas = Object.keys(f).sort();
+  const fechas = todas.filter(fe => fe >= hoy);
+  if (!todas.length) { cont.innerHTML = '<div class="hint">No hay feriados cargados.</div>'; return; }
+  if (!fechas.length) { cont.innerHTML = '<div class="hint">No quedan feriados por venir.</div>'; return; }
+  const LIM = 6;
+  const verTodos = cont.dataset.todos === '1';
+  const lista = verTodos ? fechas : fechas.slice(0, LIM);
+  cont.innerHTML = `<div class="hint" style="margin-bottom:6px;">${fechas.length} feriado${fechas.length === 1 ? '' : 's'} por venir</div>` + lista.map(fe => `
     <div class="list-item" style="padding:8px 4px;">
       <div class="li-main"><div class="li-name">${fFechaLarga(fe)}</div>
         <div class="li-sub">${(f[fe] || 'Feriado').replace(/</g,'&lt;')}</div></div>
-      <button class="btn btn-danger-soft btn-sm" onclick="quitarFeriadoCfg('${fe}')">Quitar</button>
-    </div>`).join('');
+      <button class="btn btn-ghost btn-sm" onclick="quitarFeriadoCfg('${fe}')">Quitar</button>
+    </div>`).join('') + (fechas.length > LIM ? `<button class="btn btn-ghost btn-sm" style="margin-top:8px;" onclick="this.closest('#feriados-lista').dataset.todos='${verTodos ? '0' : '1'}'; cargarFeriados();">${verTodos ? 'Ver menos' : 'Ver los ' + fechas.length}</button>` : '');
 }
 async function cargarFeriadosAr() {
   const r = await api('/api/feriados/cargar_ar', {});
@@ -250,12 +270,12 @@ async function cargarPrecios() {
   const cont = document.getElementById('precios-lista');
   let rows;
   try { rows = await apiGet('/api/precios'); } catch (e) { return; }
-  if (!rows.length) { cont.innerHTML = '<div class="empty" style="font-size:13px;">Sin precios cargados.</div>'; return; }
+  if (!rows.length) { cont.innerHTML = '<div class="hint">Todavía no hay precios cargados.</div>'; return; }
   cont.innerHTML = rows.map(p => `
     <div class="list-item" style="padding:8px 4px;">
       <div class="li-main"><div class="li-name">$${(Math.round(p.monto)).toLocaleString('es-AR')}</div>
         <div class="li-sub">${(p.nombre || '').replace(/</g,'&lt;')}</div></div>
-      <button class="btn btn-danger-soft btn-sm" onclick="borrarPrecioPreset(${p.id})">Quitar</button>
+      <button class="btn btn-ghost btn-sm" onclick="borrarPrecioPreset(${p.id})">Quitar</button>
     </div>`).join('');
 }
 async function agregarPrecioPreset() {
@@ -275,8 +295,28 @@ async function borrarPrecioPreset(id) {
 }
 cargarPrecios();
 
+// Modo demo: se guarda en el servidor y recarga para mostrar/ocultar los botones de prueba.
+document.getElementById('cfg-demo-on').addEventListener('change', async (e) => {
+  await api('/api/config', { modo_demo: e.target.checked ? '1' : '0' });
+  toast(e.target.checked ? 'Modo demo activado' : 'Modo demo desactivado', 'ok');
+  setTimeout(() => location.reload(), 500);
+});
+
+// Índice: marca la sección visible.
+(function () {
+  const links = [...document.querySelectorAll('.cfg-indice a')];
+  const secs = links.map(a => document.querySelector(a.getAttribute('href'))).filter(Boolean);
+  const marcar = () => {
+    let act = secs[0];
+    secs.forEach(sec => { if (sec.getBoundingClientRect().top < 140) act = sec; });
+    links.forEach(a => a.classList.toggle('on', act && a.getAttribute('href') === '#' + act.id));
+  };
+  window.addEventListener('scroll', marcar, { passive: true });
+  marcar();
+})();
+
 async function cargarPrueba() {
-  if (!confirm('¿Cargar pacientes de prueba con turnos para hoy?')) return;
+  if (!await confirmar('¿Cargar pacientes de prueba con turnos para hoy?')) return;
   const r = await api('/api/seed_prueba', {});
   toast('Se cargaron ' + (r.creados || 0) + ' pacientes de prueba ✓', 'ok');
   setTimeout(() => location.href = '/', 700);

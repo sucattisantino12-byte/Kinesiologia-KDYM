@@ -2,29 +2,38 @@
 {% block title %}Recepción — KDYM{% endblock %}
 
 {% block content %}
-<div class="row" style="align-items:center; margin-bottom:6px;">
-  <div class="grow">
-    <div class="page-title" style="margin-bottom:2px;">Recepción</div>
-    <div class="muted" id="fecha-hoy"></div>
+<div class="page-head">
+  <div class="page-head-txt">
+    <div class="page-title">Recepción</div>
+    <div class="page-sub solo-pc" id="fecha-hoy"></div>
   </div>
-  <a class="btn btn-ghost btn-sm" href="{{ url_for('configuracion_page') }}" title="Configuración">Configuración</a>
+  <div class="page-head-actions">
+    <button class="btn btn-primary" onclick="abrirCheckin()" data-tour="llegada">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.2 4.2L19 7"/></svg>
+      Registrar llegada
+    </button>
+  </div>
 </div>
 
-<div class="stats" id="stats"></div>
+<div class="stats stats-recep" id="stats" data-tour="stats"></div>
 
-<div class="split" style="margin-top:14px;">
+<div class="split recep-split">
   <div class="col-main">
-    <button class="btn btn-primary btn-block" style="margin-bottom:12px;" onclick="abrirCheckin()">+ Registrar llegada</button>
-    <div class="row" style="align-items:center; justify-content:space-between;">
-      <div class="section-title" style="margin:6px 0 8px;">Boxes</div>
-      <button class="btn btn-ghost btn-sm" onclick="agregarBox()">+ Box</button>
+    <div class="recep-bar">
+      <div class="section-title" style="margin:0;">Boxes <span class="cuenta" id="boxes-cuenta"></span></div>
+      <button class="btn btn-ghost btn-sm" onclick="agregarBox()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+        Box
+      </button>
     </div>
-    <div class="boxes" id="boxes"></div>
+    <div class="boxes" id="boxes" data-tour="boxes"><div class="cargando"></div></div>
   </div>
 
   <div class="col-side">
-    <div class="section-title" style="margin:6px 0 8px;">Sala del día — turnos por hora</div>
-    <div id="sala-list"></div>
+    <div class="recep-bar">
+      <div class="section-title" style="margin:0;">Sala del día <span class="cuenta" id="sala-cuenta"></span></div>
+    </div>
+    <div id="sala-list" data-tour="sala"><div class="card"><div class="cargando"></div></div></div>
   </div>
 </div>
 
@@ -37,10 +46,10 @@
     </div>
     <div class="modal-body">
       <div class="field">
-        <input class="input" id="checkin-buscar" placeholder="Buscar por nombre, apellido o DNI…" autocomplete="off">
+        <input class="input input-buscar" id="checkin-buscar" placeholder="Buscar por nombre, apellido o DNI…" autocomplete="off">
       </div>
       <div id="checkin-resultados"></div>
-      <div class="hint">¿No está en la lista? <a href="{{ url_for('pacientes') }}" style="color:var(--azul-oscuro); font-weight:700;">Cargar paciente nuevo</a></div>
+      <div class="hint" style="margin-top:10px;">¿No está en la lista? <a href="{{ url_for('pacientes') }}?accion=nuevo-paciente" style="color:var(--azul-oscuro); font-weight:700;">Cargar paciente nuevo</a></div>
     </div>
   </div>
 </div>
@@ -139,7 +148,7 @@
       <button class="x" onclick="cerrarModal('modal-perfil')">&times;</button>
     </div>
     <div class="modal-body" id="perfil-body">
-      <div class="empty">Cargando…</div>
+      <div class="cargando"></div>
     </div>
     <div class="modal-foot">
       <a class="btn btn-primary btn-block" id="perfil-ficha" href="#">Ver ficha completa →</a>

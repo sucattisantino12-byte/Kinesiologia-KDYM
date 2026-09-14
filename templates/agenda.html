@@ -2,60 +2,80 @@
 {% block title %}Agenda — KDYM{% endblock %}
 
 {% block content %}
-<div class="row" style="align-items:center; margin-bottom:14px;">
-  <div class="grow">
-    <div class="page-title" style="margin-bottom:2px;">Agenda</div>
-    <div class="muted" id="fecha-hoy"></div>
+<div class="page-head">
+  <div class="page-head-txt">
+    <div class="page-title">Agenda</div>
+    <div class="page-sub solo-pc" id="fecha-hoy"></div>
   </div>
-  <button class="btn btn-ghost btn-sm" onclick="abrirNuevoPaciente(elegirDesdeNuevo)">+ Paciente</button>
-  <button class="btn btn-ghost btn-sm" onclick="abrirHuecos()">Buscar hueco</button>
-  <button class="btn btn-ghost btn-sm" onclick="simularAgenda()" title="Llenar el mes con turnos de ejemplo">Simular agenda</button>
-  <button class="btn btn-danger-soft btn-sm" onclick="limpiarSimulacion()" title="Borrar los turnos de ejemplo">Limpiar</button>
-  <button class="btn btn-primary btn-sm" onclick="agAgregarTurnos()">Agregar turnos</button>
+  <div class="page-head-actions">
+    <button class="btn btn-ghost solo-demo" onclick="simularAgenda()" title="Llenar el mes con turnos de ejemplo">Simular agenda</button>
+    <button class="btn btn-danger-soft solo-demo" onclick="limpiarSimulacion()" title="Borrar los turnos de ejemplo">Limpiar simulación</button>
+    <button class="btn btn-ghost" onclick="abrirNuevoPaciente(elegirDesdeNuevo)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="10" cy="8" r="3.6"/><path d="M3.5 19.5c.6-3.4 3.3-5.3 6.5-5.3 1.4 0 2.7.4 3.8 1M18 14v6M15 17h6"/></svg>
+      Paciente
+    </button>
+    <button class="btn btn-ghost" onclick="abrirHuecos()" data-tour="hueco">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5M11 8v3l2 1.5"/></svg>
+      Buscar hueco
+    </button>
+    <button class="btn btn-primary" onclick="agAgregarTurnos()" data-tour="agregar-turnos">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      Agregar turnos
+    </button>
+  </div>
 </div>
 
-<!-- Cambiar entre el calendario de Morón y Ramos -->
-<div class="agenda-sede-bar" id="agenda-sede-bar"></div>
-
-<div class="split agenda-split" style="margin-top:8px;">
+<div class="split agenda-split">
   <div class="col-main">
-    <!-- Buscar un paciente para resaltar sus días en el calendario -->
-    <div class="agenda-buscar-wrap">
-      <input class="input" id="ag-buscar" placeholder="Buscar un paciente para ver sus días…" autocomplete="off">
-      <div id="ag-buscar-res" class="ag-buscar-res"></div>
+    <div class="ag-toolbar card">
+      <!-- Cambiar entre el calendario de Morón y Ramos -->
+      <div class="agenda-sede-bar" id="agenda-sede-bar" data-tour="sede-cal"></div>
+      <!-- Buscar un paciente para resaltar sus días en el calendario -->
+      <div class="agenda-buscar-wrap" data-tour="ag-buscar">
+        <input class="input input-buscar" id="ag-buscar" placeholder="Buscar paciente para ver sus días…" autocomplete="off">
+        <div id="ag-buscar-res" class="ag-buscar-res"></div>
+      </div>
+      <!-- Filtrar el calendario por día de la semana -->
+      <div class="agenda-dias-filtro">
+        <span class="agenda-dias-lbl">Días</span>
+        <div class="dias-chips" id="ag-dias-chips"></div>
+        <a href="#" id="ag-dias-limpiar" onclick="limpiarDiasFiltro();return false;" style="display:none;">ver todos</a>
+      </div>
       <div id="ag-buscado" class="ag-buscado" style="display:none;"></div>
     </div>
 
-    <!-- Filtrar el calendario por día de la semana -->
-    <div class="agenda-dias-filtro">
-      <span class="agenda-dias-lbl">Filtrar días:</span>
-      <div class="dias-chips" id="ag-dias-chips"></div>
-      <a href="#" id="ag-dias-limpiar" onclick="limpiarDiasFiltro();return false;" style="display:none;">ver todos</a>
-    </div>
-
     <div class="cal-cols">
-      <!-- Semáforo por horario: a la IZQUIERDA del calendario -->
-      <aside class="sem-side">
-        <div class="sem-side-h">Semáforo<br>por horario</div>
-        <select id="sem-hora" class="sem-hora-input"></select>
+      <!-- Semáforo por horario -->
+      <aside class="sem-side" data-tour="semaforo">
+        <div class="sem-side-h">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="7" y="2.5" width="10" height="19" rx="5"/><circle cx="12" cy="7.5" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="12" cy="16.5" r="1.6"/></svg>
+          Semáforo
+        </div>
+        <select id="sem-hora" class="sem-hora-input" aria-label="Horario del semáforo"></select>
         <div class="sem-side-chips">
           <span class="sem-chip"><span class="sem-dot verde"></span> Libre</span>
           <span class="sem-chip"><span class="sem-dot amar"></span> Falta 1</span>
           <span class="sem-chip"><span class="sem-dot rojo"></span> Lleno</span>
         </div>
-        <label class="sem-toggle"><input type="checkbox" id="sem-punto-chk"> Mostrar puntito</label>
+        <label class="sem-toggle"><input type="checkbox" id="sem-punto-chk"> Puntito en vez de color</label>
         <div class="sem-hint" id="sem-hint"></div>
       </aside>
 
-      <div class="card card-pad cal-card">
+      <div class="card card-pad cal-card" data-tour="calendario">
         <div class="cal-head">
-          <div class="seg" style="margin-right:auto;">
+          <div class="seg">
             <button id="vista-mes" class="on" onclick="cambiarVista('mes')">Mes</button>
             <button id="vista-sem" onclick="cambiarVista('semana')">Semana</button>
           </div>
-          <button class="btn btn-ghost btn-sm" onclick="navPeriodo(-1)">←</button>
-          <div class="mes" id="cal-mes"></div>
-          <button class="btn btn-ghost btn-sm" onclick="navPeriodo(1)">→</button>
+          <div class="cal-nav">
+            <button class="btn btn-ghost btn-sm btn-ic" onclick="navPeriodo(-1)" aria-label="Anterior">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg>
+            </button>
+            <div class="mes" id="cal-mes"></div>
+            <button class="btn btn-ghost btn-sm btn-ic" onclick="navPeriodo(1)" aria-label="Siguiente">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>
+            </button>
+          </div>
           <button class="btn btn-line btn-sm" onclick="irHoy()">Hoy</button>
         </div>
         <div id="vista-mes-cont">
@@ -69,9 +89,11 @@
     </div>
   </div>
 
-  <div class="col-side">
-    <div class="section-title" style="margin-top:6px;">Día seleccionado</div>
-    <div class="muted" id="dia-titulo" style="font-weight:700; margin-bottom:8px;"></div>
+  <div class="col-side" data-tour="dia">
+    <div class="dia-panel-head">
+      <div class="section-title" style="margin:0 0 2px;">Día seleccionado</div>
+      <div class="dia-titulo" id="dia-titulo"></div>
+    </div>
     <div id="dia-detalle"></div>
   </div>
 </div>
@@ -266,7 +288,7 @@ function render() {
 function labelPeriodo() {
   const el = document.getElementById('cal-mes');
   if (VISTA === 'mes') {
-    el.textContent = MES.toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
+    el.textContent = _cap(MES.toLocaleDateString('es-AR', { month: 'long', year: 'numeric' }));
   } else {
     const fin = new Date(SEM); fin.setDate(fin.getDate() + 6);
     el.textContent = SEM.getDate() + ' ' + SEM.toLocaleDateString('es-AR', { month: 'short' }) +
@@ -308,7 +330,7 @@ function pintarSemana() {
 
 function pintarCalendario() {
   document.getElementById('cal-mes').textContent =
-    MES.toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
+    _cap(MES.toLocaleDateString('es-AR', { month: 'long', year: 'numeric' }));
   document.getElementById('cal-dow').innerHTML =
     ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'].map(d => `<div class="cal-dow">${d}</div>`).join('');
 
@@ -433,10 +455,10 @@ function pintarDia() {
   } else {
     // Asignar turno directo + ver cómo está el día (persiste al cambiar de día).
     addBtn += `<div class="dia-add">
-      <button class="btn btn-primary btn-block" onclick="darTurnoEsteDia()">Asignar turno de paciente</button>
-      <button class="btn btn-line btn-block btn-sm" style="margin-top:6px;" onclick="verDiaToggle()">${VER_DIA ? 'Ocultar cómo está el día' : 'Ver cómo está este día'}</button>
+      <button class="btn btn-primary btn-block" onclick="darTurnoEsteDia()">+ Dar turno este día</button>
+      <button class="btn btn-ghost btn-block btn-sm" style="margin-top:8px;" onclick="verDiaToggle()">${VER_DIA ? 'Ocultar horarios libres' : 'Ver horarios libres del día'}</button>
     </div>`;
-    if (VER_DIA) addBtn += `<div id="dia-libres" class="dia-libres"><div class="hint">Cargando…</div></div>`;
+    if (VER_DIA) addBtn += `<div id="dia-libres" class="dia-libres"><div class="cargando"></div></div>`;
   }
   // Separar por franja horaria.
   const grupos = {};
@@ -452,8 +474,8 @@ function pintarDia() {
   }
 
   if (!horasOrden.length) {
-    const vacio = HORA_FILTRO ? ('Sin turnos a las ' + HORA_FILTRO + ' este día.') : 'Sin turnos este día.';
-    cont.innerHTML = addBtn + filtroNota + '<div class="empty">' + vacio + '</div>';
+    const vacio = HORA_FILTRO ? ('Sin turnos a las ' + HORA_FILTRO + ' este día.') : (esFeriado ? 'Día sin turnos.' : 'Todavía no hay turnos este día.');
+    cont.innerHTML = addBtn + filtroNota + '<div class="card"><div class="empty">' + vacio + '</div></div>';
     animar();
     if (VER_DIA && !esFeriado) cargarDiaLibres();
     return;
@@ -477,7 +499,7 @@ function verDiaToggle() { VER_DIA = !VER_DIA; pintarDia(); }
 async function cargarDiaLibres() {
   const box = document.getElementById('dia-libres');
   if (!box) return;
-  const cab = '<div class="dia-libres-cab"><span>Cómo está el día</span>' +
+  const cab = '<div class="dia-libres-cab"><span>Horarios libres</span>' +
     '<button class="x" onclick="verDiaToggle()" title="Cerrar">&times;</button></div>';
   const d = await apiGet('/api/horarios_libres?fecha=' + SEL + '&sede=' + VER_SEDE);
   if (d.feriado) { box.innerHTML = cab + '<div class="hint">Feriado — no se dan turnos.</div>'; return; }
@@ -504,6 +526,7 @@ function filaTurno(t) {
   return `<div class="list-item clicky${hl}" onclick="abrirTurno(${t.turno_id})" title="Tocar para mover, reprogramar o borrar">
     <div class="avatar">${iniciales(t.paciente)}</div>
     <div class="li-main"><span class="li-name">${escapeHtml(t.paciente)}</span></div>
+    <span class="li-chev" aria-hidden="true">›</span>
   </div>`;
 }
 
@@ -535,7 +558,7 @@ function abrirTurno(tid) {
     }
     document.getElementById('turno-repro-info').innerHTML =
       `Días: <b>${escapeHtml(dias)}</b>${escapeHtml(hs)}<br>` +
-      `Reprogramar lo mueve al <b>${pv.fecha}${pv.hora ? ' a las ' + pv.hora : ''}</b>.`;
+      `Reprogramar lo mueve al <b>${fechaLinda(pv.fecha)}${pv.hora ? ' a las ' + pv.hora : ''}</b>.`;
   }).catch(() => { document.getElementById('turno-repro-info').textContent = ''; });
 }
 async function guardarTurnoEdit() {
@@ -549,29 +572,29 @@ async function guardarTurnoEdit() {
   recargar();
 }
 async function borrarTurnoModal() {
-  if (!confirm('¿Borrar este turno?')) return;
+  if (!await confirmar('¿Borrar este turno?')) return;
   await api('/api/turno/' + TURNO_SEL.turno_id + '/borrar');
   cerrarModal('modal-turno');
   recargar();
 }
 async function reprogramarTurnoSel() {
-  const dest = TURNO_PREVIEW ? (TURNO_PREVIEW.fecha + (TURNO_PREVIEW.hora ? ' a las ' + TURNO_PREVIEW.hora : '')) : 'la próxima fecha';
-  if (!confirm('Se reprograma al ' + dest + '. ¿Confirmar?')) return;
+  const dest = TURNO_PREVIEW ? (fechaLinda(TURNO_PREVIEW.fecha) + (TURNO_PREVIEW.hora ? ' a las ' + TURNO_PREVIEW.hora : '')) : 'la próxima fecha';
+  if (!await confirmar('Se reprograma al ' + dest + '. ¿Confirmar?')) return;
   const r = await api('/api/turno/' + TURNO_SEL.turno_id + '/reprogramar');
   cerrarModal('modal-turno');
-  toast('Reprogramado al ' + r.fecha + ' ✓', 'ok');
+  toast('Reprogramado al ' + fechaLinda(r.fecha), 'ok');
   recargar();
 }
 async function perderTurnoSel() {
   const dias = TURNO_PREVIEW && TURNO_PREVIEW.dias ? ' (sus días: ' + TURNO_PREVIEW.dias + ')' : '';
-  if (!confirm('¿Dar por perdido el turno de ' + TURNO_SEL.paciente + '?' + dias)) return;
+  if (!await confirmar('¿Dar por perdido el turno de ' + TURNO_SEL.paciente + '?' + dias)) return;
   await api('/api/turno/' + TURNO_SEL.turno_id + '/perdido');
   cerrarModal('modal-turno');
   toast('Turno dado por perdido', 'ok');
   recargar();
 }
 function recordarWa() {
-  const tel = (TURNO_SEL.telefono || '').replace(/[^0-9]/g, '');
+  const tel = waNumeroAR(TURNO_SEL.telefono);
   if (!tel) { toast('El paciente no tiene teléfono cargado en su ficha', 'alert'); return; }
   const d = new Date(TURNO_SEL.fecha + 'T12:00:00');
   const fstr = d.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
@@ -624,7 +647,7 @@ function huecoElegir(fecha, hora) {
 
 // ---- Acciones de asistencia ----
 async function asistio(tid) {
-  if (!confirm('¿Confirmás que vino? Se le cuenta la sesión.')) return;
+  if (!await confirmar('¿Confirmás que vino? Se le cuenta la sesión.')) return;
   await api('/api/turno/' + tid + '/vino');
   toast('Vino ✓ — sesión contada', 'ok');
   recargar();
@@ -643,7 +666,7 @@ function abrirFalto(tid, nombre) {
 async function reprogramar() {
   const r = await api('/api/turno/' + FALTO_TID + '/reprogramar');
   cerrarModal('modal-falto');
-  toast('Reprogramado al ' + r.fecha + ' ✓', 'ok');
+  toast('Reprogramado al ' + fechaLinda(r.fecha), 'ok');
   recargar();
 }
 async function darPerdido() {
@@ -653,7 +676,7 @@ async function darPerdido() {
   recargar();
 }
 async function borrarTurno(tid) {
-  if (!confirm('¿Quitar este turno?')) return;
+  if (!await confirmar('¿Quitar este turno?')) return;
   await api('/api/turno/' + tid + '/borrar'); recargar();
 }
 
@@ -762,15 +785,15 @@ function limpiarDiasFiltro() {
 // ---- Feriados (días sin turnos) ----
 async function marcarFeriado() {
   const cuantos = (DATA[SEL] || []).filter(t => !['ausente', 'perdido', 'terminado'].includes(t.estado)).length;
-  if (!confirm('¿Marcar este día como FERIADO? No se van a poder dar turnos ese día.')) return;
-  const nombre = prompt('Nombre del feriado (opcional):', 'Feriado') || 'Feriado';
-  await api('/api/feriado', { fecha: SEL, nombre: nombre, sede_id: VER_SEDE });
+  const nombre = await pedirTexto('Marcar como feriado', 'Feriado', {
+    mensaje: 'Ese día no se van a poder dar turnos. Podés ponerle un nombre (opcional).', ok: 'Marcar feriado' });
+  if (nombre === null) return;
+  await api('/api/feriado', { fecha: SEL, nombre: nombre.trim() || 'Feriado', sede_id: VER_SEDE });
   // Si el día tenía turnos cargados, preguntar qué hacer con ellos.
   if (cuantos) {
-    const mover = confirm(
-      `Este día tenía ${cuantos} turno(s).\n\n` +
-      'Aceptar = pasarlos a la próxima fecha disponible de cada paciente.\n' +
-      'Cancelar = dejarlos para asignarlos a mano.');
+    const mover = await confirmar(`Este día tenía ${cuantos} turno(s). ¿Qué hacemos con ellos?`, {
+      mensaje: 'Podés pasarlos a la próxima fecha disponible de cada paciente, o dejarlos para asignarlos a mano.',
+      ok: 'Pasarlos a su próxima fecha', cancelar: 'Dejarlos a mano', peligro: false });
     if (mover) {
       const r = await api('/api/feriado/reprogramar_turnos', { fecha: SEL, sede_id: VER_SEDE });
       toast(`Feriado marcado — ${r.movidos || 0} turno(s) reprogramados`, 'ok');
@@ -829,7 +852,7 @@ function actualizarSemHint() {
 // ---- Simular agenda del mes (punto 7) ----
 async function simularAgenda() {
   const mes = ymd(MES).slice(0, 7);   // 'YYYY-MM' del mes visible
-  if (!confirm('Se van a cargar turnos de ejemplo en todo ' +
+  if (!await confirmar('Se van a cargar turnos de ejemplo en todo ' +
     MES.toLocaleDateString('es-AR', { month: 'long', year: 'numeric' }) +
     ' (sede actual). Después podés borrarlos con “Limpiar”. ¿Seguir?')) return;
   const r = await api('/api/simular_agenda', { mes, sede_id: VER_SEDE });
@@ -837,7 +860,7 @@ async function simularAgenda() {
   recargar();
 }
 async function limpiarSimulacion() {
-  if (!confirm('¿Borrar TODOS los turnos de simulación de esta sede?')) return;
+  if (!await confirmar('¿Borrar TODOS los turnos de simulación de esta sede?')) return;
   const r = await api('/api/limpiar_simulacion', { sede_id: VER_SEDE });
   toast('Se borraron ' + (r.borrados || 0) + ' turnos de simulación ✓', 'ok');
   recargar();

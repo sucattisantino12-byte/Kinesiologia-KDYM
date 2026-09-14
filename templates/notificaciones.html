@@ -2,15 +2,17 @@
 {% block title %}Notificaciones — KDYM{% endblock %}
 
 {% block content %}
-<div class="row" style="align-items:center; margin-bottom:14px;">
-  <div class="grow">
-    <div class="page-title" style="margin-bottom:2px;">Notificaciones</div>
-    <div class="muted" id="notif-sub"></div>
+<div class="page-head">
+  <div class="page-head-txt">
+    <div class="page-title">Notificaciones</div>
+    <div class="page-sub" id="notif-sub">Revisando…</div>
   </div>
 </div>
 
-<div class="section-title">Últimas sesiones — por renovar bono/autorización</div>
-<div id="notif-alertas"></div>
+<div class="sec-head" style="margin-top:0;">
+  <div class="section-title">Por renovar bono u orden <span class="cuenta" id="notif-cuenta"></span></div>
+</div>
+<div id="notif-alertas" data-tour="notif-lista"><div class="card"><div class="cargando"></div></div></div>
 {% endblock %}
 
 {% block scripts %}
@@ -18,23 +20,29 @@
 async function cargar() {
   const d = await apiGet('/api/notificaciones');
   const alertas = d.alertas || [];
-  document.getElementById('notif-sub').textContent =
-    alertas.length ? alertas.length + ' paciente(s) por renovar' : 'Todo al día';
+  document.getElementById('notif-sub').innerHTML = alertas.length
+    ? `<b>${alertas.length}</b> paciente${alertas.length === 1 ? '' : 's'} con pocas sesiones restantes`
+    : 'Todo al día';
+  document.getElementById('notif-cuenta').textContent = alertas.length || '';
 
   const ca = document.getElementById('notif-alertas');
-  ca.innerHTML = alertas.length ? alertas.map(a => `
-    <div class="card card-pad alerta-card notif-item">
-      <div class="grow">
-        <a href="/paciente/${a.paciente_id}" class="li-name">${escapeHtml(a.nombre_completo)}</a>
-        <div class="li-sub">${a.obra_social ? escapeHtml(a.obra_social) + ' · ' : ''}<b>${a.quedan > 0 ? a.quedan + ' sesión(es) restante(s)' : 'sin sesiones'}</b></div>
-      </div>
-      <button class="x" onclick="cerrarAlerta(${a.paciente_id})" title="Cerrar">&times;</button>
-    </div>`).join('') : '<div class="card"><div class="empty">No hay pacientes por renovar</div></div>';
+  const html = alertas.length ? '<div class="notif-grid">' + alertas.map(a => `
+    <div class="card notif-card ${a.quedan <= 0 ? 'sin' : ''}">
+      <div class="notif-ic">${a.quedan <= 0 ? '!' : a.quedan}</div>
+      <a href="/paciente/${a.paciente_id}" class="notif-main">
+        <span class="li-name">${escapeHtml(a.nombre_completo)}</span>
+        <span class="li-sub">${a.obra_social ? escapeHtml(a.obra_social) + ' · ' : ''}${a.quedan > 0 ? (a.quedan === 1 ? 'Le queda 1 sesión' : 'Le quedan ' + a.quedan + ' sesiones') : 'Ya no le quedan sesiones'}</span>
+      </a>
+      <a class="btn btn-ghost btn-sm" href="/paciente/${a.paciente_id}">Ver ficha</a>
+      <button class="x" onclick="cerrarAlerta(${a.paciente_id})" title="Ya lo resolví: cerrar aviso" aria-label="Cerrar aviso">&times;</button>
+    </div>`).join('') + '</div>'
+    : `<div class="card"><div class="empty notif-ok"><b>No hay pacientes por renovar</b><br>Cuando a alguien le queden 2 sesiones o menos, te avisamos acá y en el menú.</div></div>`;
+  if (ca.dataset.h !== html) { ca.innerHTML = html; ca.dataset.h = html; }
 }
 
-async function cerrarAlerta(pid) { await api('/api/notificaciones/alerta/' + pid + '/cerrar'); cargar(); actualizarBadgeNotif(); }
+async function cerrarAlerta(pid) { await api('/api/notificaciones/alerta/' + pid + '/cerrar'); toast('Aviso cerrado', 'ok'); cargar(); actualizarBadgeNotif(); }
 
 cargar();
-setInterval(cargar, 10000);
+setInterval(cargar, 15000);
 </script>
 {% endblock %}

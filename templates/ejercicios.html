@@ -2,15 +2,25 @@
 {% block title %}Ejercicios — KDYM{% endblock %}
 
 {% block content %}
-<div class="row" style="align-items:center; margin-bottom:14px;">
-  <div class="grow">
-    <div class="page-title" style="margin-bottom:2px;">Biblioteca de ejercicios</div>
-    <div class="muted">Catálogo por categorías para asignar a los pacientes</div>
+<div class="page-head">
+  <div class="page-head-txt">
+    <div class="page-title">Biblioteca de ejercicios</div>
+    <div class="page-sub" id="ej-sub">Catálogo por categorías para asignar a los pacientes</div>
   </div>
-  <button class="btn btn-primary" onclick="abrirModal('modal-cat')">+ Nuevo ejercicio</button>
+  <div class="page-head-actions">
+    <button class="btn btn-primary" onclick="abrirModal('modal-cat'); setTimeout(() => document.getElementById('c-nombre').focus(), 80)" data-tour="nuevo-ejercicio">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      Nuevo ejercicio
+    </button>
+  </div>
 </div>
 
-<div id="catalogo"></div>
+<div class="ej-filtros" data-tour="ej-filtros">
+  <input class="input input-buscar" id="ej-buscar" placeholder="Buscar ejercicio…" autocomplete="off">
+  <div class="ej-cats" id="ej-cats"></div>
+</div>
+
+<div id="catalogo" data-tour="ej-lista"><div class="card"><div class="cargando"></div></div></div>
 
 <!-- Modal nuevo ejercicio de catálogo -->
 <div class="modal-bg" id="modal-cat">
@@ -25,6 +35,7 @@
         <label>Categoría</label>
         <input class="input" id="c-categoria" list="cats-list" placeholder="Miembro inferior, Cervical…">
         <datalist id="cats-list"></datalist>
+        <div class="hint">Elegí una existente o escribí una nueva.</div>
       </div>
     </div>
     <div class="modal-foot">
@@ -37,24 +48,62 @@
 
 {% block scripts %}
 <script>
+let CAT = {};
+let CAT_FILTRO = '';
+
 async function cargar() {
-  const cat = await apiGet('/api/catalogo');
-  const cats = Object.keys(cat);
+  CAT = await apiGet('/api/catalogo');
+  const cats = Object.keys(CAT);
   document.getElementById('cats-list').innerHTML = cats.map(c => `<option value="${escapeHtml(c)}">`).join('');
+  const total = cats.reduce((a, c) => a + CAT[c].length, 0);
+  document.getElementById('ej-sub').textContent = total
+    ? `${total} ejercicio${total === 1 ? '' : 's'} en ${cats.length} categoría${cats.length === 1 ? '' : 's'}`
+    : 'Catálogo por categorías para asignar a los pacientes';
+  if (CAT_FILTRO && !cats.includes(CAT_FILTRO)) CAT_FILTRO = '';
+  pintarCats();
+  pintar();
+}
+
+function pintarCats() {
+  const cats = Object.keys(CAT);
+  document.getElementById('ej-cats').innerHTML =
+    `<button class="dia-chip ${CAT_FILTRO ? '' : 'on'}" onclick="filtrarCat('')">Todas</button>` +
+    cats.map(c => `<button class="dia-chip ${c === CAT_FILTRO ? 'on' : ''}" onclick="filtrarCat('${escapeJs(c)}')">${escapeHtml(c)} <span class="ej-cat-n">${CAT[c].length}</span></button>`).join('');
+}
+function filtrarCat(c) { CAT_FILTRO = c; pintarCats(); pintar(); }
+
+function pintar() {
+  const q = _sinAcentos(document.getElementById('ej-buscar').value.trim());
   const cont = document.getElementById('catalogo');
-  if (!cats.length) { cont.innerHTML = '<div class="card"><div class="empty">Todavía no hay ejercicios en el catálogo.</div></div>'; return; }
-  cont.innerHTML = cats.map(c => `
+  const cats = Object.keys(CAT).filter(c => !CAT_FILTRO || c === CAT_FILTRO);
+  if (!Object.keys(CAT).length) {
+    cont.innerHTML = '<div class="card"><div class="empty"><b>El catálogo está vacío</b><br>Sumá los ejercicios que usan en el centro para asignarlos rápido.<br><button class="btn btn-primary btn-sm" onclick="abrirModal(\'modal-cat\')">+ Nuevo ejercicio</button></div></div>';
+    return;
+  }
+  let html = '';
+  cats.forEach(c => {
+    const items = CAT[c].filter(o => !q || _sinAcentos(o.nombre + ' ' + c).includes(q));
+    if (!items.length) return;
+    html += `
     <div class="cat-grupo">
-      <h4>${escapeHtml(c)}</h4>
-      <div class="card">
-        ${cat[c].map(o => `
-          <div class="list-item">
-            <div class="ej-num">${iniciales(o.nombre).slice(0,1)}</div>
-            <div class="li-main"><div class="li-name">${escapeHtml(o.nombre)}</div></div>
-            <button class="x" onclick="borrarCat(${o.id})" title="Quitar">&times;</button>
+      <h4>${escapeHtml(c)} <span>${items.length}</span></h4>
+      <div class="card ej-grid">
+        ${items.map(o => `
+          <div class="ej-cat-item">
+            <span class="ej-cat-dot"></span>
+            <span class="ej-cat-nom">${escapeHtml(o.nombre)}</span>
+            <button class="x" onclick="borrarCat(${o.id}, '${escapeJs(o.nombre)}')" title="Quitar del catálogo" aria-label="Quitar">&times;</button>
           </div>`).join('')}
       </div>
-    </div>`).join('');
+    </div>`;
+  });
+  cont.innerHTML = html || `<div class="card"><div class="empty"><b>No encontré “${escapeHtml(document.getElementById('ej-buscar').value)}”</b><br>¿Lo querés sumar al catálogo?<br><button class="btn btn-primary btn-sm" onclick="nuevoDesdeBusqueda()">+ Agregarlo</button></div></div>`;
+}
+
+function nuevoDesdeBusqueda() {
+  document.getElementById('c-nombre').value = document.getElementById('ej-buscar').value.trim();
+  document.getElementById('c-categoria').value = CAT_FILTRO || '';
+  abrirModal('modal-cat');
 }
 
 async function guardarCat() {
@@ -67,13 +116,16 @@ async function guardarCat() {
   toast('Ejercicio agregado ✓', 'ok');
   cargar();
 }
+document.getElementById('c-nombre').addEventListener('keydown', e => { if (e.key === 'Enter') guardarCat(); });
 
-async function borrarCat(id) {
-  if (!confirm('¿Quitar del catálogo?')) return;
+async function borrarCat(id, nombre) {
+  if (!await confirmar('¿Quitar “' + nombre + '” del catálogo?', { mensaje: 'Los pacientes que ya lo tienen asignado lo conservan.' })) return;
   await api('/api/catalogo/' + id + '/borrar');
+  toast('Quitado del catálogo', 'ok');
   cargar();
 }
 
+document.getElementById('ej-buscar').addEventListener('input', pintar);
 cargar();
 </script>
 {% endblock %}

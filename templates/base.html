@@ -2,7 +2,7 @@
 <html lang="es">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
   <title>{% block title %}KDYM{% endblock %}</title>
   <script>
     // Aplica el modo oscuro ANTES de pintar, para que no parpadee.
@@ -12,9 +12,32 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ asset_v('style.css') }}">
+  <!-- App instalable (celular y compu) -->
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#0F2350">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-title" content="KDYM">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/apple-touch-icon.png') }}">
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='icons/favicon-64.png') }}">
 </head>
-{% set _tit = {'recepcion':'Recepción','agenda':'Agenda','pacientes':'Pacientes','ejercicios':'Ejercicios','plantillas':'Plantillas','reportes':'Reportes','notificaciones':'Notificaciones','configuracion':'Configuración'} %}
-<body>
+{% set _tit = {'recepcion':'Recepción','agenda':'Agenda','pacientes':'Pacientes','ficha':'Ficha del paciente','ejercicios':'Ejercicios','plantillas':'Plantillas','reportes':'Reportes','notificaciones':'Notificaciones','configuracion':'Configuración'} %}
+{% set _ic = {
+  'recepcion': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>',
+  'agenda': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>',
+  'pacientes': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="9.5" cy="8" r="3.6"/><path d="M3 19.5c.6-3.4 3.3-5.3 6.5-5.3s5.9 1.9 6.5 5.3M17 5.2a3.4 3.4 0 010 6.4M19 19.5c-.2-1.6-.7-2.9-1.6-3.9"/></svg>',
+  'ejercicios': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4 9v6M7 7v10M17 7v10M20 9v6M7 12h10"/></svg>',
+  'plantillas': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4c2.2 0 3.5 1.8 3.5 4.5 0 3-1.2 4-1.2 7 0 2.4-1 4-3.3 4S4 18 4 15.5 6 12 6 8.5C6 5.8 5.8 4 8 4z"/><circle cx="16.5" cy="6" r="1.3"/><circle cx="19" cy="8.7" r="1.1"/><circle cx="19.3" cy="11.6" r="1"/></svg>',
+  'reportes': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V4M4 20h16M8 16v-5M12 16V8M16 16v-8"/></svg>',
+  'notificaciones': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M6 10a6 6 0 1112 0c0 4 1.5 5.5 1.5 5.5h-15S6 14 6 10zM10 19a2.2 2.2 0 004 0"/></svg>',
+  'configuracion': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 3v2.2M12 18.8V21M21 12h-2.2M5.2 12H3M18.4 5.6l-1.6 1.6M7.2 16.8l-1.6 1.6M18.4 18.4l-1.6-1.6M7.2 7.2L5.6 5.6"/></svg>',
+  'ayuda': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.4 9.3a2.7 2.7 0 015.2 1c0 1.8-2.6 2.3-2.6 3.9M12 17.2h.01"/></svg>',
+  'buscar': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>',
+  'pin': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6.5-5.2-6.5-10A6.5 6.5 0 0112 4.5 6.5 6.5 0 0118.5 11c0 4.8-6.5 10-6.5 10z"/><circle cx="12" cy="11" r="2.2"/></svg>',
+  'menu': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg>'
+} %}
+<body class="{{ 'demo-on' if modo_demo }}" data-pagina="{{ activo }}">
   <!-- Animación de inicio -->
   <div id="splash">
     <div class="splash-swoosh-a"></div>
@@ -69,38 +92,50 @@
     </div>
   </div>
 
-  <div id="toasts"></div>
+  <div id="toasts" aria-live="polite"></div>
 
   <div class="app">
     <!-- Sidebar (escritorio) -->
     <aside class="sidebar">
-      <div class="side-logo">
+      <a class="side-logo" href="{{ url_for('recepcion') }}">
         <span class="mk">{% include "_logo_svg.html" %}</span>
         <div>
           <div class="nom">KDYM</div>
           <div class="sub">Kinesiología</div>
         </div>
-      </div>
+      </a>
       {% if sede_actual_nombre %}
-      <a class="sede-switch" href="{{ url_for('hub') }}" title="Cambiar de sede">
+      <a class="sede-switch" href="{{ url_for('hub') }}" title="Cambiar de sede" data-tour="sede">
         <span class="sede-ping"></span>
         <span class="sede-txt"><small>Sede</small><b class="js-sede-nom">{{ sede_actual_nombre }}</b></span>
         <span class="sede-cambiar">Cambiar</span>
       </a>
       {% endif %}
+      <button type="button" class="side-buscar" onclick="abrirBuscador()" data-tour="buscar">
+        {{ _ic.buscar|safe }}<span>Buscar…</span><kbd>Ctrl K</kbd>
+      </button>
       <nav class="side-nav">
-        <a href="{{ url_for('recepcion') }}" class="{{ 'on' if activo=='recepcion' }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>Recepción</a>
-        <a href="{{ url_for('agenda') }}" class="{{ 'on' if activo=='agenda' }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>Agenda</a>
-        <a href="{{ url_for('pacientes') }}" class="{{ 'on' if activo=='pacientes' }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="9.5" cy="8" r="3.6"/><path d="M3 19.5c.6-3.4 3.3-5.3 6.5-5.3s5.9 1.9 6.5 5.3M17 5.2a3.4 3.4 0 010 6.4M19 19.5c-.2-1.6-.7-2.9-1.6-3.9"/></svg>Pacientes</a>
-        <a href="{{ url_for('ejercicios_page') }}" class="{{ 'on' if activo=='ejercicios' }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4 9v6M7 7v10M17 7v10M20 9v6M7 12h10"/></svg>Ejercicios</a>
-        <a href="{{ url_for('plantillas_page') }}" class="{{ 'on' if activo=='plantillas' }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4c2.2 0 3.5 1.8 3.5 4.5 0 3-1.2 4-1.2 7 0 2.4-1 4-3.3 4S4 18 4 15.5 6 12 6 8.5C6 5.8 5.8 4 8 4z"/><circle cx="16.5" cy="6" r="1.3"/><circle cx="19" cy="8.7" r="1.1"/><circle cx="19.3" cy="11.6" r="1"/></svg>Plantillas</a>
-        <a href="{{ url_for('reportes_page') }}" class="{{ 'on' if activo=='reportes' }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V4M4 20h16M8 16v-5M12 16V8M16 16v-8"/></svg>Reportes</a>
-        <a href="{{ url_for('notificaciones_page') }}" class="{{ 'on' if activo=='notificaciones' }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M6 10a6 6 0 1112 0c0 4 1.5 5.5 1.5 5.5h-15S6 14 6 10zM10 19a2.2 2.2 0 004 0"/></svg>Notificaciones<span class="nav-badge" id="nav-notif-badge" style="display:none;"></span></a>
-        <a href="{{ url_for('configuracion_page') }}" class="{{ 'on' if activo=='configuracion' }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 3v2.2M12 18.8V21M21 12h-2.2M5.2 12H3M18.4 5.6l-1.6 1.6M7.2 16.8l-1.6 1.6M18.4 18.4l-1.6-1.6M7.2 7.2L5.6 5.6"/></svg>Configuración</a>
+        <div class="side-grupo">Día a día</div>
+        <a href="{{ url_for('recepcion') }}" class="{{ 'on' if activo=='recepcion' }}">{{ _ic.recepcion|safe }}<span>Recepción</span></a>
+        <a href="{{ url_for('agenda') }}" class="{{ 'on' if activo=='agenda' }}">{{ _ic.agenda|safe }}<span>Agenda</span></a>
+        <a href="{{ url_for('pacientes') }}" class="{{ 'on' if activo in ['pacientes','ficha'] }}">{{ _ic.pacientes|safe }}<span>Pacientes</span></a>
+        <div class="side-grupo">Clínica</div>
+        <a href="{{ url_for('ejercicios_page') }}" class="{{ 'on' if activo=='ejercicios' }}">{{ _ic.ejercicios|safe }}<span>Ejercicios</span></a>
+        <a href="{{ url_for('plantillas_page') }}" class="{{ 'on' if activo=='plantillas' }}">{{ _ic.plantillas|safe }}<span>Plantillas</span></a>
+        <div class="side-grupo">Gestión</div>
+        <a href="{{ url_for('reportes_page') }}" class="{{ 'on' if activo=='reportes' }}">{{ _ic.reportes|safe }}<span>Reportes</span></a>
+        <a href="{{ url_for('notificaciones_page') }}" class="{{ 'on' if activo=='notificaciones' }}">{{ _ic.notificaciones|safe }}<span>Notificaciones</span><span class="nav-badge" id="nav-notif-badge" style="display:none;"></span></a>
+        <a href="{{ url_for('configuracion_page') }}" class="{{ 'on' if activo=='configuracion' }}">{{ _ic.configuracion|safe }}<span>Configuración</span></a>
       </nav>
       <div class="side-foot">
-        <div class="k">En sesión ahora</div>
-        <div class="v"><span id="side-encurso">0</span><small> / <span id="side-boxes">{{ side_boxes_n }}</span> boxes</small></div>
+        {% if modo_demo %}<a class="side-demo" href="{{ url_for('configuracion_page') }}#cfg-demo" title="Desactivar en Configuración">● Modo demo activo</a>{% endif %}
+        <button type="button" class="side-ayuda" onclick="abrirAyuda()" data-tour="ayuda">
+          {{ _ic.ayuda|safe }}<span>Guía de uso</span><kbd>?</kbd>
+        </button>
+        <div class="side-sesion">
+          <div class="k">En sesión ahora</div>
+          <div class="v"><span id="side-encurso">0</span><small> / <span id="side-boxes">{{ side_boxes_n }}</span> boxes</small></div>
+        </div>
       </div>
     </aside>
 
@@ -108,21 +143,26 @@
       <!-- Header (celular) -->
       <header class="mtop">
         <div class="mtop-r1">
-          <span class="mtop-brand"><span class="mtop-mk">{% include "_logo_svg.html" %}</span>KDYM</span>
-          <span id="m-reloj"></span>
+          <a class="mtop-brand" href="{{ url_for('recepcion') }}"><span class="mtop-mk">{% include "_logo_svg.html" %}</span>KDYM</a>
+          <span class="mtop-tools">
+            <span id="m-reloj"></span>
+            <button type="button" class="mtop-ic" onclick="abrirBuscador()" aria-label="Buscar">{{ _ic.buscar|safe }}</button>
+            <button type="button" class="mtop-ic" onclick="abrirAyuda()" aria-label="Guía de esta pestaña">{{ _ic.ayuda|safe }}</button>
+          </span>
         </div>
         <div class="mtop-r2">
-          <div>
+          <div class="mtop-tit-wrap">
             <div class="mtop-title">{{ _tit.get(activo, 'KDYM') }}</div>
             <div class="mtop-fecha" id="m-fecha"></div>
           </div>
           {% if sede_actual_nombre %}
-          <a class="mtop-sede" href="{{ url_for('hub') }}" title="Cambiar de sede">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6.5-5.2-6.5-10A6.5 6.5 0 0112 4.5 6.5 6.5 0 0118.5 11c0 4.8-6.5 10-6.5 10z"/><circle cx="12" cy="11" r="2.2"/></svg>
-            <span><small>Sede</small><b class="js-sede-nom">{{ sede_actual_nombre }}</b></span>
+          <a class="mtop-sede" href="{{ url_for('hub') }}" title="Cambiar de sede" data-tour="sede-m">
+            <i class="sede-dot"></i>
+            <span><small>Sede</small><b>{{ sede_actual_nombre }}</b></span>
           </a>
           {% endif %}
         </div>
+        {% if modo_demo %}<div class="mtop-demo">Modo demo activo</div>{% endif %}
       </header>
 
       <main class="wrap {{ 'wrap-wide' if activo == 'agenda' else '' }}">
@@ -133,24 +173,26 @@
 
   <!-- Nav inferior (celular) -->
   <nav class="mbot">
-    <a href="{{ url_for('recepcion') }}" class="{{ 'on' if activo=='recepcion' }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg><span>Recepción</span></a>
-    <a href="{{ url_for('agenda') }}" class="{{ 'on' if activo=='agenda' }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg><span>Agenda</span></a>
-    <a href="{{ url_for('pacientes') }}" class="{{ 'on' if activo=='pacientes' }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="9.5" cy="8" r="3.6"/><path d="M3 19.5c.6-3.4 3.3-5.3 6.5-5.3s5.9 1.9 6.5 5.3M17 5.2a3.4 3.4 0 010 6.4M19 19.5c-.2-1.6-.7-2.9-1.6-3.9"/></svg><span>Pacientes</span></a>
-    <a href="{{ url_for('ejercicios_page') }}" class="{{ 'on' if activo=='ejercicios' }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4 9v6M7 7v10M17 7v10M20 9v6M7 12h10"/></svg><span>Ejercicios</span></a>
-    <button onclick="toggleMas()" class="{{ 'on' if activo in ['notificaciones','configuracion'] }}"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg><span>Más</span><span class="nav-badge" id="nav-notif-badge-m" style="display:none;"></span></button>
+    <a href="{{ url_for('recepcion') }}" class="{{ 'on' if activo=='recepcion' }}">{{ _ic.recepcion|safe }}<span>Recepción</span></a>
+    <a href="{{ url_for('agenda') }}" class="{{ 'on' if activo=='agenda' }}">{{ _ic.agenda|safe }}<span>Agenda</span></a>
+    <a href="{{ url_for('pacientes') }}" class="{{ 'on' if activo in ['pacientes','ficha'] }}">{{ _ic.pacientes|safe }}<span>Pacientes</span></a>
+    <a href="{{ url_for('ejercicios_page') }}" class="{{ 'on' if activo=='ejercicios' }}">{{ _ic.ejercicios|safe }}<span>Ejercicios</span></a>
+    <button onclick="toggleMas()" class="{{ 'on' if activo in ['plantillas','reportes','notificaciones','configuracion'] }}">{{ _ic.menu|safe }}<span>Más</span><span class="nav-badge" id="nav-notif-badge-m" style="display:none;"></span></button>
   </nav>
 
   <!-- Hoja "Más" (celular) -->
   <div class="mas-sheet" id="mas-sheet">
     <div class="bg" onclick="toggleMas()"></div>
     <div class="card2">
+      <div class="mas-grip"></div>
       {% if sede_actual_nombre %}
-      <a href="{{ url_for('hub') }}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M12 21s-6.5-5.2-6.5-10A6.5 6.5 0 0112 4.5 6.5 6.5 0 0118.5 11c0 4.8-6.5 10-6.5 10z"/><circle cx="12" cy="11" r="2.2"/></svg> Sede: <b style="margin-left:4px;">{{ sede_actual_nombre }}</b> · Cambiar</a>
+      <a href="{{ url_for('hub') }}">{{ _ic.pin|safe }} Sede: <b style="margin-left:4px;">{{ sede_actual_nombre }}</b><span class="mas-cambiar">Cambiar</span></a>
       {% endif %}
-      <a href="{{ url_for('plantillas_page') }}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4c2.2 0 3.5 1.8 3.5 4.5 0 3-1.2 4-1.2 7 0 2.4-1 4-3.3 4S4 18 4 15.5 6 12 6 8.5C6 5.8 5.8 4 8 4z"/><circle cx="16.5" cy="6" r="1.3"/><circle cx="19" cy="8.7" r="1.1"/><circle cx="19.3" cy="11.6" r="1"/></svg> Plantillas</a>
-      <a href="{{ url_for('reportes_page') }}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V4M4 20h16M8 16v-5M12 16V8M16 16v-8"/></svg> Reportes</a>
-      <a href="{{ url_for('notificaciones_page') }}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M6 10a6 6 0 1112 0c0 4 1.5 5.5 1.5 5.5h-15S6 14 6 10zM10 19a2.2 2.2 0 004 0"/></svg> Notificaciones</a>
-      <a href="{{ url_for('configuracion_page') }}"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 3v2.2M12 18.8V21M21 12h-2.2M5.2 12H3"/></svg> Configuración</a>
+      <a href="{{ url_for('plantillas_page') }}" class="{{ 'on' if activo=='plantillas' }}">{{ _ic.plantillas|safe }} Plantillas</a>
+      <a href="{{ url_for('reportes_page') }}" class="{{ 'on' if activo=='reportes' }}">{{ _ic.reportes|safe }} Reportes</a>
+      <a href="{{ url_for('notificaciones_page') }}" class="{{ 'on' if activo=='notificaciones' }}">{{ _ic.notificaciones|safe }} Notificaciones</a>
+      <a href="{{ url_for('configuracion_page') }}" class="{{ 'on' if activo=='configuracion' }}">{{ _ic.configuracion|safe }} Configuración</a>
+      <a href="#" onclick="toggleMas(); abrirAyuda(); return false;">{{ _ic.ayuda|safe }} Guía de esta pestaña</a>
     </div>
   </div>
 
@@ -166,16 +208,17 @@
     // Sedes disponibles y sede activa (para selectores del lado del cliente).
     window.SEDES = {{ sedes_all | tojson }};
     window.SEDE_ACTUAL = {{ (sede_actual_id if sede_actual_id is not none else 'null') | tojson }};
-    // Pintar el nombre de la sede activa con su color (mismo orden que el hub).
+    window.MODO_DEMO = {{ 'true' if modo_demo else 'false' }};
+    // Color de la sede activa (mismo orden que el hub): se usa en el nombre y el punto de la sede.
     (function () {
       const COLS = ['#2F5FB0', '#12A150', '#C8891B', '#7A5BD8'];
       const idx = (window.SEDES || []).findIndex(s => s.id === window.SEDE_ACTUAL);
       if (idx < 0) return;
-      const col = COLS[idx % COLS.length];
-      document.querySelectorAll('.js-sede-nom').forEach(el => { el.style.color = col; });
+      document.documentElement.style.setProperty('--sede-col', COLS[idx % COLS.length]);
     })();
   </script>
   <script src="{{ url_for('static', filename='app.js') }}?v={{ asset_v('app.js') }}"></script>
+  <script src="{{ url_for('static', filename='ayuda.js') }}?v={{ asset_v('ayuda.js') }}"></script>
   {% block scripts %}{% endblock %}
 </body>
 </html>

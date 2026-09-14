@@ -53,7 +53,8 @@ function toast(msg, tipo) {
   if (!cont) return;
   const el = document.createElement('div');
   el.className = 'toast ' + (tipo || '');
-  el.textContent = msg;
+  // El ícono ya lo pone el estilo: se saca el ✓ del final del texto.
+  el.textContent = String(msg).replace(/\s*✓\s*$/, '');
   cont.appendChild(el);
   setTimeout(() => {
     el.style.transition = 'opacity .3s';
@@ -93,6 +94,9 @@ function cerrarModal(id) {
 function abrirModal(id) {
   const el = document.getElementById(id);
   if (!el) return;
+  // Los modales se mueven al <body>: si quedan adentro del contenido, una animación
+  // de la página los deja por debajo del encabezado y la barra del celular.
+  if (el.parentElement !== document.body) document.body.appendChild(el);
   // Si ya hay otro modal abierto, este va por encima (modales apilados).
   const abiertos = [...document.querySelectorAll('.modal-bg.show')].filter(m => m !== el);
   if (abiertos.length) {
@@ -379,7 +383,7 @@ function abrirAgregarTurnos(pid, nombre, onDone) {
     document.getElementById('at-elegido').textContent = '';
   }
   document.getElementById('at-cantidad').value = '';
-  document.getElementById('at-desde').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('at-desde').value = hoyISO();
   atError('');
   document.getElementById('at-propuesta').innerHTML = '';
   document.getElementById('at-manual-rows').innerHTML = '';
@@ -428,11 +432,11 @@ function atAplicarPlanPaciente(p) {
 
 // Si el paciente ya tiene turnos futuros, arranca el día siguiente al último.
 function atSetDesde(ultimo) {
-  const hoy = new Date().toISOString().slice(0, 10);
+  const hoy = hoyISO();
   let desde = hoy;
   if (ultimo && ultimo >= hoy) {
     const d = new Date(ultimo + 'T12:00:00'); d.setDate(d.getDate() + 1);
-    desde = d.toISOString().slice(0, 10);
+    desde = hoyISO(d);
   }
   document.getElementById('at-desde').value = desde;
 }
@@ -993,4 +997,326 @@ function atAgregarOfrecido(fecha, hora) {
   atAgregarFila(fecha, hora);
   atError('');
   toast('Agregado: ' + fecha + ' ' + hora + ' ✓', 'ok');
+}
+
+// =====================================================================
+// Diálogos propios (reemplazan confirm() / prompt() del navegador, que se
+// ven poco profesionales y en el celular tapan toda la pantalla).
+// =====================================================================
+const _ICO_DLG = {
+  pregunta: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.4 9.3a2.7 2.7 0 015.2 1c0 1.8-2.6 2.3-2.6 3.9M12 17.2h.01"/></svg>',
+  peligro: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4.8h6V7M6.5 7l.9 12.2a1.5 1.5 0 001.5 1.3h6.2a1.5 1.5 0 001.5-1.3L17.5 7M10 11v6M14 11v6"/></svg>',
+  editar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9a2.8 2.8 0 00-4-4L4 16v4z"/></svg>',
+};
+// Palabras que indican una acción que borra/pierde algo → diálogo en rojo.
+const _RX_PELIGRO = /(borrar|eliminar|quitar|perdido|no se puede deshacer|todos los turnos)/i;
+
+function _dialogo({ titulo, mensaje, ok, cancelar, peligro, input, valor, tipoInput }) {
+  return new Promise(resolve => {
+    const prev = document.getElementById('ui-dlg');
+    if (prev) prev.remove();
+    const bg = document.createElement('div');
+    bg.className = 'modal-bg show';
+    bg.id = 'ui-dlg';
+    bg.style.zIndex = 450;
+    bg.innerHTML = `
+      <div class="modal dlg ${peligro ? 'peligro' : ''}" role="dialog" aria-modal="true">
+        <div class="modal-body">
+          <div class="dlg-ic">${input ? _ICO_DLG.editar : (peligro ? _ICO_DLG.peligro : _ICO_DLG.pregunta)}</div>
+          <h3>${escapeHtml(titulo)}</h3>
+          ${mensaje ? `<p>${escapeHtml(mensaje)}</p>` : ''}
+          ${input ? `<input class="input" id="ui-dlg-in" type="${tipoInput || 'text'}" value="${escapeHtml(valor || '')}">` : ''}
+        </div>
+        <div class="modal-foot">
+          <button class="btn btn-ghost" data-r="0">${escapeHtml(cancelar || 'Cancelar')}</button>
+          <button class="btn btn-primary" data-r="1">${escapeHtml(ok || 'Confirmar')}</button>
+        </div>
+      </div>`;
+    document.body.appendChild(bg);
+    const inp = bg.querySelector('#ui-dlg-in');
+    const cerrar = (r) => {
+      document.removeEventListener('keydown', onKey, true);
+      bg.remove();
+      resolve(input ? (r ? inp.value : null) : !!r);
+    };
+    const onKey = (e) => {
+      if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); cerrar(0); }
+      else if (e.key === 'Enter') { e.preventDefault(); e.stopPropagation(); cerrar(1); }
+    };
+    document.addEventListener('keydown', onKey, true);
+    bg.addEventListener('click', (e) => {
+      if (e.target === bg) return cerrar(0);
+      const b = e.target.closest('[data-r]');
+      if (b) cerrar(+b.dataset.r);
+    });
+    setTimeout(() => {
+      if (inp) { inp.focus(); inp.select(); }
+      else bg.querySelector('[data-r="1"]').focus();
+    }, 40);
+  });
+}
+
+// Uso: if (!await confirmar('¿Borrar este turno?')) return;
+// Si el texto trae "título. detalle" se separa en título y explicación.
+function confirmar(texto, opciones) {
+  const o = opciones || {};
+  let titulo = texto, mensaje = o.mensaje || '';
+  const m = !o.mensaje && String(texto).match(/^(.+?[?.!])\s+([\s\S]+)$/);
+  if (m) { titulo = m[1]; mensaje = m[2]; }
+  const peligro = o.peligro !== undefined ? o.peligro : _RX_PELIGRO.test(texto);
+  return _dialogo({
+    titulo, mensaje, peligro,
+    ok: o.ok || (peligro ? 'Sí, continuar' : 'Confirmar'),
+    cancelar: o.cancelar,
+  });
+}
+// Uso: const nombre = await pedirTexto('Nombre del box:', 'Box 3'); if (nombre === null) return;
+function pedirTexto(titulo, valor, opciones) {
+  const o = opciones || {};
+  return _dialogo({ titulo, mensaje: o.mensaje || '', input: true, valor, tipoInput: o.tipo, ok: o.ok || 'Guardar' });
+}
+
+// ---- Formatos ----
+// Fecha local "AAAA-MM-DD" (toISOString usa UTC y a la noche da el día siguiente).
+function hoyISO(d) {
+  d = d || new Date();
+  return d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0') + '-' + String(d.getDate()).padStart(2, '0');
+}
+// Número de WhatsApp en formato internacional argentino (549 + área + número).
+// Acepta "11 5678-9012", "011 15 5678 9012", "+54 9 11...", etc.
+function waNumeroAR(tel) {
+  let d = String(tel || '').replace(/\D/g, '');
+  if (!d) return '';
+  if (d.startsWith('00')) d = d.slice(2);
+  if (d.startsWith('549')) return d;
+  if (d.startsWith('54')) return '549' + d.slice(2);
+  if (d.startsWith('0')) d = d.slice(1);
+  if (d.length === 12 && d.startsWith('11') && d.slice(2, 4) === '15') d = '11' + d.slice(4);
+  if (d.length === 10 && d.startsWith('15')) d = '11' + d.slice(2);
+  if (d.length === 10) return '549' + d;
+  return d;
+}
+function abrirWhatsApp(tel, msg) {
+  const n = waNumeroAR(tel);
+  if (!n) { toast('No hay un teléfono cargado', 'alert'); return; }
+  window.open('https://wa.me/' + n + (msg ? '?text=' + encodeURIComponent(msg) : ''), '_blank');
+}
+function plata(n) { return '$' + Math.round(+n || 0).toLocaleString('es-AR'); }
+function _cap(t) { return t ? t.charAt(0).toUpperCase() + t.slice(1) : t; }
+// "2026-09-10" -> "Jue 10 sep 2026" (sin problemas de zona horaria).
+function fechaLinda(iso, conAnio) {
+  if (!iso) return '';
+  const [y, m, d] = iso.split('-').map(Number);
+  const dt = new Date(y, m - 1, d);
+  const dia = dt.toLocaleDateString('es-AR', { weekday: 'short' }).replace('.', '');
+  const mes = dt.toLocaleDateString('es-AR', { month: 'short' }).replace('.', '');
+  const anio = (conAnio === false || (conAnio === undefined && y === new Date().getFullYear())) ? '' : ' ' + y;
+  return _cap(dia) + ' ' + d + ' ' + mes + anio;
+}
+function _sinAcentos(s) { return (s || '').normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(); }
+
+// =====================================================================
+// Buscador rápido (Ctrl+K): pacientes, pestañas y acciones en un solo lugar.
+// =====================================================================
+const _I = {
+  pac: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="8" r="3.8"/><path d="M4.5 20c.7-3.7 3.7-5.8 7.5-5.8s6.8 2.1 7.5 5.8"/></svg>',
+  recepcion: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>',
+  agenda: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>',
+  pacientes: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="9.5" cy="8" r="3.6"/><path d="M3 19.5c.6-3.4 3.3-5.3 6.5-5.3s5.9 1.9 6.5 5.3M17 5.2a3.4 3.4 0 010 6.4M19 19.5c-.2-1.6-.7-2.9-1.6-3.9"/></svg>',
+  ejercicios: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4 9v6M7 7v10M17 7v10M20 9v6M7 12h10"/></svg>',
+  plantillas: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4c2.2 0 3.5 1.8 3.5 4.5 0 3-1.2 4-1.2 7 0 2.4-1 4-3.3 4S4 18 4 15.5 6 12 6 8.5C6 5.8 5.8 4 8 4z"/></svg>',
+  reportes: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V4M4 20h16M8 16v-5M12 16V8M16 16v-8"/></svg>',
+  notificaciones: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M6 10a6 6 0 1112 0c0 4 1.5 5.5 1.5 5.5h-15S6 14 6 10zM10 19a2.2 2.2 0 004 0"/></svg>',
+  configuracion: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 3v2.2M12 18.8V21M21 12h-2.2M5.2 12H3"/></svg>',
+  mas: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>',
+  llegada: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.2 4.2L19 7"/></svg>',
+  hueco: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5M11 8v3l2 1.5"/></svg>',
+  luna: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M20 14.5A8 8 0 019.5 4a8 8 0 1010.5 10.5z"/></svg>',
+  pin: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6.5-5.2-6.5-10A6.5 6.5 0 0112 4.5 6.5 6.5 0 0118.5 11c0 4.8-6.5 10-6.5 10z"/><circle cx="12" cy="11" r="2.2"/></svg>',
+  ayuda: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.4 9.3a2.7 2.7 0 015.2 1c0 1.8-2.6 2.3-2.6 3.9M12 17.2h.01"/></svg>',
+  tour: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M5 20V5l7 3 7-3v15l-7 3-7-3zM12 8v15"/></svg>',
+  buscar: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="11" cy="11" r="6.5"/><path d="M16 16l4.5 4.5"/></svg>',
+};
+
+// Acciones que se pueden disparar desde cualquier pestaña. Si la función existe
+// en la pantalla actual se ejecuta ahí; si no, se navega a la pestaña que la tiene.
+const ACCIONES = {
+  'nuevo-paciente': { pagina: '/pacientes', run: () => abrirNuevoPaciente(typeof irAFicha === 'function' ? irAFicha : null), existe: () => !!document.getElementById('modal-paciente') },
+  'agregar-turnos': { pagina: '/agenda', run: () => (typeof agAgregarTurnos === 'function' ? agAgregarTurnos() : abrirAgregarTurnos(null, '', () => location.reload())), existe: () => !!document.getElementById('modal-agturnos') },
+  'llegada': { pagina: '/recepcion', run: () => abrirCheckin(), existe: () => typeof abrirCheckin === 'function' },
+  'hueco': { pagina: '/agenda', run: () => abrirHuecos(), existe: () => typeof abrirHuecos === 'function' },
+  'nueva-plantilla': { pagina: '/plantillas', run: () => abrirNuevaPlantilla(), existe: () => typeof abrirNuevaPlantilla === 'function' },
+  'nuevo-ejercicio': { pagina: '/ejercicios', run: () => abrirModal('modal-cat'), existe: () => !!document.getElementById('modal-cat') },
+};
+function ejecutarAccion(clave) {
+  const a = ACCIONES[clave];
+  if (!a) return;
+  if (a.existe()) { a.run(); return; }
+  location.href = a.pagina + '?accion=' + encodeURIComponent(clave);
+}
+// Al llegar con ?accion=... se ejecuta y se limpia la URL.
+window.addEventListener('load', () => {
+  const p = new URLSearchParams(location.search);
+  const acc = p.get('accion');
+  if (!acc || !ACCIONES[acc]) return;
+  p.delete('accion');
+  history.replaceState(null, '', location.pathname + (p.toString() ? '?' + p : '') + location.hash);
+  setTimeout(() => { try { if (ACCIONES[acc].existe()) ACCIONES[acc].run(); } catch (e) {} }, 350);
+});
+
+const _CMDK_BASE = [
+  { sec: 'Acciones', t: 'Nuevo paciente', s: 'Cargar un paciente y darle turnos', ic: 'mas', k: 'nuevo alta cargar paciente', go: () => ejecutarAccion('nuevo-paciente') },
+  { sec: 'Acciones', t: 'Agregar turnos', s: 'Plan de sesiones o turnos sueltos', ic: 'agenda', k: 'turno dar asignar plan sesiones', go: () => ejecutarAccion('agregar-turnos') },
+  { sec: 'Acciones', t: 'Registrar llegada', s: 'Marcar que un paciente llegó', ic: 'llegada', k: 'llego vino checkin llegada', go: () => ejecutarAccion('llegada') },
+  { sec: 'Acciones', t: 'Buscar hueco libre', s: 'Ver horarios libres de un día', ic: 'hueco', k: 'hueco libre disponible horario', go: () => ejecutarAccion('hueco') },
+  { sec: 'Acciones', t: 'Nuevo pedido de plantillas', s: 'Plantillas ortopédicas', ic: 'plantillas', k: 'plantilla pedido ortopedica', go: () => ejecutarAccion('nueva-plantilla') },
+  { sec: 'Acciones', t: 'Nuevo ejercicio', s: 'Sumar al catálogo', ic: 'ejercicios', k: 'ejercicio catalogo', go: () => ejecutarAccion('nuevo-ejercicio') },
+  { sec: 'Ir a', t: 'Recepción', s: 'Boxes y sala del día', ic: 'recepcion', k: 'inicio recepcion boxes sala', go: () => location.href = '/recepcion' },
+  { sec: 'Ir a', t: 'Agenda', s: 'Calendario de turnos', ic: 'agenda', k: 'agenda calendario', go: () => location.href = '/agenda' },
+  { sec: 'Ir a', t: 'Pacientes', s: 'Lista de pacientes', ic: 'pacientes', k: 'pacientes lista', go: () => location.href = '/pacientes' },
+  { sec: 'Ir a', t: 'Ejercicios', s: 'Biblioteca de ejercicios', ic: 'ejercicios', k: 'ejercicios biblioteca', go: () => location.href = '/ejercicios' },
+  { sec: 'Ir a', t: 'Plantillas', s: 'Pedidos de plantillas ortopédicas', ic: 'plantillas', k: 'plantillas', go: () => location.href = '/plantillas' },
+  { sec: 'Ir a', t: 'Reportes', s: 'Asistencia, turnos y cobros', ic: 'reportes', k: 'reportes estadisticas cobros', go: () => location.href = '/reportes' },
+  { sec: 'Ir a', t: 'Notificaciones', s: 'Pacientes por renovar', ic: 'notificaciones', k: 'notificaciones alertas renovar', go: () => location.href = '/notificaciones' },
+  { sec: 'Ir a', t: 'Configuración', s: 'Sedes, horarios, precios, alarma', ic: 'configuracion', k: 'configuracion ajustes', go: () => location.href = '/configuracion' },
+  { sec: 'Ir a', t: 'Cambiar de sede', s: 'Elegir Morón o Ramos', ic: 'pin', k: 'sede cambiar moron ramos', go: () => location.href = '/hub' },
+  { sec: 'Ayuda', t: 'Guía de esta pestaña', s: 'Cómo se usa, paso a paso', ic: 'ayuda', k: 'ayuda guia como instrucciones', go: () => abrirAyuda() },
+  { sec: 'Ayuda', t: 'Hacer el recorrido guiado', s: 'Te muestra cada botón', ic: 'tour', k: 'tour recorrido tutorial', go: () => iniciarTour() },
+  { sec: 'Ayuda', t: 'Modo oscuro / claro', s: 'Cambiar la apariencia', ic: 'luna', k: 'oscuro claro tema noche', go: () => toggleTema() },
+];
+let _CMDK_PAC = null, _CMDK_SEL = 0, _CMDK_ITEMS = [];
+
+function _cmdkMarcar(txt, q) {
+  const t = escapeHtml(txt);
+  if (!q) return t;
+  const i = _sinAcentos(txt).indexOf(q);
+  if (i < 0) return t;
+  return escapeHtml(txt.slice(0, i)) + '<mark>' + escapeHtml(txt.slice(i, i + q.length)) + '</mark>' + escapeHtml(txt.slice(i + q.length));
+}
+function abrirBuscador() {
+  let bg = document.getElementById('cmdk');
+  if (!bg) {
+    bg = document.createElement('div');
+    bg.id = 'cmdk';
+    bg.className = 'cmdk-bg';
+    bg.innerHTML = `<div class="cmdk" role="dialog" aria-label="Buscador">
+      <div class="cmdk-in">${_I.buscar}<input id="cmdk-q" placeholder="Buscá un paciente, una pestaña o una acción…" autocomplete="off" spellcheck="false"><kbd>Esc</kbd></div>
+      <div class="cmdk-list" id="cmdk-list"></div>
+      <div class="cmdk-foot"><span><kbd>↑</kbd> <kbd>↓</kbd> moverse</span><span><kbd>Enter</kbd> abrir</span><span><kbd>Esc</kbd> cerrar</span></div>
+    </div>`;
+    document.body.appendChild(bg);
+    bg.addEventListener('click', e => { if (e.target === bg) cerrarBuscador(); });
+    const inp = bg.querySelector('#cmdk-q');
+    inp.addEventListener('input', _cmdkRender);
+    inp.addEventListener('keydown', e => {
+      if (e.key === 'ArrowDown') { e.preventDefault(); _cmdkMover(1); }
+      else if (e.key === 'ArrowUp') { e.preventDefault(); _cmdkMover(-1); }
+      else if (e.key === 'Enter') { e.preventDefault(); _cmdkIr(_CMDK_SEL); }
+      else if (e.key === 'Escape') { e.preventDefault(); cerrarBuscador(); }
+    });
+    bg.querySelector('#cmdk-list').addEventListener('click', e => {
+      const it = e.target.closest('[data-i]');
+      if (it) _cmdkIr(+it.dataset.i);
+    });
+    bg.querySelector('#cmdk-list').addEventListener('mousemove', e => {
+      const it = e.target.closest('[data-i]');
+      if (it && +it.dataset.i !== _CMDK_SEL) { _CMDK_SEL = +it.dataset.i; _cmdkPintarSel(); }
+    });
+  }
+  bg.classList.add('show');
+  const inp = bg.querySelector('#cmdk-q');
+  inp.value = '';
+  _cmdkRender();
+  setTimeout(() => inp.focus(), 30);
+  if (!_CMDK_PAC) {
+    apiGet('/api/pacientes').then(ps => { _CMDK_PAC = ps || []; if (bg.classList.contains('show')) _cmdkRender(); }).catch(() => {});
+  }
+}
+function cerrarBuscador() { const bg = document.getElementById('cmdk'); if (bg) bg.classList.remove('show'); }
+function _cmdkRender() {
+  const q = _sinAcentos(document.getElementById('cmdk-q').value.trim());
+  let items = [];
+  if (q && _CMDK_PAC) {
+    // Primero los que coinciden en el nombre (y mejor si empieza así), después DNI/obra social/teléfono.
+    const puntaje = p => {
+      const nom = _sinAcentos(p.nombre_completo || (p.nombre + ' ' + p.apellido));
+      if (nom.split(' ').some(w => w.startsWith(q))) return 3;
+      if (nom.includes(q)) return 2;
+      if (_sinAcentos([p.dni, p.telefono].join(' ')).includes(q)) return 1.5;
+      return _sinAcentos(p.obra_social || '').includes(q) ? 1 : 0;
+    };
+    const pacs = _CMDK_PAC.map(p => [puntaje(p), p]).filter(x => x[0] > 0)
+      .sort((a, b) => b[0] - a[0]).slice(0, 7).map(x => x[1]);
+    items = pacs.map(p => {
+      const nom = p.nombre_completo || (p.nombre + ' ' + p.apellido);
+      const quedan = (p.sesiones_totales || 0) - (p.sesiones_usadas || 0);
+      const sub = [p.obra_social, p.dni ? 'DNI ' + p.dni : '', p.sesiones_totales ? (quedan === 1 ? '1 sesión restante' : quedan + ' sesiones restantes') : ''].filter(Boolean).join(' · ');
+      return { sec: 'Pacientes', t: nom, s: sub || 'Ver ficha', ini: iniciales(nom), go: () => location.href = '/paciente/' + p.id };
+    });
+  }
+  const base = _CMDK_BASE.filter(x => !q || _sinAcentos(x.t + ' ' + x.s + ' ' + x.k).includes(q));
+  items = items.concat(q ? base : base.filter(x => x.sec !== 'Ayuda' || true));
+  _CMDK_ITEMS = items;
+  _CMDK_SEL = 0;
+  const cont = document.getElementById('cmdk-list');
+  if (!items.length) {
+    cont.innerHTML = `<div class="cmdk-vacio">No encontré nada con “${escapeHtml(document.getElementById('cmdk-q').value)}”.<br><small>Probá con el apellido o el DNI.</small></div>`;
+    return;
+  }
+  let html = '', sec = '';
+  items.forEach((it, i) => {
+    if (it.sec !== sec) { sec = it.sec; html += `<div class="cmdk-sec">${sec}</div>`; }
+    html += `<div class="cmdk-item ${i === 0 ? 'on' : ''}" data-i="${i}">
+      <span class="cmdk-ic">${it.ini ? escapeHtml(it.ini) : (_I[it.ic] || '')}</span>
+      <span class="cmdk-t"><b>${_cmdkMarcar(it.t, q)}</b><small>${escapeHtml(it.s || '')}</small></span>
+      <span class="cmdk-go">↵</span></div>`;
+  });
+  cont.innerHTML = html;
+}
+function _cmdkPintarSel() {
+  document.querySelectorAll('#cmdk-list .cmdk-item').forEach(el => el.classList.toggle('on', +el.dataset.i === _CMDK_SEL));
+  const on = document.querySelector('#cmdk-list .cmdk-item.on');
+  if (on) on.scrollIntoView({ block: 'nearest' });
+}
+function _cmdkMover(d) {
+  if (!_CMDK_ITEMS.length) return;
+  _CMDK_SEL = (_CMDK_SEL + d + _CMDK_ITEMS.length) % _CMDK_ITEMS.length;
+  _cmdkPintarSel();
+}
+function _cmdkIr(i) {
+  const it = _CMDK_ITEMS[i];
+  if (!it) return;
+  cerrarBuscador();
+  it.go();
+}
+
+// ---- Atajos de teclado ----
+document.addEventListener('keydown', (e) => {
+  const tag = (e.target.tagName || '').toLowerCase();
+  const escribiendo = tag === 'input' || tag === 'textarea' || tag === 'select' || e.target.isContentEditable;
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')) {
+    e.preventDefault();
+    const bg = document.getElementById('cmdk');
+    if (bg && bg.classList.contains('show')) cerrarBuscador(); else abrirBuscador();
+    return;
+  }
+  if (e.key === 'Escape') {
+    // Esc cierra el modal de más arriba (aunque el cursor esté en un campo).
+    // Si otro componente ya lo usó (buscador, diálogo, recorrido, guía), no se hace nada.
+    if (e.defaultPrevented || document.querySelector('.ay-panel.show, .cmdk-bg.show, #ui-dlg, .tour-capa')) return;
+    const abiertos = [...document.querySelectorAll('.modal-bg.show')];
+    if (abiertos.length) {
+      const top = abiertos.sort((a, b) => (+getComputedStyle(b).zIndex || 0) - (+getComputedStyle(a).zIndex || 0))[0];
+      if (top.id) cerrarModal(top.id); else top.classList.remove('show');
+    }
+    return;
+  }
+  if (escribiendo || e.ctrlKey || e.metaKey || e.altKey) return;
+  if (e.key === '/') { e.preventDefault(); abrirBuscador(); }
+  else if (e.key === '?') { e.preventDefault(); if (typeof abrirAyuda === 'function') abrirAyuda(); }
+});
+
+// ---- App instalable: registra el service worker en todas las pestañas ----
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => { navigator.serviceWorker.register('/sw.js').catch(() => {}); });
 }

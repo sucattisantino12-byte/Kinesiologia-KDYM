@@ -2,58 +2,112 @@
 {% block title %}{{ p.nombre_completo }} — KDYM{% endblock %}
 
 {% block content %}
-<a href="{{ url_for('pacientes') }}" class="muted" style="font-weight:600;">← Volver a pacientes</a>
+<nav class="migas"><a href="{{ url_for('pacientes') }}">Pacientes</a><span>›</span><b>{{ p.nombre_completo }}</b></nav>
 
-<div class="card card-pad" style="margin-top:12px;">
+<div class="card ficha-card" data-tour="ficha-head">
   <div class="ficha-head">
     <div class="ficha-avatar">{{ (p.nombre[:1] ~ p.apellido[:1])|upper }}</div>
-    <div class="grow">
+    <div class="grow ficha-id">
       <div class="ficha-name">{{ p.nombre_completo }}</div>
-      <div class="muted">
-        {% if p.obra_social %}<span class="pill">{{ p.obra_social }}</span> {% endif %}
-        {{ p.diagnostico or 'Sin diagnóstico cargado' }}
+      <div class="ficha-meta">
+        {% if p.obra_social %}<span class="pill">{{ p.obra_social }}</span>{% endif %}
+        <span>{{ p.diagnostico or 'Sin diagnóstico cargado' }}</span>
+        {% if p.telefono %}<span class="ficha-tel">· {{ p.telefono }}</span>{% endif %}
       </div>
     </div>
-    <div style="text-align:right;">
-      <div style="font-size:28px; font-weight:800; color:var(--azul-oscuro); line-height:1;">
-        {{ p.sesiones_quedan }}</div>
-      <div class="muted" style="font-size:12px; font-weight:700;">sesiones restantes</div>
+    <div class="ficha-ses">
+      <div class="n {{ 'danger' if p.sesiones_totales and p.sesiones_quedan <= 0 else ('warn' if p.sesiones_totales and p.sesiones_quedan <= 1 else '') }}">{{ p.sesiones_quedan if p.sesiones_totales else '—' }}</div>
+      <div class="l">sesiones restantes</div>
     </div>
   </div>
   <div class="sesiones-bar"><span id="barra-ses"></span></div>
-  <div class="muted" style="font-size:12px; margin-top:6px;">
-    {{ p.sesiones_usadas }} de {{ p.sesiones_totales }} sesiones realizadas
-  </div>
-  <div class="row" style="margin-top:14px;">
-    <button class="btn btn-line btn-sm" onclick="abrirEditar()">✎ Editar datos</button>
-    <button class="btn btn-danger-soft btn-sm" onclick="borrarPaciente()">Eliminar paciente</button>
-  </div>
-</div>
+  <div class="ficha-prog-txt">{{ p.sesiones_usadas }} de {{ p.sesiones_totales }} sesiones realizadas</div>
 
-<div class="split" style="margin-top:14px;">
-  <div class="col-side">
-    <div class="section-title" style="margin-top:6px;">Datos</div>
-    <div class="card card-pad">
-      <div class="dato"><div class="k">DNI</div><div class="v">{{ p.dni or '—' }}</div></div>
-      <div class="dato"><div class="k">Teléfono</div><div class="v">{{ p.telefono or '—' }}</div></div>
-      <div class="dato"><div class="k">Obra social</div><div class="v">{{ p.obra_social or '—' }}</div></div>
-      <div class="dato"><div class="k">Días y horarios</div><div class="v">
-        {% if p.dias_horarios %}
-          {% for dh in p.dias_horarios %}<span class="chip-dia">{{ dh.dia }}{% if dh.hora %} · {{ dh.hora }}{% endif %}</span>{% endfor %}
-        {% else %}—{% endif %}
-        <div style="margin-top:8px;">
-          <button class="btn btn-line btn-sm" onclick="cambiarDiasHorarios()">Cambiar días y horarios</button>
-        </div>
-        <div class="hint" style="margin-top:4px;">Mueve los turnos que faltan; las sesiones ya hechas no se tocan.</div>
-      </div></div>
-      <div class="dato"><div class="k">Diagnóstico</div><div class="v">{{ p.diagnostico or '—' }}</div></div>
-      <div class="dato"><div class="k">Notas</div><div class="v">{{ p.notas or '—' }}</div></div>
+  <div class="ficha-kpis">
+    <div class="ficha-kpi">
+      <div class="k">Próximo turno</div>
+      <div class="v">{% if proximo %}{{ proximo.dia }} {{ proximo.fecha_linda }}{% if proximo.hora %} · {{ proximo.hora }}{% endif %}{% else %}<span class="muted">Sin turnos agendados</span>{% endif %}</div>
+    </div>
+    <div class="ficha-kpi">
+      <div class="k">Días y horarios</div>
+      <div class="v">{% if p.dias_horarios %}{% for dh in p.dias_horarios %}<span class="chip-dia">{{ dh.dia }}{% if dh.hora %} · {{ dh.hora }}{% endif %}</span>{% endfor %}{% else %}<span class="muted">Sin días fijos</span>{% endif %}</div>
+    </div>
+    <div class="ficha-kpi">
+      <div class="k">Asistencia</div>
+      <div class="v"><span class="txt-ok">{{ stats_turnos.vino }} vino</span> · <span class="{{ 'txt-danger' if stats_turnos.no_vino else 'muted' }}">{{ stats_turnos.no_vino }} no vino</span> · <span class="muted">{{ stats_turnos.pendientes }} por venir</span></div>
     </div>
   </div>
 
+  <div class="ficha-acciones" data-tour="ficha-acciones">
+    <button class="btn btn-primary" onclick="abrirAgregarTurnos(PID, PNOMBRE, () => location.reload())">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14M5 12h14"/></svg>
+      Agregar turnos
+    </button>
+    <button class="btn btn-ghost" onclick="cambiarDiasHorarios()" title="Mueve los turnos que faltan; las sesiones ya hechas no se tocan">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h13l-3-3M20 16H7l3 3"/></svg>
+      Cambiar días y horarios
+    </button>
+    {% if p.telefono %}
+    <button class="btn btn-wa" onclick='abrirWhatsApp({{ p.telefono|tojson }}, {{ ("Hola " ~ p.nombre ~ ", ")|tojson }})'>
+      <svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2.2A9.8 9.8 0 003.6 17l-1.3 4.8 4.9-1.3A9.8 9.8 0 1012 2.2zm0 17.8a8 8 0 01-4.1-1.1l-.3-.2-2.9.8.8-2.8-.2-.3A8 8 0 1112 20zm4.4-6c-.2-.1-1.4-.7-1.7-.8-.2-.1-.4-.1-.5.1l-.8.9c-.1.2-.3.2-.5.1a6.6 6.6 0 01-3.3-2.9c-.2-.4.2-.4.7-1.3.1-.2 0-.3 0-.4l-.8-1.8c-.2-.5-.4-.4-.5-.4h-.5a.9.9 0 00-.6.3 2.7 2.7 0 00-.9 2 4.7 4.7 0 001 2.5 10.8 10.8 0 004.1 3.6c1.5.7 2.1.7 2.9.6a2.4 2.4 0 001.6-1.1 2 2 0 00.1-1.1c0-.1-.2-.2-.4-.3z"/></svg>
+      WhatsApp
+    </button>
+    {% endif %}
+    <button class="btn btn-ghost" onclick="abrirEditar()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4L19 9a2.8 2.8 0 00-4-4L4 16v4z"/></svg>
+      Editar datos
+    </button>
+    <button class="btn btn-ghost btn-ic ficha-borrar" onclick="borrarPaciente()" title="Eliminar paciente" aria-label="Eliminar paciente">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M9 7V4.8h6V7M6.5 7l.9 12.2a1.5 1.5 0 001.5 1.3h6.2a1.5 1.5 0 001.5-1.3L17.5 7"/></svg>
+    </button>
+  </div>
+</div>
+
+<div class="split ficha-split">
   <div class="col-main">
-    <div class="row" style="align-items:center; justify-content:space-between;">
-      <div class="section-title" style="margin-top:6px;">Ejercicios</div>
+    <div class="sec-head" id="sec-historial">
+      <div class="section-title">Historial de turnos <span class="cuenta">{{ historial|length }}</span></div>
+    </div>
+    <div class="card turnos-card" data-tour="ficha-historial">
+      {% set ns = namespace(sep=false) %}
+      {% for h in historial %}
+      {% set num = loop.index %}
+      {% if h.futuro and not ns.sep %}{% set ns.sep = true %}<div class="turno-sep">Próximos turnos</div>{% endif %}
+      <div class="turno-item {% if h.ejercicios %}tiene-ej{% endif %} {% if proximo and h.id == proximo.id %}proximo{% endif %}"
+           {% if h.ejercicios %}onclick="toggleTurnoEj({{ h.id }})"{% endif %}>
+        <div class="turno-row">
+          <div class="turno-num">{{ num }}</div>
+          <div class="li-main">
+            <div class="li-name">{% if h.dia %}{{ h.dia }} {% endif %}{{ h.fecha_linda }}{% if h.hora %} <span class="turno-hora">{{ h.hora }}</span>{% endif %}</div>
+            <div class="li-sub">{% if h.sede %}{{ h.sede }}{% endif %}{% if h.sede and h.ejercicios %} · {% endif %}{% if h.ejercicios %}{{ h.ejercicios|length }} ejercicio{{ 's' if h.ejercicios|length != 1 else '' }} · tocá para ver{% endif %}</div>
+          </div>
+          <span class="pill {{ h.estado_cls }}">{{ h.estado_txt }}</span>
+        </div>
+        {% if h.ejercicios %}
+        <div class="turno-ej" id="turno-ej-{{ h.id }}" style="display:none;">
+          {% for e in h.ejercicios %}
+          <div class="turno-ej-row">
+            <span class="dot">•</span>
+            <span class="nom">{{ e.nombre }}</span>
+            <span class="meta">{% if e.series %}{{ e.series }} series{% endif %}{% if e.reps %} × {{ e.reps }}{% endif %}{% if e.peso %} · {{ e.peso }}{% endif %}</span>
+          </div>
+          {% endfor %}
+        </div>
+        {% endif %}
+      </div>
+      {% else %}
+      <div class="empty"><b>Todavía no tiene turnos</b><br>Armale el plan de sesiones con días y horarios.<br><button class="btn btn-primary btn-sm" onclick="abrirAgregarTurnos(PID, PNOMBRE, () => location.reload())">+ Agregar turnos</button></div>
+      {% endfor %}
+    </div>
+
+    <div class="sec-head">
+      <div class="section-title">Pagos y bono</div>
+      <button class="btn btn-ghost btn-sm" onclick="abrirPago()">+ Registrar pago</button>
+    </div>
+    <div class="card card-pad" id="pagos-box" data-tour="ficha-pagos"><div class="cargando"></div></div>
+
+    <div class="sec-head">
+      <div class="section-title">Ejercicios</div>
       <button class="btn btn-ghost btn-sm" onclick="abrirEjercicio()">+ Agregar</button>
     </div>
     <div class="card" id="ej-list">
@@ -72,80 +126,54 @@
         <button class="x" onclick="borrarEjercicio({{ e.id }})" title="Quitar">&times;</button>
       </div>
       {% else %}
-      <div class="empty">Sin ejercicios cargados todavía.</div>
+      <div class="empty">Sin ejercicios cargados todavía.<br><small>Elegilos del catálogo o escribí uno nuevo.</small></div>
       {% endfor %}
     </div>
-    <div class="hint">Podés elegir del catálogo por categoría o escribir uno nuevo. Gestioná el catálogo en <a href="{{ url_for('ejercicios_page') }}" style="color:var(--azul-oscuro); font-weight:700;">Ejercicios</a>.</div>
 
-    <div class="row" style="align-items:center; justify-content:space-between;">
-      <div class="section-title" style="margin-top:6px;">Evolución</div>
+    <div class="sec-head">
+      <div class="section-title">Evolución</div>
       <button class="btn btn-ghost btn-sm" onclick="abrirModal('modal-evo')">+ Nota</button>
     </div>
     <div class="card" id="evo-list">
       {% for ev in evoluciones %}
-      <div class="list-item" id="evo-{{ ev.id }}">
+      <div class="list-item evo-item" id="evo-{{ ev.id }}">
         <div class="li-main">
-          <div class="li-sub" style="font-weight:700; color:var(--azul-oscuro);">{{ ev.fecha }}</div>
-          <div style="font-size:14px; margin-top:2px;">{{ ev.texto }}</div>
+          <div class="evo-fecha">{{ ev.fecha }}</div>
+          <div class="evo-texto">{{ ev.texto }}</div>
         </div>
         <button class="x" onclick="borrarEvo({{ ev.id }})" title="Quitar">&times;</button>
       </div>
       {% else %}
-      <div class="empty">Sin notas todavía. Anotá cómo evoluciona el paciente sesión a sesión.</div>
+      <div class="empty">Sin notas todavía.<br><small>Anotá cómo evoluciona el paciente sesión a sesión.</small></div>
       {% endfor %}
     </div>
+  </div>
 
-    <div class="row" style="align-items:center; justify-content:space-between;">
-      <div class="section-title" style="margin-top:6px;">Pagos y bono</div>
-      <button class="btn btn-ghost btn-sm" onclick="abrirPago()">+ Pago</button>
+  <div class="col-side">
+    <div class="sec-head">
+      <div class="section-title">Datos</div>
+      <button class="btn btn-ghost btn-sm" onclick="abrirEditar()">Editar</button>
     </div>
-    <div class="card card-pad" id="pagos-box"><div class="empty">Cargando…</div></div>
+    <div class="card card-pad datos-card" data-tour="ficha-datos">
+      <div class="dato"><div class="k">DNI</div><div class="v">{{ p.dni or '—' }}</div></div>
+      <div class="dato"><div class="k">Teléfono</div><div class="v">{{ p.telefono or '—' }}</div></div>
+      <div class="dato"><div class="k">Obra social</div><div class="v">{{ p.obra_social or '—' }}</div></div>
+      <div class="dato"><div class="k">Diagnóstico</div><div class="v">{{ p.diagnostico or '—' }}</div></div>
+      <div class="dato"><div class="k">Notas</div><div class="v" style="white-space:pre-line;">{{ p.notas or '—' }}</div></div>
+    </div>
 
-    <div class="row" style="align-items:center; justify-content:space-between;">
-      <div class="section-title" style="margin-top:6px;">Archivos y fotos</div>
+    <div class="sec-head">
+      <div class="section-title">Archivos y fotos</div>
       <label class="btn btn-ghost btn-sm" style="cursor:pointer;">+ Subir
         <input type="file" id="adj-file" style="display:none;" onchange="subirAdjunto(this)"></label>
     </div>
-    <div class="hint" style="margin:-2px 0 8px;">Estudios, recetas, fotos de evolución (máx. 8 MB por archivo).</div>
-    <div class="card card-pad" id="adjuntos-box"><div class="empty">Cargando…</div></div>
+    <div class="card card-pad" id="adjuntos-box"><div class="cargando"></div></div>
+    <div class="hint" style="margin-top:6px;">Estudios, recetas, órdenes o fotos (máx. 8 MB).</div>
 
-    <div class="section-title" style="margin-top:6px;">Consentimiento informado</div>
-    <div class="card card-pad" id="consent-box"><div class="empty">Cargando…</div></div>
-
-    <div class="row" style="align-items:center; justify-content:space-between;">
-      <div class="section-title">Historial de turnos</div>
-      <button class="btn btn-primary btn-sm" onclick="abrirAgregarTurnos(PID, PNOMBRE, () => location.reload())">+ Agregar turnos</button>
+    <div class="sec-head">
+      <div class="section-title">Consentimiento informado</div>
     </div>
-    <div class="card">
-      {% for h in historial %}
-      {% set num = loop.index %}
-      <div class="turno-item {% if h.ejercicios %}tiene-ej{% endif %}"
-           {% if h.ejercicios %}onclick="toggleTurnoEj({{ h.id }})"{% endif %}>
-        <div class="turno-row">
-          <div class="turno-num">{{ num }}</div>
-          <div class="li-main">
-            <div class="li-name">{% if h.dia %}{{ h.dia }} {% endif %}{{ h.fecha }}{% if h.hora %} · {{ h.hora }}{% endif %}</div>
-            {% if h.ejercicios %}<div class="li-sub">{{ h.ejercicios|length }} ejercicio{{ 's' if h.ejercicios|length != 1 else '' }} · tocá para ver</div>{% endif %}
-          </div>
-          <span class="pill {{ 'ok' if h.estado=='terminado' else ('danger' if h.estado in ['ausente','perdido'] else '') }}">
-            {{ h.estado|replace('_',' ') }}</span>
-        </div>
-        {% if h.ejercicios %}
-        <div class="turno-ej" id="turno-ej-{{ h.id }}" style="display:none;">
-          {% for e in h.ejercicios %}
-          <div class="turno-ej-row">
-            <span class="dot">•</span>
-            <span class="nom">{{ e.nombre }}</span>
-            <span class="meta">{% if e.series %}{{ e.series }} series{% endif %}{% if e.reps %} × {{ e.reps }}{% endif %}{% if e.peso %} · {{ e.peso }}{% endif %}</span>
-          </div>
-          {% endfor %}
-        </div>
-        {% endif %}
-      </div>
-      {% else %}
-      <div class="empty">Sin turnos registrados.</div>
-      {% endfor %}
-    </div>
+    <div class="card card-pad" id="consent-box"><div class="cargando"></div></div>
   </div>
 </div>
 
@@ -173,7 +201,8 @@
         <div class="field"><label>Sesiones totales</label><input class="input" id="e-tot" type="number" min="0" value="{{ p.sesiones_totales }}"></div>
         <div class="field"><label>Sesiones hechas</label><input class="input" id="e-usadas" type="number" min="0" value="{{ p.sesiones_usadas }}"></div>
       </div>
-      <div class="field"><label>Días que viene</label><input class="input" id="e-dias" value="{{ p.dias }}"></div>
+      <input type="hidden" id="e-dias" value="{{ p.dias }}">
+      <div class="hint" style="margin:-4px 0 12px;">Los días y horarios se cambian con <b>Cambiar días y horarios</b>.</div>
       <div class="field"><label>Notas</label><textarea id="e-notas">{{ p.notas }}</textarea></div>
     </div>
     <div class="modal-foot">
@@ -410,7 +439,7 @@ async function guardarEjercicio() {
 }
 
 async function borrarEjercicio(eid) {
-  if (!confirm('¿Quitar este ejercicio?')) return;
+  if (!await confirmar('¿Quitar este ejercicio?')) return;
   await api('/api/ejercicio/' + eid + '/borrar');
   document.getElementById('ej-' + eid).remove();
 }
@@ -419,19 +448,19 @@ async function borrarEjercicio(eid) {
 async function guardarEvo() {
   const texto = val('evo-texto');
   if (!texto.trim()) { toast('Escribí la nota', 'alert'); return; }
-  const fecha = val('evo-fecha') || new Date().toISOString().slice(0, 10);
+  const fecha = val('evo-fecha') || hoyISO();
   await api('/api/paciente/' + PID + '/evolucion', { texto, fecha });
   toast('Nota guardada ✓', 'ok');
   setTimeout(() => location.reload(), 400);
 }
 async function borrarEvo(id) {
-  if (!confirm('¿Borrar esta nota?')) return;
+  if (!await confirmar('¿Borrar esta nota?')) return;
   await api('/api/evolucion/' + id + '/borrar');
   document.getElementById('evo-' + id).remove();
 }
 
 async function borrarPaciente() {
-  if (!confirm('¿Eliminar este paciente y todos sus datos? No se puede deshacer.')) return;
+  if (!await confirmar('¿Eliminar este paciente y todos sus datos? No se puede deshacer.')) return;
   await api('/api/paciente/' + PID + '/borrar');
   toast('Paciente eliminado', 'ok');
   setTimeout(() => location.href = '/pacientes', 500);
@@ -466,16 +495,16 @@ async function cargarPagos() {
   html += d.pagos.length
     ? d.pagos.map(p => `<div class="pago-item">
         <div class="li-main"><div class="li-name">${money(p.monto)} <span class="muted" style="font-weight:600;">${escapeHtml(p.metodo || '')}</span></div>
-          <div class="li-sub">${escapeHtml(p.fecha || '')}${p.concepto ? ' · ' + escapeHtml(p.concepto) : ''}</div></div>
+          <div class="li-sub">${escapeHtml(fechaLinda(p.fecha) || '')}${p.concepto ? ' · ' + escapeHtml(p.concepto) : ''}</div></div>
         <button class="x" onclick="borrarPago(${p.id})" title="Quitar">&times;</button></div>`).join('')
-    : '<div class="empty" style="margin-top:8px;">Sin pagos registrados.</div>';
+    : '<div class="empty" style="padding:18px 10px 6px;">Sin pagos registrados.</div>';
   box.innerHTML = html;
 }
 let PRECIOS_PRESET = [];
 async function abrirPago() {
   document.getElementById('pago-monto').value = '';
   document.getElementById('pago-concepto').value = '';
-  document.getElementById('pago-fecha').value = new Date().toISOString().slice(0, 10);
+  document.getElementById('pago-fecha').value = hoyISO();
   // Cargar los precios configurados para elegir rápido.
   try { PRECIOS_PRESET = await apiGet('/api/precios'); } catch (e) { PRECIOS_PRESET = []; }
   const wrap = document.getElementById('pago-precio-wrap');
@@ -508,7 +537,7 @@ async function guardarPago() {
   cerrarModal('modal-pago'); toast('Pago registrado ✓', 'ok'); cargarPagos();
 }
 async function borrarPago(id) {
-  if (!confirm('¿Borrar este pago?')) return;
+  if (!await confirmar('¿Borrar este pago?')) return;
   await api('/api/pago/' + id + '/borrar'); cargarPagos();
 }
 async function guardarPrecio() {
@@ -520,7 +549,7 @@ async function guardarPrecio() {
 async function cargarAdjuntos() {
   const box = document.getElementById('adjuntos-box');
   const rows = await apiGet('/api/paciente/' + PID + '/adjuntos');
-  if (!rows.length) { box.innerHTML = '<div class="empty">Sin archivos.</div>'; return; }
+  if (!rows.length) { box.innerHTML = '<div class="empty" style="padding:14px 6px;">Sin archivos todavía.</div>'; return; }
   box.innerHTML = '<div class="adj-grid">' + rows.map(a => `
     <div class="adj-item">
       <a href="/api/adjunto/${a.id}" target="_blank">${a.es_img
@@ -541,7 +570,7 @@ async function subirAdjunto(input) {
   else { toast('No se pudo subir', 'alert'); }
 }
 async function borrarAdjunto(id) {
-  if (!confirm('¿Borrar este archivo?')) return;
+  if (!await confirmar('¿Borrar este archivo?')) return;
   await api('/api/adjunto/' + id + '/borrar'); cargarAdjuntos();
 }
 
@@ -550,12 +579,12 @@ async function cargarConsent() {
   const box = document.getElementById('consent-box');
   const d = await apiGet('/api/paciente/' + PID + '/consentimiento');
   if (d.firmado) {
-    box.innerHTML = `<div class="consent-ok"><b>Firmado</b> el ${escapeHtml(d.fecha)}${d.aclaracion ? ' · ' + escapeHtml(d.aclaracion) : ''}</div>
+    box.innerHTML = `<div class="consent-ok"><span class="pill ok">✓ Firmado</span> ${escapeHtml(fechaLinda((d.fecha || '').slice(0, 10)) || d.fecha)}${d.aclaracion ? ' · ' + escapeHtml(d.aclaracion) : ''}</div>
       <img class="firma-img" src="/api/consentimiento/${d.id}/firma">
       <div><button class="btn btn-line btn-sm" style="margin-top:8px;" onclick="abrirFirma()">Firmar de nuevo</button></div>`;
   } else {
-    box.innerHTML = `<div class="empty" style="margin-bottom:8px;">Sin consentimiento firmado.</div>
-      <button class="btn btn-primary btn-sm" onclick="abrirFirma()">Firmar consentimiento</button>`;
+    box.innerHTML = `<div class="consent-no"><b>Sin firmar</b><span>El paciente firma con el dedo en la pantalla.</span></div>
+      <button class="btn btn-primary btn-sm btn-block" onclick="abrirFirma()">Firmar consentimiento</button>`;
   }
 }
 let FIRMA_CTX = null, FIRMA_DIB = false, FIRMA_HAY = false;
