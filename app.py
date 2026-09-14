@@ -113,18 +113,60 @@ def close_db(exc):
         db.close()
 
 
+_GZIP_TIPOS = ("text/html", "text/css", "application/javascript", "text/javascript",
+               "application/json", "application/manifest+json", "image/svg+xml")
+_GZIP_CACHE = {}   # estáticos ya comprimidos: (ruta, etag) -> bytes
+
+
 @app.after_request
 def no_cache_html(resp):
     """Las páginas HTML NO se cachean: así, apenas se sube una versión nueva,
-    el navegador la muestra sí o sí (los estáticos se versionan con ?v=)."""
+    el navegador la muestra sí o sí. Los estáticos llevan ?v=<fecha> en la URL,
+    así que se guardan por un año (cambia la URL cuando cambia el archivo).
+    Además se comprime todo lo que es texto (la hoja de estilos pasa de 75 KB a ~15 KB)."""
     try:
         if resp.mimetype == "text/html":
             resp.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
             resp.headers["Pragma"] = "no-cache"
             resp.headers["Expires"] = "0"
+        elif request.path.startswith("/static/") and request.args.get("v"):
+            resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        _comprimir(resp)
     except Exception:
         pass
     return resp
+
+
+def _comprimir(resp):
+    import gzip
+    if resp.status_code != 200 or resp.mimetype not in _GZIP_TIPOS:
+        return
+    if "gzip" not in (request.headers.get("Accept-Encoding") or "").lower():
+        return
+    if resp.headers.get("Content-Encoding"):
+        return
+    resp.direct_passthrough = False
+    clave = None
+    if request.path.startswith("/static/"):
+        clave = (request.path, resp.headers.get("ETag") or resp.headers.get("Last-Modified"))
+        datos = _GZIP_CACHE.get(clave)
+        if datos is None:
+            crudo = resp.get_data()
+            if len(crudo) < 800:
+                return
+            datos = gzip.compress(crudo, 6)
+            if len(_GZIP_CACHE) > 60:
+                _GZIP_CACHE.clear()
+            _GZIP_CACHE[clave] = datos
+    else:
+        crudo = resp.get_data()
+        if len(crudo) < 800:
+            return
+        datos = gzip.compress(crudo, 5)
+    resp.set_data(datos)
+    resp.headers["Content-Encoding"] = "gzip"
+    resp.headers["Content-Length"] = str(len(datos))
+    resp.headers.add("Vary", "Accept-Encoding")
 
 
 def q(sql, args=()):
@@ -322,6 +364,9 @@ def init_db():
     # Marca de turnos generados por "Simular agenda" (para poder borrarlos).
     if "sim" not in _cols(db, "turnos"):
         db.execute("ALTER TABLE turnos ADD COLUMN sim INTEGER DEFAULT 0")
+    # Sede donde se cargó el paciente (se usa si todavía no tiene turnos).
+    if "sede_id" not in _cols(db, "pacientes"):
+        db.execute("ALTER TABLE pacientes ADD COLUMN sede_id INTEGER")
     # Precio de sesión (para calcular saldos / cobros).
     if "precio_sesion" not in _cols(db, "pacientes"):
         db.execute("ALTER TABLE pacientes ADD COLUMN precio_sesion REAL")
@@ -706,12 +751,20 @@ def inject_sedes():
         nb = q1("SELECT COUNT(*) c FROM boxes WHERE activo=1 AND sede_id=?",
                 (actual,)) if actual else None
         demo = (q1("SELECT valor FROM config WHERE clave='modo_demo'") or {"valor": "0"})["valor"] == "1"
+        enc = q1("SELECT COUNT(*) c FROM turnos WHERE estado='en_curso' AND fecha=? AND sede_id=?",
+                 (date.today().isoformat(), actual)) if actual else None
+        try:
+            notif_n = len(_alertas_abiertas())
+        except Exception:
+            notif_n = 0
         return {"sedes_all": sedes, "sede_actual_id": actual,
                 "sede_actual_nombre": nombre,
-                "side_boxes_n": (nb["c"] if nb else 0), "modo_demo": demo}
+                "side_boxes_n": (nb["c"] if nb else 0), "modo_demo": demo,
+                "side_encurso_n": (enc["c"] if enc else 0), "notif_n": notif_n}
     except Exception:
         return {"sedes_all": [], "sede_actual_id": None,
-                "sede_actual_nombre": "", "side_boxes_n": 0, "modo_demo": False}
+                "sede_actual_nombre": "", "side_boxes_n": 0, "modo_demo": False,
+                "side_encurso_n": 0, "notif_n": 0}
 
 
 # --------------------------------------------------------------------------
@@ -775,16 +828,13 @@ def pacientes():
     filas = q(
         "SELECT * FROM pacientes ORDER BY apellido COLLATE NOCASE, nombre COLLATE NOCASE"
     )
-    # Membresía de sedes por paciente (según dónde tiene turnos) para el filtro.
-    mem = {}
-    for r in q("SELECT DISTINCT paciente_id, sede_id FROM turnos "
-               "WHERE paciente_id IS NOT NULL"):
-        mem.setdefault(r["paciente_id"], []).append(r["sede_id"])
+    # Sede(s) de cada paciente para el filtro (dónde se atiende ahora).
+    mem = _sedes_de_pacientes()
     lista = []
     for p in filas:
         d = paciente_dict(p)
         d["hoy"] = d["id"] in hoy_ids
-        d["sedes"] = sorted(set(mem.get(p["id"], [])))
+        d["sedes"] = mem.get(p["id"], [])
         lista.append(d)
     # Los que tienen turno hoy van primero.
     lista.sort(key=lambda x: (not x["hoy"], x["nombre_completo"].lower()))
@@ -890,8 +940,32 @@ def configuracion_page():
 
 # Service worker (servido desde la raíz para tener alcance global).
 _SW_JS = """
+// Guarda en el celular los archivos que no cambian (estilos, scripts con ?v=,
+// íconos y la tipografía): la app abre más rápido y gasta menos datos.
+var CACHE = 'kdym-v2';
 self.addEventListener('install', function(e){ self.skipWaiting(); });
-self.addEventListener('activate', function(e){ e.waitUntil(self.clients.claim()); });
+self.addEventListener('activate', function(e){
+  e.waitUntil(caches.keys().then(function(ks){
+    return Promise.all(ks.filter(function(k){ return k !== CACHE; }).map(function(k){ return caches.delete(k); }));
+  }).then(function(){ return self.clients.claim(); }));
+});
+self.addEventListener('fetch', function(e){
+  var req = e.request;
+  if (req.method !== 'GET') return;
+  var url = new URL(req.url);
+  var estatico = url.origin === location.origin && url.pathname.indexOf('/static/') === 0 && url.searchParams.has('v');
+  var fuente = url.hostname === 'fonts.googleapis.com' || url.hostname === 'fonts.gstatic.com';
+  if (!estatico && !fuente) return;
+  e.respondWith(caches.open(CACHE).then(function(c){
+    return c.match(req).then(function(hit){
+      if (hit) return hit;
+      return fetch(req).then(function(r){
+        if (r && (r.ok || r.type === 'opaque')) c.put(req, r.clone());
+        return r;
+      });
+    });
+  }));
+});
 self.addEventListener('notificationclick', function(e){
   e.notification.close();
   e.waitUntil(clients.matchAll({type:'window', includeUncontrolled:true}).then(function(cs){
@@ -2034,28 +2108,23 @@ def api_pacientes():
                      "OR sinacentos(nombre || ' ' || apellido) LIKE ? "
                      "OR sinacentos(COALESCE(dni,'')) LIKE ?)")
         params += [like, like, like, like]
-    if sid is not None:
-        where.append("EXISTS (SELECT 1 FROM turnos t "
-                     "WHERE t.paciente_id = pacientes.id AND t.sede_id = ?)")
-        params.append(sid)
 
     sql = "SELECT * FROM pacientes"
     if where:
         sql += " WHERE " + " AND ".join(where)
-    sql += " ORDER BY apellido COLLATE NOCASE LIMIT 50"
+    sql += " ORDER BY apellido COLLATE NOCASE"
     filas = q(sql, tuple(params))
 
-    # Membresía de sedes por paciente (según dónde tiene turnos) para los chips.
-    mem = {}
-    for r in q("SELECT DISTINCT paciente_id, sede_id FROM turnos "
-               "WHERE paciente_id IS NOT NULL"):
-        mem.setdefault(r["paciente_id"], []).append(r["sede_id"])
-
+    mem = _sedes_de_pacientes()
     out = []
     for p in filas:
+        if sid is not None and sid not in mem.get(p["id"], []):
+            continue
         d = paciente_dict(p)
-        d["sedes"] = sorted(set(mem.get(p["id"], [])))
+        d["sedes"] = mem.get(p["id"], [])
         out.append(d)
+        if term and len(out) >= 50:
+            break
     return jsonify(out)
 
 
@@ -2099,6 +2168,37 @@ def _nombre_prolijo(txt):
     return txt
 
 
+def _sedes_de_pacientes():
+    """Sede(s) de cada paciente para el filtro de la lista.
+
+    Se mira dónde se atiende ahora: turnos reales (no los de "Simular agenda")
+    de los últimos 45 días o próximos. Si no tiene, la sede de su último turno;
+    si nunca tuvo, la sede donde se lo cargó. Sin ningún dato → aparece en todas.
+    """
+    desde = (date.today() - timedelta(days=45)).isoformat()
+    actual, ultimo = {}, {}
+    for r in q("""SELECT paciente_id, sede_id, fecha FROM turnos
+                  WHERE paciente_id IS NOT NULL AND sede_id IS NOT NULL
+                    AND COALESCE(sim,0)=0 ORDER BY fecha""", ()):
+        pid = r["paciente_id"]
+        if (r["fecha"] or "") >= desde:
+            actual.setdefault(pid, set()).add(r["sede_id"])
+        ultimo[pid] = r["sede_id"]
+    todas = [x["id"] for x in sedes_list()]
+    out = {}
+    for p in q("SELECT id, sede_id FROM pacientes", ()):
+        pid = p["id"]
+        if pid in actual:
+            out[pid] = sorted(actual[pid])
+        elif pid in ultimo:
+            out[pid] = [ultimo[pid]]
+        elif p["sede_id"]:
+            out[pid] = [p["sede_id"]]
+        else:
+            out[pid] = todas
+    return out
+
+
 @app.route("/api/paciente", methods=["POST"])
 def api_nuevo_paciente():
     d = request.get_json(force=True, silent=True) or {}
@@ -2109,15 +2209,15 @@ def api_nuevo_paciente():
     pid = run(
         """INSERT INTO pacientes
            (nombre, apellido, dni, telefono, obra_social, diagnostico,
-            sesiones_totales, sesiones_usadas, dias, notas, creado)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
+            sesiones_totales, sesiones_usadas, dias, notas, creado, sede_id)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
         (
             nombre, apellido, (d.get("dni") or "").strip(),
             (d.get("telefono") or "").strip(), (d.get("obra_social") or "").strip(),
             (d.get("diagnostico") or "").strip(),
             int(d.get("sesiones_totales") or 0), int(d.get("sesiones_usadas") or 0),
             (d.get("dias") or "").strip(), (d.get("notas") or "").strip(),
-            date.today().isoformat(),
+            date.today().isoformat(), _sede_de_request(d),
         ),
     )
     return jsonify(ok=True, id=pid)

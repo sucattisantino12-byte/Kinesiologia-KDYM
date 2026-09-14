@@ -1,27 +1,49 @@
-{# Modal compartido de alta de paciente. Se incluye desde pacientes.html y agenda.html #}
+{# Modal compartido de alta de paciente. Se incluye desde pacientes.html, agenda.html y plantillas.html #}
 <div class="modal-bg" id="modal-paciente">
   <div class="modal">
     <div class="modal-head">
       <h3>Nuevo paciente</h3>
-      <button class="x" onclick="cerrarModal('modal-paciente')">&times;</button>
+      <div class="modal-head-acc">
+        <button type="button" class="modal-ayuda" onclick="abrirAyuda('paciente')" title="Cómo funciona">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M9.4 9.3a2.7 2.7 0 015.2 1c0 1.8-2.6 2.3-2.6 3.9M12 17.2h.01"/></svg>
+          <span>Cómo funciona</span>
+        </button>
+        <button class="x" onclick="cerrarModal('modal-paciente')">&times;</button>
+      </div>
     </div>
     <div class="modal-body">
-      <div class="grid2">
-        <div class="field"><label>Nombre *</label><input class="input" id="np-nombre" autocomplete="off" autocapitalize="words"></div>
-        <div class="field"><label>Apellido *</label><input class="input" id="np-apellido" autocomplete="off" autocapitalize="words"></div>
+      <div class="np-intro">
+        <b>Solo nombre y apellido son obligatorios.</b> Lo demás lo podés completar después desde la ficha.
       </div>
-      <div class="grid2">
-        <div class="field"><label>DNI</label><input class="input" id="np-dni" inputmode="numeric" autocomplete="off" placeholder="Sin puntos"></div>
-        <div class="field"><label>Celular</label><input class="input" id="np-telefono" type="tel" inputmode="tel" autocomplete="off" placeholder="11 5678-9012"></div>
+      <div class="grid2" id="np-fila-nombre">
+        <div class="field"><label>Nombre *</label><input class="input" id="np-nombre" autocomplete="off" autocapitalize="words" placeholder="Ej: María"></div>
+        <div class="field"><label>Apellido *</label><input class="input" id="np-apellido" autocomplete="off" autocapitalize="words" placeholder="Ej: Gómez"></div>
       </div>
-      <div class="field">
+      <div class="grid2" id="np-fila-contacto">
+        <div class="field">
+          <label>DNI</label><input class="input" id="np-dni" inputmode="numeric" autocomplete="off" placeholder="Sin puntos">
+          <div class="hint">Evita cargar dos veces a la misma persona.</div>
+        </div>
+        <div class="field">
+          <label>Celular</label><input class="input" id="np-telefono" type="tel" inputmode="tel" autocomplete="off" placeholder="11 5678-9012">
+          <div class="hint">Para recordatorios por WhatsApp.</div>
+        </div>
+      </div>
+      <div class="field" id="np-fila-obra">
         <label>Obra social</label>
         <input class="input" id="np-obra" list="obras-sociales" placeholder="OSDE, Swiss Medical, Particular…">
+        <div class="hint">Elegí de la lista o escribí otra. Si paga él, poné “Particular”.</div>
       </div>
-      <div class="field"><label>Diagnóstico / lesión</label><input class="input" id="np-diagnostico" placeholder="Ej: esguince de tobillo"></div>
-      <div class="grid2">
-        <div class="field"><label>Sesiones totales</label><input class="input" id="np-tot" type="number" min="0" value="0"></div>
-        <div class="field"><label>Sesiones ya hechas</label><input class="input" id="np-usadas" type="number" min="0" value="0"></div>
+      <div class="field" id="np-fila-diag"><label>Diagnóstico / lesión</label><input class="input" id="np-diagnostico" placeholder="Ej: esguince de tobillo"></div>
+      <div class="grid2" id="np-fila-sesiones">
+        <div class="field">
+          <label>Sesiones totales</label><input class="input" id="np-tot" type="number" min="0" value="0" inputmode="numeric">
+          <div class="hint">Las que autorizó la obra social o compró.</div>
+        </div>
+        <div class="field">
+          <label>Sesiones ya hechas</label><input class="input" id="np-usadas" type="number" min="0" value="0" inputmode="numeric">
+          <div class="hint">Si ya venía atendiéndose. Si es nuevo, 0.</div>
+        </div>
       </div>
 
       <div class="field"><label>Notas</label><textarea id="np-notas" placeholder="Opcional"></textarea></div>

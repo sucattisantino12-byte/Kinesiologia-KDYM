@@ -59,6 +59,11 @@ function escapeJs(s) {
 // ---- Render principal ----
 function render() {
   if (!ESTADO) return;
+  // Números del sidebar al día con la recepción (sin esperar su propio refresco).
+  const enc = document.getElementById('side-encurso');
+  if (enc) enc.textContent = ESTADO.stats.en_curso;
+  const bx = document.getElementById('side-boxes');
+  if (bx) bx.textContent = (ESTADO.boxes || []).length;
   pintarStats();
   pintarBoxes();
   pintarSala();

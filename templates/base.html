@@ -12,6 +12,13 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ asset_v('style.css') }}">
+  <!-- Navegación instantánea: el navegador prepara la pestaña al pasar el mouse o apoyar el dedo -->
+  <script type="speculationrules">
+  {"prerender":[{"where":{"and":[{"href_matches":"/*"},
+     {"not":{"href_matches":["/api/*","/static/*","/sede/*","/hub","/paciente/*/adjunto*"]}},
+     {"not":{"selector_matches":"[target=_blank], [download], [onclick]"}}]},
+   "eagerness":"moderate"}]}
+  </script>
   <!-- App instalable (celular y compu) -->
   <link rel="manifest" href="/manifest.webmanifest">
   <meta name="theme-color" content="#0F2350">
@@ -65,25 +72,25 @@
         <g clip-path="url(#kdymSplashClip)">
           <g transform="rotate(-18 100 100)">
             <!-- Colores tomados del círculo del video: de celeste arriba a navy abajo. -->
-            <rect x="-110" y="4" width="420" height="52" fill="#2C7AAB" style="animation:kdymCintaL .55s cubic-bezier(.16,.84,.28,1) 0s both"></rect>
-            <rect x="-110" y="56" width="420" height="52" fill="#276094" style="animation:kdymCintaR .55s cubic-bezier(.16,.84,.28,1) .08s both"></rect>
-            <rect x="-110" y="108" width="420" height="52" fill="#254578" style="animation:kdymCintaL .55s cubic-bezier(.16,.84,.28,1) .16s both"></rect>
-            <rect x="-110" y="160" width="420" height="70" fill="#253164" style="animation:kdymCintaR .55s cubic-bezier(.16,.84,.28,1) .24s both"></rect>
+            <rect x="-110" y="4" width="420" height="52" fill="#2C7AAB" style="animation:kdymCintaL 0.41s cubic-bezier(.16,.84,.28,1) 0.00s both"></rect>
+            <rect x="-110" y="56" width="420" height="52" fill="#276094" style="animation:kdymCintaR 0.41s cubic-bezier(.16,.84,.28,1) 0.06s both"></rect>
+            <rect x="-110" y="108" width="420" height="52" fill="#254578" style="animation:kdymCintaL 0.41s cubic-bezier(.16,.84,.28,1) 0.12s both"></rect>
+            <rect x="-110" y="160" width="420" height="70" fill="#253164" style="animation:kdymCintaR 0.41s cubic-bezier(.16,.84,.28,1) 0.18s both"></rect>
           </g>
           <!-- Al terminar de entrar las cintas, se funden en el degradé liso. -->
-          <circle cx="100" cy="100" r="84" fill="url(#kdymFondo)" style="opacity:0;animation:kdymFade .45s ease-out .6s both"></circle>
-          <circle cx="100" cy="100" r="84" fill="url(#kdymBrillo)" style="opacity:0;animation:kdymFade .55s ease-out .66s both"></circle>
-          <circle cx="100" cy="100" r="84" fill="url(#kdymSombra)" style="opacity:0;animation:kdymFade .55s ease-out .66s both"></circle>
+          <circle cx="100" cy="100" r="84" fill="url(#kdymFondo)" style="opacity:0;animation:kdymFade 0.34s ease-out 0.45s both"></circle>
+          <circle cx="100" cy="100" r="84" fill="url(#kdymBrillo)" style="opacity:0;animation:kdymFade 0.41s ease-out 0.49s both"></circle>
+          <circle cx="100" cy="100" r="84" fill="url(#kdymSombra)" style="opacity:0;animation:kdymFade 0.41s ease-out 0.49s both"></circle>
           <g fill="none" stroke="#fff" stroke-width="15" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M100 88 L100 124" style="transform-box:fill-box;transform-origin:center;animation:kdymCintaD .62s cubic-bezier(.16,.86,.3,1.08) .78s both"></path>
-            <path d="M68 66 L96 92" style="transform-box:fill-box;transform-origin:center;animation:kdymCintaA .62s cubic-bezier(.16,.86,.3,1.08) .9s both"></path>
-            <path d="M132 62 L104 92" style="transform-box:fill-box;transform-origin:center;animation:kdymCintaB .62s cubic-bezier(.16,.86,.3,1.08) 1.02s both"></path>
-            <path d="M100 124 L78 158" style="transform-box:fill-box;transform-origin:center;animation:kdymCintaE .62s cubic-bezier(.16,.86,.3,1.08) 1.14s both"></path>
-            <path d="M100 124 L122 158" style="transform-box:fill-box;transform-origin:center;animation:kdymCintaF .62s cubic-bezier(.16,.86,.3,1.08) 1.24s both"></path>
+            <path d="M100 88 L100 124" style="transform-box:fill-box;transform-origin:center;animation:kdymCintaD 0.46s cubic-bezier(.16,.86,.3,1.08) 0.58s both"></path>
+            <path d="M68 66 L96 92" style="transform-box:fill-box;transform-origin:center;animation:kdymCintaA 0.46s cubic-bezier(.16,.86,.3,1.08) 0.68s both"></path>
+            <path d="M132 62 L104 92" style="transform-box:fill-box;transform-origin:center;animation:kdymCintaB 0.46s cubic-bezier(.16,.86,.3,1.08) 0.77s both"></path>
+            <path d="M100 124 L78 158" style="transform-box:fill-box;transform-origin:center;animation:kdymCintaE 0.46s cubic-bezier(.16,.86,.3,1.08) 0.85s both"></path>
+            <path d="M100 124 L122 158" style="transform-box:fill-box;transform-origin:center;animation:kdymCintaF 0.46s cubic-bezier(.16,.86,.3,1.08) 0.93s both"></path>
           </g>
-          <circle cx="100" cy="60" r="13" fill="#fff" style="transform-box:fill-box;transform-origin:center;animation:kdymCintaC .6s cubic-bezier(.2,.9,.3,1.5) 1.36s both"></circle>
+          <circle cx="100" cy="60" r="13" fill="#fff" style="transform-box:fill-box;transform-origin:center;animation:kdymCintaC 0.45s cubic-bezier(.2,.9,.3,1.5) 1.02s both"></circle>
         </g>
-        <circle cx="100" cy="100" r="84" fill="none" stroke="rgba(11,27,51,.18)" stroke-width="1.5" style="opacity:0;animation:kdymFade .5s ease-out .8s both"></circle>
+        <circle cx="100" cy="100" r="84" fill="none" stroke="rgba(11,27,51,.18)" stroke-width="1.5" style="opacity:0;animation:kdymFade 0.38s ease-out 0.60s both"></circle>
       </svg>
       <div class="splash-hi">Bienvenido</div>
       <div class="splash-name">KDYM</div>
@@ -124,17 +131,20 @@
         <a href="{{ url_for('plantillas_page') }}" class="{{ 'on' if activo=='plantillas' }}">{{ _ic.plantillas|safe }}<span>Plantillas</span></a>
         <div class="side-grupo">Gestión</div>
         <a href="{{ url_for('reportes_page') }}" class="{{ 'on' if activo=='reportes' }}">{{ _ic.reportes|safe }}<span>Reportes</span></a>
-        <a href="{{ url_for('notificaciones_page') }}" class="{{ 'on' if activo=='notificaciones' }}">{{ _ic.notificaciones|safe }}<span>Notificaciones</span><span class="nav-badge" id="nav-notif-badge" style="display:none;"></span></a>
+        <a href="{{ url_for('notificaciones_page') }}" class="{{ 'on' if activo=='notificaciones' }}">{{ _ic.notificaciones|safe }}<span>Notificaciones</span><span class="nav-badge" id="nav-notif-badge" {{ '' if notif_n else 'style="display:none;"'|safe }}>{{ notif_n or '' }}</span></a>
         <a href="{{ url_for('configuracion_page') }}" class="{{ 'on' if activo=='configuracion' }}">{{ _ic.configuracion|safe }}<span>Configuración</span></a>
       </nav>
       <div class="side-foot">
         {% if modo_demo %}<a class="side-demo" href="{{ url_for('configuracion_page') }}#cfg-demo" title="Desactivar en Configuración">● Modo demo activo</a>{% endif %}
+        <button type="button" class="side-ayuda instalar-app" onclick="instalarApp()" hidden>
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M12 8v6m-2.5-2.5L12 14l2.5-2.5"/></svg><span>Instalar la app</span>
+        </button>
         <button type="button" class="side-ayuda" onclick="abrirAyuda()" data-tour="ayuda">
           {{ _ic.ayuda|safe }}<span>Guía de uso</span><kbd>?</kbd>
         </button>
         <div class="side-sesion">
           <div class="k">En sesión ahora</div>
-          <div class="v"><span id="side-encurso">0</span><small> / <span id="side-boxes">{{ side_boxes_n }}</span> boxes</small></div>
+          <div class="v"><span id="side-encurso">{{ side_encurso_n }}</span><small> / <span id="side-boxes">{{ side_boxes_n }}</span> boxes</small></div>
         </div>
       </div>
     </aside>
@@ -177,7 +187,7 @@
     <a href="{{ url_for('agenda') }}" class="{{ 'on' if activo=='agenda' }}">{{ _ic.agenda|safe }}<span>Agenda</span></a>
     <a href="{{ url_for('pacientes') }}" class="{{ 'on' if activo in ['pacientes','ficha'] }}">{{ _ic.pacientes|safe }}<span>Pacientes</span></a>
     <a href="{{ url_for('ejercicios_page') }}" class="{{ 'on' if activo=='ejercicios' }}">{{ _ic.ejercicios|safe }}<span>Ejercicios</span></a>
-    <button onclick="toggleMas()" class="{{ 'on' if activo in ['plantillas','reportes','notificaciones','configuracion'] }}">{{ _ic.menu|safe }}<span>Más</span><span class="nav-badge" id="nav-notif-badge-m" style="display:none;"></span></button>
+    <button onclick="toggleMas()" class="{{ 'on' if activo in ['plantillas','reportes','notificaciones','configuracion'] }}">{{ _ic.menu|safe }}<span>Más</span><span class="nav-badge" id="nav-notif-badge-m" {{ '' if notif_n else 'style="display:none;"'|safe }}>{{ notif_n or '' }}</span></button>
   </nav>
 
   <!-- Hoja "Más" (celular) -->
@@ -192,6 +202,7 @@
       <a href="{{ url_for('reportes_page') }}" class="{{ 'on' if activo=='reportes' }}">{{ _ic.reportes|safe }} Reportes</a>
       <a href="{{ url_for('notificaciones_page') }}" class="{{ 'on' if activo=='notificaciones' }}">{{ _ic.notificaciones|safe }} Notificaciones</a>
       <a href="{{ url_for('configuracion_page') }}" class="{{ 'on' if activo=='configuracion' }}">{{ _ic.configuracion|safe }} Configuración</a>
+      <a href="#" class="instalar-app" onclick="toggleMas(); instalarApp(); return false;" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M12 8v6m-2.5-2.5L12 14l2.5-2.5"/></svg> Instalar la app en el celular</a>
       <a href="#" onclick="toggleMas(); abrirAyuda(); return false;">{{ _ic.ayuda|safe }} Guía de esta pestaña</a>
     </div>
   </div>

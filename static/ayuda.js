@@ -54,10 +54,10 @@ const AYUDA = {
     intro: 'El calendario de turnos de cada sede. Desde acá das turnos, ves qué horarios quedan libres y reorganizás lo que haga falta.',
     secciones: [
       { t: 'Dar turnos a un paciente (plan de sesiones)', pasos: [
-        'Tocá <b>Agregar turnos</b> y buscá el paciente (o cargalo nuevo).',
+        'Tocá <b>Agregar turnos</b> y buscá el paciente (o cargalo nuevo). Adentro tenés el botón <b>Cómo funciona</b> con la explicación completa.',
         'En <b>Plan de sesiones</b> poné cuántas sesiones hace y desde qué fecha.',
         'Elegí <b>qué días viene</b> y el horario de cada día. El color te dice si hay lugar: <b>verde</b> libre, <b>amarillo</b> casi lleno, <b>rojo</b> lleno.',
-        'O usá <b>Recomendados</b>: la app te propone los horarios más vacíos.',
+        'Si es flexible, tocá <b>Ver los más libres</b>: la app te propone los horarios con más lugar.',
         'Tocá <b>Ver propuesta</b>, revisá las fechas (podés cambiar o quitar alguna) y confirmá.',
       ] },
       { t: 'Un turno suelto o un hueco libre', pasos: [
@@ -197,6 +197,7 @@ const AYUDA = {
       ] },
       { t: 'Seguir el estado', pasos: [
         'Cada pedido pasa por <b>Pedida → En fabricación → Lista → Entregada</b>.',
+        'En <b>En curso</b> ves todos los que todavía no se entregaron. Al marcar uno como <b>Entregada</b> pasa a su pestaña, así la lista queda ordenada.',
         'Tocá la etapa en la barra de la tarjeta para cambiar el estado.',
         'Cuando está <b>Lista</b>, tocá <b>Avisar que está lista</b>: el WhatsApp sale armado con horario y dirección de retiro.',
       ] },
@@ -204,7 +205,7 @@ const AYUDA = {
     tips: ['El horario y la dirección de retiro del mensaje se cargan en Configuración → Retiro de plantillas.'],
     tour: [
       { sel: '[data-tour="nueva-plantilla"]', t: 'Nuevo pedido', x: 'Cargá el pedido con paciente, fechas, precio y seña.' },
-      { sel: '[data-tour="pl-filtros"]', t: 'Filtros por estado', x: 'Mirá solo las pedidas, las que están en fabricación, listas o entregadas.' },
+      { sel: '[data-tour="pl-filtros"]', t: 'Filtros por estado', x: '“En curso” muestra lo que falta entregar. Las entregadas quedan aparte, en su pestaña.' },
       { sel: '#pl-lista .pl-card, [data-tour="pl-lista"]', t: 'Cada pedido', x: 'Cambiá el estado y, cuando está lista, avisale al paciente por WhatsApp.' },
     ],
   },
@@ -249,6 +250,94 @@ const AYUDA = {
     tips: ['Si le cargás más sesiones al paciente, el aviso vuelve a activarse la próxima vez que le queden pocas.'],
     tour: [
       { sel: '[data-tour="notif-lista"]', t: 'Pacientes por renovar', x: 'Les quedan pocas sesiones. Entrá a la ficha para renovar o cerrá el aviso.' },
+    ],
+  },
+
+  agturnos: {
+    modal: true,
+    titulo: 'Agregar turnos',
+    intro: 'Desde acá le das los turnos a un paciente. Lo más común es armar el plan completo de una vez: cuántas sesiones, qué días y a qué hora.',
+    secciones: [
+      { t: 'El caso más común: un paciente que empieza', pasos: [
+        'Elegí el <b>paciente</b> (o tocá “Cargar paciente nuevo”).',
+        'Dejá marcado <b>Plan de sesiones</b> y <b>Nuevo plan</b>.',
+        'Poné la <b>cantidad de sesiones</b> (ej: 10) y desde qué fecha puede empezar.',
+        'En <b>¿Qué días viene?</b> tocá los días (ej: martes y jueves).',
+        'En cada día se abre la lista de horarios: tocá la hora. <b>Verde</b> hay lugar, <b>amarillo</b> queda un lugar, <b>rojo</b> está lleno y no se puede elegir.',
+        'Tocá <b>Ver propuesta de turnos</b>: aparecen todas las fechas. Podés cambiar la hora de alguna o quitarla con la ✕.',
+        'Tocá <b>Confirmar y agendar</b>. Recién ahí se guardan.',
+      ] },
+      { t: 'Si el paciente es flexible con los horarios', pasos: [
+        'En <b>¿Cómo elegir los horarios?</b> tocá <b>Ver los más libres</b>.',
+        'La app muestra, para cada día de la semana, los horarios con más lugar.',
+        'Elegí la hora en el desplegable y tocá <b>✓</b> en los días que el paciente acepte.',
+        'Seguí con <b>Ver propuesta</b> y <b>Confirmar</b>, igual que siempre.',
+      ] },
+      { t: 'Si ya viene y le renovaron sesiones', pasos: [
+        'Primero actualizá sus <b>sesiones totales</b> en la ficha (Editar datos).',
+        'Abrí Agregar turnos y elegí <b>Extender (faltantes)</b>.',
+        'La app calcula sola cuántos turnos faltan: solo elegí días y horarios y confirmá.',
+      ] },
+      { t: 'Si quiere cambiar de días u horario', pasos: [
+        'Elegí <b>Cambiar días/horarios</b> (también está en la ficha).',
+        'Marcá los días y horarios nuevos y desde qué fecha rigen.',
+        'Al confirmar, sus turnos pendientes se mueven. Las sesiones que ya hizo quedan igual.',
+      ] },
+      { t: 'Turnos sueltos (Manual)', pasos: [
+        'Tocá la pestaña <b>Manual (fechas sueltas)</b>.',
+        'Elegí fecha y hora de cada turno. Con <b>+ Agregar otra fecha</b> sumás más.',
+        '¿No sabés qué ofrecerle? Abrí <b>Ver próximos horarios libres</b> y tocá uno.',
+      ] },
+    ],
+    tips: [
+      'Los horarios son en punto o y media, y cada turno dura 30 minutos.',
+      'Si cae un feriado, la propuesta lo avisa y lo pasa a la fecha siguiente.',
+      'Si mientras armabas otro turno se llenó un horario, al confirmar te avisa en rojo y no guarda ese.',
+    ],
+    tour: [
+      { sel: '#modal-agturnos .at-guia', t: 'La guía rápida', x: 'Un resumen de los 4 pasos. Abrila cuando tengas dudas: la dejamos arriba de todo.' },
+      { sel: '#at-sede-field', t: 'Sede', x: 'Dónde van a ser los turnos. Viene puesta la sede en la que estás trabajando.' },
+      { sel: '#at-buscar-wrap', t: 'Paciente', x: 'Escribí nombre, apellido o DNI y tocalo en la lista. Si todavía no está cargado, tocá “Cargar paciente nuevo”.' },
+      { sel: '#at-tabs-field', t: 'Plan completo o turnos sueltos', x: '“Plan de sesiones” arma todos los turnos juntos (lo más común). “Manual” es para fechas sueltas, una por una.' },
+      { sel: '#at-plan-modo', t: '¿Qué querés hacer?', x: 'Nuevo plan: turnos desde cero. Extender: agrega los que le faltan. Cambiar días/horarios: mueve los pendientes a otros días u horas.' },
+      { sel: '#at-cant-desde', t: 'Cuántas y desde cuándo', x: 'La cantidad de sesiones y la primera fecha posible. Si el paciente ya tiene turnos, la fecha arranca después del último.' },
+      { sel: '#at-estrategia-field', t: 'Cómo elegir los horarios', x: '“Elijo yo” cuando el paciente ya sabe qué días puede. “Ver los más libres” cuando es flexible: la app te muestra dónde hay más lugar.' },
+      { sel: '#at-dias-field', t: 'Días que viene', x: 'Tocá los días. En cada uno se abre la lista de horarios con colores: verde libre, amarillo queda uno, rojo lleno.' },
+      { sel: '#at-recom-wrap', t: 'Horarios más libres', x: 'Elegí la hora en cada día y tocá ✓ en los que el paciente acepte.' },
+      { sel: '#at-prop-field', t: 'Revisar antes de guardar', x: 'Te muestra todas las fechas que se van a crear. Podés cambiar una hora o quitar un día. Todavía no se guardó nada.' },
+      { sel: '#at-confirmar', t: 'Confirmar', x: 'Recién acá se guardan los turnos. Después los ves en la Agenda y en la ficha del paciente.' },
+    ],
+  },
+
+  paciente: {
+    modal: true,
+    titulo: 'Cargar un paciente nuevo',
+    intro: 'Con nombre y apellido alcanza para empezar. Al guardar se abre Agregar turnos para darle sus días y horarios en el mismo paso.',
+    secciones: [
+      { t: 'Qué completar', pasos: [
+        '<b>Nombre y apellido</b> (obligatorios). Se guardan prolijos aunque los escribas en minúscula.',
+        '<b>DNI</b>: si ya existe alguien con ese DNI o ese nombre, la app te avisa para no duplicarlo.',
+        '<b>Celular</b>: se usa para mandarle recordatorios y avisos por WhatsApp. Podés escribirlo como quieras (11 5678-9012).',
+        '<b>Obra social</b>: elegila de la lista o escribí otra. Si paga él, poné “Particular”.',
+        '<b>Diagnóstico</b>: la lesión o motivo. Se ve en la sala del día y en la ficha.',
+      ] },
+      { t: 'Sesiones', pasos: [
+        '<b>Sesiones totales</b>: las que autorizó la obra social o compró (ej: 10).',
+        '<b>Sesiones ya hechas</b>: solo si venía atendiéndose antes de usar la app. Si es nuevo, dejá 0.',
+        'Cada vez que marcás “Vino” se descuenta una. Cuando le quedan 2, aparece en Notificaciones.',
+      ] },
+      { t: 'Después de guardar', pasos: [
+        'Se abre <b>Agregar turnos</b> con el paciente ya elegido.',
+        'Si preferís darle los turnos más tarde, cerrá esa ventana: el paciente queda guardado igual.',
+      ] },
+    ],
+    tips: ['Todo lo que no cargues ahora lo podés completar después desde la ficha, con “Editar datos”.'],
+    tour: [
+      { sel: '#np-fila-nombre', t: 'Nombre y apellido', x: 'Son los únicos datos obligatorios. Se guardan prolijos aunque los escribas en minúscula.' },
+      { sel: '#np-fila-contacto', t: 'DNI y celular', x: 'El DNI evita cargar dos veces a la misma persona. El celular se usa para recordatorios por WhatsApp.' },
+      { sel: '#np-fila-obra', t: 'Obra social', x: 'Elegila de la lista o escribí otra. Si paga él, poné “Particular”.' },
+      { sel: '#np-fila-sesiones', t: 'Sesiones', x: 'Totales: las que autorizó la obra social o compró. Ya hechas: solo si venía atendiéndose. Cuando le queden 2, la app avisa.' },
+      { sel: '#np-guardar', t: 'Guardar y dar turnos', x: 'Guarda el paciente y abre Agregar turnos para darle sus días y horarios en el mismo paso.' },
     ],
   },
 
@@ -297,16 +386,16 @@ function abrirAyuda(pagina) {
     document.body.appendChild(bg); document.body.appendChild(pn);
     bg.addEventListener('click', cerrarAyuda);
   }
-  const otras = Object.keys(AYUDA).filter(k => k !== pg && k !== 'ficha').map(k =>
+  const otras = Object.keys(AYUDA).filter(k => k !== pg && k !== 'ficha' && !AYUDA[k].modal).map(k =>
     `<a href="/${k === 'ejercicios' ? 'ejercicios' : k}?ayuda=1">${_I.ayuda}${AYUDA[k].titulo}</a>`).join('');
   pn.innerHTML = `
     <div class="ay-head">
       <button class="x" onclick="cerrarAyuda()" aria-label="Cerrar">&times;</button>
-      <div class="ay-kicker">Guía de uso</div>
+      <div class="ay-kicker">${g.modal ? 'Tutorial' : 'Guía de uso'}</div>
       <h2>${g.titulo}</h2>
       <p>${g.intro}</p>
       <div class="ay-acciones">
-        ${(g.tour || []).length ? `<button class="btn btn-sm btn-tour" onclick="cerrarAyuda(); setTimeout(() => iniciarTour(), 250)">${_I.tour} Hacer el recorrido</button>` : ''}
+        ${(g.tour || []).length ? `<button class="btn btn-sm btn-tour" onclick="cerrarAyuda(); setTimeout(() => iniciarTour('${pg}'), 250)">${_I.tour} Hacer el recorrido</button>` : ''}
         <button class="btn btn-sm btn-sec" onclick="cerrarAyuda(); abrirBuscador()">${_I.buscar} Buscar</button>
       </div>
     </div>
@@ -363,7 +452,8 @@ function iniciarTour(pagina, conBienvenida) {
   if (conBienvenida) pasos.unshift({ hola: true });
   if (!pasos.length) return;
   terminarTour(false);
-  document.querySelectorAll('.modal-bg.show').forEach(m => m.classList.remove('show'));
+  cerrarAyuda();
+  if (!g.modal) document.querySelectorAll('.modal-bg.show').forEach(m => m.classList.remove('show'));
   const capa = document.createElement('div');
   capa.className = 'tour-capa';
   capa.innerHTML = '<div class="tour-foco"></div><div class="tour-pop" role="dialog" aria-live="polite"></div>';
@@ -393,7 +483,12 @@ function _tourTeclas(e) {
 function _tourIr(i) {
   const T = _TOUR;
   if (!T) return;
-  if (i >= T.pasos.length) { terminarTour(true); toast('¡Listo! Si te olvidás algo, tocá “Guía de esta pestaña”.', 'ok'); return; }
+  if (i >= T.pasos.length) {
+    const modal = AYUDA[T.pg] && AYUDA[T.pg].modal;
+    terminarTour(true);
+    toast(modal ? '¡Listo! Si te olvidás algo, tocá “Cómo funciona” arriba.' : '¡Listo! Si te olvidás algo, tocá “Guía de uso”.', 'ok');
+    return;
+  }
   if (i < 0) return;
   T.i = i;
   const p = T.pasos[i];
@@ -474,6 +569,16 @@ function terminarTour(marcarVisto) {
   document.removeEventListener('keydown', _tourTeclas, true);
   window.removeEventListener('resize', _tourReubicar);
   window.removeEventListener('scroll', _tourReubicar, true);
+}
+
+// Recorrido automático la primera vez que se abre una ventana con tutorial
+// (Agregar turnos, Nuevo paciente). Devuelve true si arrancó.
+function tourModalPrimeraVez(clave) {
+  let visto = false;
+  try { visto = localStorage.getItem('kdym_tour_' + clave) === '1'; } catch (e) {}
+  if (visto || _TOUR || document.querySelector('.tour-capa')) return false;
+  setTimeout(() => { if (!_TOUR) iniciarTour(clave, true); }, 380);
+  return true;
 }
 
 // ---- Botón "Cómo se usa" en el encabezado de cada pestaña ----

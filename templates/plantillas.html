@@ -28,7 +28,7 @@
 </div>
 
 <div class="pl-tabs" id="pl-filtros" data-tour="pl-filtros">
-  <button class="on" data-f="todas" onclick="filtrarPlantillas('todas')">Todas <span></span></button>
+  <button class="on" data-f="todas" onclick="filtrarPlantillas('todas')" title="Todas menos las entregadas">En curso <span></span></button>
   <button data-f="pedida" onclick="filtrarPlantillas('pedida')">Pedidas <span></span></button>
   <button data-f="fabricacion" onclick="filtrarPlantillas('fabricacion')">En fabricación <span></span></button>
   <button data-f="lista" onclick="filtrarPlantillas('lista')">Listas para retirar <span></span></button>
@@ -176,22 +176,31 @@ function pintarPlantillas() {
   // Contadores de cada pestaña
   document.querySelectorAll('#pl-filtros button').forEach(b => {
     const f = b.dataset.f;
-    const n = f === 'todas' ? PLANTILLAS.length : PLANTILLAS.filter(p => p.estado === f).length;
+    // "Todas" = las que siguen en curso (las entregadas quedan en su pestaña).
+    const n = f === 'todas' ? PLANTILLAS.filter(p => p.estado !== 'entregada').length : PLANTILLAS.filter(p => p.estado === f).length;
     b.querySelector('span').textContent = n || '';
   });
   const listas = PLANTILLAS.filter(p => p.estado === 'lista').length;
+  const enCurso = PLANTILLAS.filter(p => p.estado !== 'entregada').length;
   document.getElementById('pl-sub').innerHTML = PLANTILLAS.length
-    ? `${PLANTILLAS.length} pedido${PLANTILLAS.length === 1 ? '' : 's'}${listas ? ` · <b>${listas}</b> para avisar que están listas` : ''}`
+    ? `${enCurso} en curso${listas ? ` · <b>${listas}</b> para avisar que están listas` : ''} · ${PLANTILLAS.length - enCurso} entregada${PLANTILLAS.length - enCurso === 1 ? '' : 's'}`
     : 'Pedidos de plantillas de todas las sedes';
 
   let items = PLANTILLAS;
-  if (PL_FILTRO !== 'todas') items = items.filter(p => p.estado === PL_FILTRO);
+  if (PL_FILTRO === 'todas') items = items.filter(p => p.estado !== 'entregada');
+  else items = items.filter(p => p.estado === PL_FILTRO);
   if (term) items = items.filter(p => _sinAcentos(p.paciente + ' ' + (p.telefono || '')).includes(term));
   if (!PLANTILLAS.length) {
     cont.innerHTML = '<div class="card" style="grid-column:1/-1;"><div class="empty"><b>Todavía no hay pedidos</b><br>Cargá el primer pedido de plantillas y seguí su estado hasta la entrega.<br><button class="btn btn-primary btn-sm" onclick="abrirNuevaPlantilla()">+ Nueva plantilla</button></div></div>';
     return;
   }
-  if (!items.length) { cont.innerHTML = '<div class="card" style="grid-column:1/-1;"><div class="empty">No hay plantillas en esta vista.</div></div>'; return; }
+  if (!items.length) {
+    const msg = PL_FILTRO === 'todas'
+      ? '<b>No hay pedidos en curso</b><br>Todos los pedidos ya fueron entregados. Los ves en la pestaña <b>Entregadas</b>.'
+      : 'No hay plantillas en esta vista.';
+    cont.innerHTML = `<div class="card" style="grid-column:1/-1;"><div class="empty">${msg}</div></div>`;
+    return;
+  }
 
   cont.innerHTML = items.map(p => {
     const est = PL_EST[p.estado] || PL_EST.pedida;
@@ -236,7 +245,9 @@ function pintarPlantillas() {
 
 async function cambiarEstado(id, estado) {
   await api('/api/plantilla/' + id, { estado });
-  toast('Estado: ' + (PL_EST[estado] || {}).txt, 'ok');
+  toast(estado === 'entregada' && PL_FILTRO === 'todas'
+    ? 'Entregada: pasó a la pestaña “Entregadas”'
+    : 'Estado: ' + (PL_EST[estado] || {}).txt, 'ok');
   cargarPlantillas();
 }
 

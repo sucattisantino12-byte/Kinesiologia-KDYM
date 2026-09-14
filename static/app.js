@@ -21,8 +21,14 @@ function toggleTema() { setTema(!temaEsOscuro()); }
   localStorage.setItem('kdym_splash_ts', String(ahora));
   splash.classList.add('on');
   document.body.classList.add('splashing');
-  setTimeout(() => splash.classList.add('hide'), 3300);
-  setTimeout(() => { splash.remove(); document.body.classList.remove('splashing'); }, 3950);
+  let ido = false;
+  const sacar = (rapido) => {
+    if (ido) return; ido = true;
+    splash.classList.add('hide');
+    setTimeout(() => { splash.remove(); document.body.classList.remove('splashing'); }, rapido ? 260 : 420);
+  };
+  splash.addEventListener('click', () => sacar(true));
+  setTimeout(() => sacar(false), 2550);
 })();
 
 // ---- Animación de entrada de la pestaña ----
@@ -34,7 +40,7 @@ function toggleTema() { setTema(!temaEsOscuro()); }
   function animar() {
     main.classList.add('page-enter');
     // Se saca al terminar: así no queda ninguna transformación puesta.
-    setTimeout(() => main.classList.remove('page-enter'), 1400);
+    setTimeout(() => main.classList.remove('page-enter'), 650);
   }
   const splash = document.getElementById('splash');
   if (splash && splash.classList.contains('on')) {
@@ -182,7 +188,7 @@ function abrirNuevoPaciente(onSaved) {
   document.getElementById('np-usadas').value = '0';
   NP_CB = onSaved || null;
   abrirModal('modal-paciente');
-  setTimeout(() => document.getElementById('np-nombre').focus(), 100);
+  if (!tourModalPrimeraVez('paciente')) setTimeout(() => document.getElementById('np-nombre').focus(), 100);
 }
 
 let NP_GUARDANDO = false;
@@ -246,7 +252,6 @@ async function actualizarBadgeNotif() {
     });
   } catch (e) {}
 }
-actualizarBadgeNotif();
 setInterval(actualizarBadgeNotif, 15000);
 
 // ---- Menú "Más" (celular) ----
@@ -277,7 +282,6 @@ async function _sidebarSesiones() {
   } catch (err) {}
 }
 _cabeceraReloj();
-_sidebarSesiones();
 setInterval(_cabeceraReloj, 30000);
 setInterval(_sidebarSesiones, 15000);
 
@@ -461,12 +465,19 @@ function abrirAgregarTurnos(pid, nombre, onDone) {
   atRenderDiasChips();
   atEstrategia('hora');
   atRenderHorasRows();
-  document.getElementById('at-plan-info').textContent = '';
+  atPlanInfo();
   poblarSelectSede('at-sede');
   atModo('auto');
   atAgregarFila();
+  const guia = document.getElementById('at-guia');
+  let guiaVista = false;
+  try { guiaVista = localStorage.getItem('kdym_guia_agturnos') === '1'; localStorage.setItem('kdym_guia_agturnos', '1'); } catch (e) {}
+  if (guia) guia.open = !guiaVista;
+  const body = document.querySelector('#modal-agturnos .modal-body');
+  if (body) body.scrollTop = 0;
   abrirModal('modal-agturnos');
   if (AT_PID) atCargarPlanPaciente(AT_PID);
+  tourModalPrimeraVez('agturnos');
 }
 
 async function atCargarPlanPaciente(pid) {
@@ -511,6 +522,10 @@ function atSetDesde(ultimo) {
 
 function atModo(m) {
   AT_MODO = m;
+  const mh = document.getElementById('at-modo-hint');
+  if (mh) mh.textContent = m === 'auto'
+    ? 'Arma todos los turnos juntos. Por ejemplo: 10 sesiones, martes y jueves a las 18.'
+    : 'Para turnos puntuales: elegís cada fecha y hora a mano.';
   document.getElementById('at-modo-auto').style.display = m === 'auto' ? '' : 'none';
   document.getElementById('at-modo-manual').style.display = m === 'manual' ? '' : 'none';
   document.getElementById('at-tab-auto').classList.toggle('on', m === 'auto');
@@ -527,6 +542,9 @@ function atPlanModo(m) {
   if (rp) rp.classList.toggle('on', m === 'reprogramar');
   // "Extender" y "Cambiar días/horarios" calculan la cantidad solos.
   document.getElementById('at-cantidad-wrap').style.display = (m === 'nuevo') ? '' : 'none';
+  const lbl = document.getElementById('at-cant-lbl');
+  if (lbl) lbl.textContent = m === 'nuevo' ? 'Cuántas sesiones y desde cuándo'
+    : (m === 'extender' ? 'Desde cuándo agregar las que faltan' : 'Desde cuándo cambian los días y horarios');
   atPlanInfo();
   atInvalidarPropuesta();
 }
@@ -534,13 +552,13 @@ function atPlanModo(m) {
 function atPlanInfo() {
   const el = document.getElementById('at-plan-info');
   if (!el) return;
-  if (!AT_PID) { el.textContent = ''; return; }
-  if (AT_PLAN_MODO === 'extender')
-    el.textContent = `Le quedan ${AT_QUEDAN} sesión(es). Voy a agendar las que falten (las que aún no tienen turno).`;
-  else if (AT_PLAN_MODO === 'reprogramar')
-    el.textContent = 'Se mueven los turnos que todavía no pasaron, a los días y horarios nuevos. Las sesiones ya hechas no se tocan.';
-  else
-    el.textContent = AT_QUEDAN ? `Le quedan ${AT_QUEDAN} sesión(es) por hacer.` : '';
+  const quedan = AT_PID && AT_QUEDAN ? ` <b>Le quedan ${AT_QUEDAN} ${AT_QUEDAN === 1 ? 'sesión' : 'sesiones'}.</b>` : '';
+  const txt = {
+    nuevo: '<b>Nuevo plan:</b> para un paciente que empieza. Poné cuántas sesiones hace y elegí sus días y horarios.',
+    extender: '<b>Extender:</b> para alguien que ya viene. Agrega turnos solo para las sesiones que todavía no tienen fecha.',
+    reprogramar: '<b>Cambiar días/horarios:</b> mueve los turnos que faltan a los días y horas nuevos. Las sesiones ya hechas no se tocan.',
+  };
+  el.innerHTML = (txt[AT_PLAN_MODO] || '') + quedan;
 }
 
 const DIAS_FULL_JS = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
@@ -575,8 +593,8 @@ function atEstrategia(e) {
   const recom = document.getElementById('at-recom-wrap');
   if (recom) recom.style.display = e === 'recomendado' ? '' : 'none';
   const hints = {
-    hora: 'Elegí los días y, en cada uno, el horario. Te muestro todas las horas con el semáforo (verde libre, amarillo casi lleno, rojo lleno).',
-    recomendado: 'Sólo los horarios libres (en verde) de cada día, para ofrecer. Tocá el ✓ en los que el paciente acepte.',
+    hora: 'Cuando el paciente ya sabe qué días y a qué hora puede venir.',
+    recomendado: 'Cuando es flexible: te muestro los horarios con más lugar de cada día para ofrecerle.',
   };
   const h = document.getElementById('at-es-hint');
   if (h) h.textContent = hints[e] || '';
@@ -716,7 +734,7 @@ function atRecomInfo() {
   const n = AT_DIAS.size;
   if (h) h.textContent = n
     ? `Elegidos ${n} horario(s) fijo(s) por semana. Se repiten hasta completar las sesiones.`
-    : 'Elegí la hora de cada día y tocá ✓ en los que el paciente acepte.';
+    : 'Cuando es flexible: elegí la hora de cada día y tocá ✓ en los que el paciente acepte.';
 }
 
 // Si cambian los parámetros, la propuesta anterior queda vieja.
@@ -1394,6 +1412,56 @@ document.addEventListener('keydown', (e) => {
   if (e.key === '/') { e.preventDefault(); abrirBuscador(); }
   else if (e.key === '?') { e.preventDefault(); if (typeof abrirAyuda === 'function') abrirAyuda(); }
 });
+
+// ---- Instalar la app en el celular / la compu ----
+let _PROMPT_INSTALAR = null;
+const _yaInstalada = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+const _esIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent);
+function _botonesInstalar(mostrar) {
+  document.querySelectorAll('.instalar-app').forEach(b => { b.hidden = !mostrar; });
+}
+window.addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault(); _PROMPT_INSTALAR = e; _botonesInstalar(true);
+});
+window.addEventListener('appinstalled', () => { _PROMPT_INSTALAR = null; _botonesInstalar(false); toast('¡Listo! La app quedó instalada', 'ok'); });
+document.addEventListener('DOMContentLoaded', () => {
+  // En iPhone no existe el aviso automático: se muestra el botón con instrucciones.
+  if (!_yaInstalada() && _esIOS()) _botonesInstalar(true);
+});
+function _infoInstalar(titulo, pasos) {
+  const prev = document.getElementById('ui-inst'); if (prev) prev.remove();
+  const bg = document.createElement('div');
+  bg.className = 'modal-bg show'; bg.id = 'ui-inst'; bg.style.zIndex = 450;
+  bg.innerHTML = `<div class="modal dlg" role="dialog" aria-modal="true">
+    <div class="modal-body">
+      <div class="dlg-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M12 8v6m-2.5-2.5L12 14l2.5-2.5"/></svg></div>
+      <h3>${titulo}</h3>
+      <ol class="pasos-instalar">${pasos.map(p => `<li>${p}</li>`).join('')}</ol>
+    </div>
+    <div class="modal-foot"><button class="btn btn-primary" data-cerrar>Entendido</button></div>
+  </div>`;
+  document.body.appendChild(bg);
+  bg.addEventListener('click', e => { if (e.target === bg || e.target.closest('[data-cerrar]')) bg.remove(); });
+}
+async function instalarApp() {
+  if (_PROMPT_INSTALAR) {
+    _PROMPT_INSTALAR.prompt();
+    const { outcome } = await _PROMPT_INSTALAR.userChoice;
+    _PROMPT_INSTALAR = null;
+    if (outcome === 'accepted') _botonesInstalar(false);
+    return;
+  }
+  if (_yaInstalada()) { toast('La app ya está instalada en este dispositivo', 'ok'); return; }
+  if (!window.isSecureContext) {
+    _infoInstalar('Instalar la app', ['Para instalarla, abrí la app desde su dirección publicada (https).', 'Desde la red local de la compu todavía no se puede.']);
+    return;
+  }
+  if (_esIOS()) {
+    _infoInstalar('Instalar en iPhone', ['Abrí esta página en <b>Safari</b>.', 'Tocá <b>Compartir</b> (el cuadrado con la flechita ↑).', 'Elegí <b>“Agregar a pantalla de inicio”</b> y después <b>Agregar</b>.']);
+    return;
+  }
+  _infoInstalar('Instalar la app', ['Abrí el menú del navegador (los <b>⋮</b> arriba a la derecha).', 'Tocá <b>“Instalar app”</b> o <b>“Agregar a pantalla principal”</b>.', 'Va a quedar con el ícono de KDYM, como cualquier app.']);
+}
 
 // ---- App instalable: registra el service worker en todas las pestañas ----
 if ('serviceWorker' in navigator) {

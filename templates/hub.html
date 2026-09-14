@@ -79,17 +79,26 @@
       { base: '#7A5BD8', dark: '#5B3FB0' },  // violeta
     ];
     // Sacar la bienvenida y revelar el hub (las tarjetas entran solas por CSS).
+    // La bienvenida se ve una sola vez por sesión; al volver a cambiar de sede
+    // las tarjetas aparecen directo.
+    let _yaVista = false;
+    try { _yaVista = sessionStorage.getItem('kdym_hub_bienvenida') === '1'; sessionStorage.setItem('kdym_hub_bienvenida', '1'); } catch (e) {}
     document.documentElement.classList.add('hub-cargando');
-    window.addEventListener('load', () => {
-      setTimeout(() => {
-        const sp = document.getElementById('hub-splash');
-        sp?.classList.add('fuera');
-        document.documentElement.classList.remove('hub-cargando');
-        document.documentElement.classList.add('hub-listo');
-        // Sacarlo del DOM al terminar el fundido (corta sus animaciones).
-        setTimeout(() => { if (sp) sp.style.display = 'none'; }, 750);
-      }, 1600);
-    });
+    function _mostrarHub() {
+      const sp = document.getElementById('hub-splash');
+      sp?.classList.add('fuera');
+      document.documentElement.classList.remove('hub-cargando');
+      document.documentElement.classList.add('hub-listo');
+      setTimeout(() => { if (sp) sp.style.display = 'none'; }, 450);
+    }
+    if (_yaVista) {
+      const sp = document.getElementById('hub-splash');
+      if (sp) sp.style.display = 'none';
+      _mostrarHub();
+    } else {
+      document.addEventListener('DOMContentLoaded', () => setTimeout(_mostrarHub, 950));
+      document.getElementById('hub-splash')?.addEventListener('click', _mostrarHub);
+    }
     // Al elegir sede: círculo del color de la sede que se abre desde la tarjeta.
     function accederSede(ev, el) {
       ev.preventDefault();
@@ -105,7 +114,7 @@
       go.style.setProperty('--go-dark', c.dark);
       document.getElementById('hub-go-sede').textContent = el.dataset.sedeNombre || '';
       go.classList.add('activo');
-      setTimeout(() => { location.href = el.getAttribute('href'); }, 1050);
+      setTimeout(() => { location.href = el.getAttribute('href'); }, 520);
     }
   </script>
 </body>
