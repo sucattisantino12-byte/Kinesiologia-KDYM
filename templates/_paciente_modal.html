@@ -7,29 +7,29 @@
     </div>
     <div class="modal-body">
       <div class="grid2">
-        <div class="field"><label>Nombre *</label><input class="input" id="np-nombre"></div>
-        <div class="field"><label>Apellido *</label><input class="input" id="np-apellido"></div>
+        <div class="field"><label>Nombre *</label><input class="input" id="np-nombre" autocomplete="off" autocapitalize="words"></div>
+        <div class="field"><label>Apellido *</label><input class="input" id="np-apellido" autocomplete="off" autocapitalize="words"></div>
       </div>
       <div class="grid2">
-        <div class="field"><label>DNI</label><input class="input" id="np-dni"></div>
-        <div class="field"><label>Teléfono</label><input class="input" id="np-telefono"></div>
+        <div class="field"><label>DNI</label><input class="input" id="np-dni" inputmode="numeric" autocomplete="off" placeholder="Sin puntos"></div>
+        <div class="field"><label>Celular</label><input class="input" id="np-telefono" type="tel" inputmode="tel" autocomplete="off" placeholder="11 5678-9012"></div>
       </div>
       <div class="field">
         <label>Obra social</label>
         <input class="input" id="np-obra" list="obras-sociales" placeholder="OSDE, Swiss Medical, Particular…">
       </div>
-      <div class="field"><label>Diagnóstico / lesión</label><input class="input" id="np-diagnostico"></div>
+      <div class="field"><label>Diagnóstico / lesión</label><input class="input" id="np-diagnostico" placeholder="Ej: esguince de tobillo"></div>
       <div class="grid2">
         <div class="field"><label>Sesiones totales</label><input class="input" id="np-tot" type="number" min="0" value="0"></div>
         <div class="field"><label>Sesiones ya hechas</label><input class="input" id="np-usadas" type="number" min="0" value="0"></div>
       </div>
 
-      <div class="field"><label>Notas</label><textarea id="np-notas"></textarea></div>
-      <div class="hint">Al guardar, se abre “Agregar turnos” para configurar los días y horarios.</div>
+      <div class="field"><label>Notas</label><textarea id="np-notas" placeholder="Opcional"></textarea></div>
+      <div class="np-sig"><b>Siguiente paso:</b> al guardar se abre “Agregar turnos” para darle sus días y horarios.</div>
     </div>
     <div class="modal-foot">
       <button class="btn btn-ghost" onclick="cerrarModal('modal-paciente')">Cancelar</button>
-      <button class="btn btn-primary" id="np-guardar">Guardar</button>
+      <button class="btn btn-primary" id="np-guardar">Guardar y dar turnos</button>
     </div>
   </div>
 </div>

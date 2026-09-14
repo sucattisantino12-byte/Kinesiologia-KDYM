@@ -63,18 +63,66 @@ function toast(msg, tipo) {
   }, tipo === 'alert' ? 6000 : 2600);
 }
 
+// Último botón tocado: mientras su pedido al servidor está en curso queda
+// deshabilitado, así un doble toque no duplica turnos, pagos o pacientes.
+let _BTN_TOCADO = null, _BTN_TS = 0;
+document.addEventListener('click', e => {
+  const b = e.target.closest && e.target.closest('button, .btn');
+  if (!b) return;
+  // Si ese botón todavía está guardando, el segundo toque se ignora.
+  if (+b.dataset.enviando > 0) { e.preventDefault(); e.stopImmediatePropagation(); return; }
+  _BTN_TOCADO = b; _BTN_TS = Date.now();
+}, true);
+
 async function api(url, body) {
   const opt = { method: 'POST', headers: { 'Content-Type': 'application/json' } };
   if (body !== undefined) opt.body = JSON.stringify(body);
-  const r = await fetch(url, body !== undefined ? opt : { method: 'POST' });
-  let data = {};
-  try { data = await r.json(); } catch (e) {}
-  if (!r.ok || data.ok === false) {
-    toast(data.error || 'Ocurrió un error', 'alert');
-    throw new Error(data.error || 'error');
+  const btn = (_BTN_TOCADO && Date.now() - _BTN_TS < 1500 && document.contains(_BTN_TOCADO)) ? _BTN_TOCADO : null;
+  if (btn) {
+    btn.dataset.enviando = (+btn.dataset.enviando || 0) + 1;
+    btn.classList.add('enviando');
   }
-  return data;
+  try {
+    let r;
+    try {
+      r = await fetch(url, body !== undefined ? opt : { method: 'POST' });
+    } catch (e) {
+      toast('Sin conexión a internet. Revisá el wifi y probá de nuevo.', 'alert');
+      throw e;
+    }
+    let data = {};
+    try { data = await r.json(); } catch (e) {}
+    if (!r.ok || data.ok === false) {
+      toast(data.error || 'Ocurrió un error', 'alert');
+      throw new Error(data.error || 'error');
+    }
+    return data;
+  } finally {
+    if (btn) {
+      const n = (+btn.dataset.enviando || 1) - 1;
+      if (n > 0) btn.dataset.enviando = n;
+      else { delete btn.dataset.enviando; btn.classList.remove('enviando'); }
+    }
+  }
 }
+
+// Aviso si se corta internet (la app necesita conexión para guardar).
+(function () {
+  function pintar() {
+    let el = document.getElementById('sin-red');
+    if (navigator.onLine) { if (el) el.remove(); return; }
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'sin-red';
+      el.className = 'sin-red';
+      el.textContent = 'Sin conexión — los cambios no se van a guardar hasta que vuelva internet';
+      document.body.appendChild(el);
+    }
+  }
+  window.addEventListener('online', () => { pintar(); toast('Volvió la conexión', 'ok'); });
+  window.addEventListener('offline', pintar);
+  if (document.body) pintar(); else document.addEventListener('DOMContentLoaded', pintar);
+})();
 
 async function apiGet(url) {
   const r = await fetch(url);
@@ -137,7 +185,17 @@ function abrirNuevoPaciente(onSaved) {
   setTimeout(() => document.getElementById('np-nombre').focus(), 100);
 }
 
+let NP_GUARDANDO = false;
 async function guardarNuevoPaciente() {
+  // Evita cargarlo dos veces si tocan "Guardar" repetido mientras se revisan duplicados.
+  if (NP_GUARDANDO) return;
+  NP_GUARDANDO = true;
+  const b = document.getElementById('np-guardar');
+  if (b) b.classList.add('enviando');
+  try { await _guardarNuevoPaciente(); }
+  finally { NP_GUARDANDO = false; if (b) b.classList.remove('enviando'); }
+}
+async function _guardarNuevoPaciente() {
   const v = id => (document.getElementById(id) || {}).value || '';
   const body = {
     nombre: v('np-nombre'), apellido: v('np-apellido'), dni: v('np-dni'),
@@ -148,6 +206,16 @@ async function guardarNuevoPaciente() {
   if (!body.nombre.trim() || !body.apellido.trim()) {
     toast('Nombre y apellido son obligatorios', 'alert'); return;
   }
+  // ¿Ya está cargado? (mismo nombre y apellido, o mismo DNI)
+  try {
+    const iguales = await apiGet('/api/pacientes?q=' + encodeURIComponent(body.apellido.trim()));
+    const nom = _sinAcentos(body.nombre.trim() + ' ' + body.apellido.trim()).replace(/\s+/g, ' ');
+    const dni = body.dni.replace(/\D/g, '');
+    const dup = (iguales || []).find(p => _sinAcentos(p.nombre_completo).replace(/\s+/g, ' ') === nom || (dni && (p.dni || '').replace(/\D/g, '') === dni));
+    if (dup && !await confirmar('Ya hay un paciente “' + dup.nombre_completo + '”. ¿Cargarlo igual?', {
+      mensaje: (dup.dni ? 'DNI ' + dup.dni + ' · ' : '') + 'Si es la misma persona, mejor abrí su ficha para no duplicarlo.',
+      ok: 'Cargar igual', cancelar: 'Revisar', peligro: false })) return;
+  } catch (e) {}
   const r = await api('/api/paciente', body);
   const nombre = (body.nombre + ' ' + body.apellido).trim();
   toast('Paciente guardado ✓', 'ok');
@@ -894,7 +962,18 @@ async function atPostTurno(body) {
            error: d.error || 'No se pudo dar el turno' };
 }
 
+let AT_GUARDANDO = false;
 async function atGenerar() {
+  // Un doble toque en "Agregar turnos" no debe crear los turnos dos veces.
+  if (AT_GUARDANDO) return;
+  AT_GUARDANDO = true;
+  const b = document.getElementById('at-confirmar');
+  if (b) b.classList.add('enviando');
+  try { await _atGenerar(); }
+  catch (e) { atError('No se pudo guardar. Revisá la conexión y probá de nuevo.'); }
+  finally { AT_GUARDANDO = false; if (b) b.classList.remove('enviando'); }
+}
+async function _atGenerar() {
   atError('');
   if (!AT_PID) { toast('Elegí un paciente', 'alert'); return; }
   const dur = AT_DUR;   // duración fija (30 min)
