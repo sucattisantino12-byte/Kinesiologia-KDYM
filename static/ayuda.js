@@ -357,7 +357,7 @@ const AYUDA = {
         'En <b>Sedes</b> poné el <b>tope</b> de turnos por horario (normalmente, la cantidad de boxes).',
         'En <b>Horario del centro</b> marcá qué días abre y en qué horario.',
         'Tocá <b>Cargar feriados de Argentina</b>.',
-        'Cargá el <b>WhatsApp de la kinesióloga</b> y los <b>precios</b> que usan.',
+        'Cargá los <b>precios</b> que usan y el horario y la dirección de <b>retiro de plantillas</b>.',
       ] },
       { t: 'En este dispositivo', pasos: [
         '<b>Modo oscuro</b> y <b>sonido de la alarma</b> se guardan solo en este celular o compu.',

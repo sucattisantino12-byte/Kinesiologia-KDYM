@@ -17,7 +17,7 @@
     <a href="#cfg-asistencia"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.8"/><path d="M4.5 20c.7-3.7 3.7-5.8 7.5-5.8M16 16l4 4M20 16l-4 4"/></svg>No vino automático</a>
     <a href="#cfg-feriados"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4M9 14l6 4M15 14l-6 4"/></svg>Feriados</a>
     <a href="#cfg-precios"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2.5"/><circle cx="12" cy="12" r="2.6"/></svg>Precios</a>
-    <a href="#cfg-whatsapp"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l1.3-4A8 8 0 1112 20a8 8 0 01-4-1.1z"/></svg>WhatsApp y avisos</a>
+    <a href="#cfg-whatsapp"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l1.3-4A8 8 0 1112 20a8 8 0 01-4-1.1z"/></svg>Retiro de plantillas</a>
     <a href="#cfg-datos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="7.5" ry="3"/><path d="M4.5 6v6c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3V6M4.5 12v6c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3v-6"/></svg>Copia de seguridad</a>
     <a href="#cfg-demo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6M10 3v6l-5.5 9.5A1.7 1.7 0 006 21h12a1.7 1.7 0 001.5-2.5L14 9V3"/><path d="M7.5 15h9"/></svg>Modo demo</a>
   </nav>
@@ -91,17 +91,12 @@
     </section>
 
     <section class="card cfg-card" id="cfg-whatsapp">
-      <div class="cfg-card-head"><span class="cfg-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l1.3-4A8 8 0 1112 20a8 8 0 01-4-1.1z"/></svg></span><div><h3>WhatsApp y avisos</h3><p>Números y datos que usan los mensajes que arma la app.</p></div></div>
-      <div class="field">
-        <label>WhatsApp de la kinesióloga</label>
-        <input class="input" id="cfg-wa" inputmode="tel" placeholder="Ej: 11 5678-9012">
-        <div class="hint">Cuando termina una sesión aparece un botón en el box para avisarle.</div>
-      </div>
+      <div class="cfg-card-head"><span class="cfg-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l1.3-4A8 8 0 1112 20a8 8 0 01-4-1.1z"/></svg></span><div><h3>Retiro de plantillas</h3><p>Se usan en el WhatsApp que avisa al paciente que sus plantillas están listas.</p></div></div>
       <div class="grid2">
         <div class="field"><label>Horario de retiro de plantillas</label><input class="input" id="cfg-retiro-horario" placeholder="Ej: Lun a Vie de 9 a 18 hs"></div>
         <div class="field"><label>Dirección de retiro</label><input class="input" id="cfg-retiro-dir" placeholder="Ej: Av. Rivadavia 1234, Morón"></div>
       </div>
-      <div class="cfg-acciones"><button class="btn btn-primary" onclick="guardarWa(); guardarRetiro();">Guardar</button></div>
+      <div class="cfg-acciones"><button class="btn btn-primary" onclick="guardarRetiro()">Guardar</button></div>
     </section>
 
     <section class="card cfg-card" id="cfg-datos">
@@ -166,7 +161,6 @@ function centroSet(i, k, v) { if (CENTRO_HOR[i]) CENTRO_HOR[i][k] = v; }
 
 // Config del servidor (WhatsApp + horario del centro).
 apiGet('/api/config').then(c => {
-  document.getElementById('cfg-wa').value = c.wa_kine || '';
   document.getElementById('cfg-retiro-horario').value = c.retiro_horario || '';
   document.getElementById('cfg-retiro-dir').value = c.retiro_direccion || '';
   try { CENTRO_HOR = JSON.parse(c.centro_horarios || '{}'); } catch (e) { CENTRO_HOR = {}; }
@@ -175,10 +169,6 @@ apiGet('/api/config').then(c => {
   }
   pintarCentroHor();
 });
-async function guardarWa() {
-  const wa = waNumeroAR(document.getElementById('cfg-wa').value);
-  await api('/api/config', { wa_kine: wa });
-}
 async function guardarRetiro() {
   await api('/api/config', {
     retiro_horario: document.getElementById('cfg-retiro-horario').value.trim(),

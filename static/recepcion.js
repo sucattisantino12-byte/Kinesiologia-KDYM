@@ -6,7 +6,7 @@ let REPEAT_LAST = {};       // último re-beep por box (para repetir alarma)
 let TURNO_INICIAR = null;   // turno pendiente de asignar a un box
 let ABOX_BOX = null;        // box elegido para "añadir a box"
 let NOVINO = null;          // turno en el modal "no vino"
-let CONFIG = {};            // config (WhatsApp de la kine, etc.)
+let CONFIG = {};            // config del centro
 
 const DIAS = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 
@@ -146,8 +146,6 @@ function pintarBoxes() {
     }
     const venc = b.vencido;
     const totalSeg = (b.duracion || 30) * 60;
-    const wa = (venc && CONFIG.wa_kine)
-      ? `<button class="btn btn-wa btn-sm" onclick="avisarWa('${escapeJs(b.paciente)}','${escapeJs(b.nombre)}')" title="Avisar a la kinesióloga por WhatsApp">WhatsApp</button>` : '';
     return `<div class="box ocupado ${venc ? 'vencido' : ''}" data-box="${b.id}">
       <div class="box-head">
         <span class="box-nom">${escapeHtml(b.nombre)}</span>
@@ -161,7 +159,6 @@ function pintarBoxes() {
       <div class="box-actions ${venc ? 'box-actions-venc' : ''}">
         <button class="btn btn-ok btn-sm grow" onclick="terminar(${b.turno_id})">✓ Terminar</button>
         <button class="btn ${venc ? 'btn-primary' : 'btn-line'} btn-sm grow" onclick="agregarTiempo(${b.turno_id})">+ Tiempo</button>
-        ${wa}
       </div>
     </div>`;
   }).join('');
@@ -614,16 +611,6 @@ async function registrarLlegada(pid, nombre, obraSocial) {
   toast(`${nombre}: vino ✓` + (rv.token ? ' · token guardado' : ''), 'ok');
   if (rv.token) avisoTokenDuplicado(rv.token.duplicado);
   refrescar();
-}
-
-// ---- WhatsApp ----
-function waLink(msg) {
-  return 'https://wa.me/' + waNumeroAR(CONFIG.wa_kine) +
-    '?text=' + encodeURIComponent(msg);
-}
-function avisarWa(paciente, box) {
-  if (!CONFIG.wa_kine) { toast('Primero cargá el WhatsApp en Configuración', 'alert'); return; }
-  window.open(waLink(`${paciente} terminó su sesión en ${box}. Ya podés pasar`), '_blank');
 }
 
 async function cargarConfig() { try { CONFIG = await apiGet('/api/config'); } catch (e) {} }
