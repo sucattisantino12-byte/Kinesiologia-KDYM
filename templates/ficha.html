@@ -167,6 +167,7 @@
       <div class="dato"><div class="k">DNI</div><div class="v">{{ p.dni or '—' }}</div></div>
       <div class="dato"><div class="k">Teléfono</div><div class="v">{{ p.telefono or '—' }}</div></div>
       <div class="dato"><div class="k">Obra social</div><div class="v">{{ p.obra_social or '—' }}</div></div>
+      {% if p.obra_social or p.nro_afiliado %}<div class="dato"><div class="k">Nº de afiliado</div><div class="v">{{ p.nro_afiliado or '—' }}</div></div>{% endif %}
       <div class="dato"><div class="k">Diagnóstico</div><div class="v">{{ p.diagnostico or '—' }}</div></div>
       <div class="dato"><div class="k">Notas</div><div class="v" style="white-space:pre-line;">{{ p.notas or '—' }}</div></div>
     </div>
@@ -204,7 +205,10 @@
         <div class="field"><label>DNI</label><input class="input" id="e-dni" value="{{ p.dni }}"></div>
         <div class="field"><label>Teléfono</label><input class="input" id="e-telefono" value="{{ p.telefono }}"></div>
       </div>
-      <div class="field"><label>Obra social</label><input class="input" id="e-obra" list="obras-sociales" value="{{ p.obra_social }}"><div class="hint">Si no está en la lista, escribila y queda guardada.</div></div>
+      <div class="grid2">
+        <div class="field"><label>Obra social</label><input class="input" id="e-obra" list="obras-sociales" value="{{ p.obra_social }}"><div class="hint">Si no está en la lista, escribila y queda guardada.</div></div>
+        <div class="field"><label>Nº de afiliado</label><input class="input" id="e-afiliado" value="{{ p.nro_afiliado or '' }}" autocomplete="off"><div class="hint">Se usa en la liquidación.</div></div>
+      </div>
       <div class="field"><label>Diagnóstico / lesión</label><input class="input" id="e-diagnostico" value="{{ p.diagnostico }}"></div>
       <div class="grid2">
         <div class="field"><label>Sesiones totales</label><input class="input" id="e-tot" type="number" min="0" value="{{ p.sesiones_totales }}"></div>
@@ -429,7 +433,7 @@ function abrirEditar() { abrirModal('modal-editar'); }
 async function guardarEditar() {
   const body = {
     nombre: val('e-nombre'), apellido: val('e-apellido'), dni: val('e-dni'),
-    telefono: val('e-telefono'), obra_social: val('e-obra'), diagnostico: val('e-diagnostico'),
+    telefono: val('e-telefono'), obra_social: val('e-obra'), nro_afiliado: val('e-afiliado'), diagnostico: val('e-diagnostico'),
     sesiones_totales: val('e-tot'), sesiones_usadas: val('e-usadas'),
     dias: val('e-dias'), notas: val('e-notas'),
   };

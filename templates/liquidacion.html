@@ -1,0 +1,317 @@
+{% extends "base.html" %}
+{% block title %}Liquidación — KDYM{% endblock %}
+
+{% block content %}
+<div class="page-head">
+  <div class="page-head-txt">
+    <div class="page-title">Liquidación</div>
+    <div class="page-sub" id="liq-sub">Sesiones y tokens por obra social, listos para presentar</div>
+  </div>
+  <div class="page-head-actions rep-filtros" data-tour="liq-filtros">
+    <div class="seg" id="liq-sede"></div>
+    <div class="rep-mes">
+      <button class="btn btn-ghost btn-ic" onclick="moverMesLiq(-1)" aria-label="Mes anterior"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M15 5l-7 7 7 7"/></svg></button>
+      <input class="input" id="liq-mes" type="month" aria-label="Mes a liquidar" onchange="cargarLiq()">
+      <button class="btn btn-ghost btn-ic" onclick="moverMesLiq(1)" aria-label="Mes siguiente"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg></button>
+    </div>
+  </div>
+</div>
+
+<div class="stats rep-stats liq-stats" id="liq-stats" data-tour="liq-stats"><div class="stat"><div class="cargando"></div></div></div>
+
+<div class="liq-barra" data-tour="liq-acciones">
+  <div class="seg liq-filtro" id="liq-filtro">
+    <button class="on" data-f="todo" onclick="filtroLiq('todo')">Todo</button>
+    <button data-f="falta" onclick="filtroLiq('falta')">Solo lo que falta</button>
+  </div>
+  <div class="liq-barra-acc">
+    <button class="btn btn-ghost" onclick="expandirTodo()" id="liq-expandir">Abrir todas</button>
+    <button class="btn btn-ghost" onclick="imprimirLiq()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M7 9V3.5h10V9M7 17.5H5a2 2 0 01-2-2V11a2 2 0 012-2h14a2 2 0 012 2v4.5a2 2 0 01-2 2h-2"/><rect x="7" y="14" width="10" height="7" rx="1"/></svg>Imprimir / PDF</button>
+    <button class="btn btn-primary" onclick="bajarExcel()"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m-4.5-4.5L12 15l4.5-4.5M5 19.5h14"/></svg>Descargar Excel</button>
+  </div>
+</div>
+
+<div id="liq-lista" data-tour="liq-lista"><div class="card card-pad"><div class="cargando"></div></div></div>
+<div class="hint liq-nota" id="liq-nota"></div>
+
+<!-- Versión para imprimir (se arma al imprimir) -->
+<div id="liq-print" aria-hidden="true"></div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let LIQ = null, LIQ_SEDE = '', LIQ_FILTRO = 'todo';
+const LIQ_ABIERTAS = new Set();
+
+const _LIC = {
+  ses: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>',
+  ok: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12.5l4.2 4.2L19 7"/></svg>',
+  falta: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 7.5v5.5M12 16.5h.01"/><circle cx="12" cy="12" r="9"/></svg>',
+  afil: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5.5" width="18" height="13" rx="2.5"/><circle cx="8.5" cy="11" r="2"/><path d="M5.8 15.5c.5-1.3 1.5-2 2.7-2s2.2.7 2.7 2M14 10h4M14 13.5h3"/></svg>',
+  plata: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2.5"/><circle cx="12" cy="12" r="2.6"/></svg>',
+  chev: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg>',
+  excel: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 4v11m-4.5-4.5L12 15l4.5-4.5M5 19.5h14"/></svg>',
+};
+
+// Mes por defecto: hasta el 15 se liquida el mes anterior; después, el actual.
+(function () {
+  const h = hoyISO();
+  let [y, m, d] = h.split('-').map(Number);
+  if (d <= 15) { m -= 1; if (m === 0) { m = 12; y -= 1; } }
+  let mes = y + '-' + String(m).padStart(2, '0');
+  try { const g = sessionStorage.getItem('kdym_liq_mes'); if (g) mes = g; } catch (e) {}
+  document.getElementById('liq-mes').value = mes;
+})();
+
+function pintarSedesLiq() {
+  const sedes = window.SEDES || [];
+  const cont = document.getElementById('liq-sede');
+  if (sedes.length < 2) { cont.style.display = 'none'; return; }
+  cont.innerHTML = `<button class="${LIQ_SEDE === '' ? 'on' : ''}" onclick="sedeLiq('')">Todas</button>` +
+    sedes.map(s => `<button class="${String(s.id) === LIQ_SEDE ? 'on' : ''}" onclick="sedeLiq('${s.id}')">${escapeHtml(s.nombre)}</button>`).join('');
+}
+function sedeLiq(id) { LIQ_SEDE = id; pintarSedesLiq(); cargarLiq(); }
+function moverMesLiq(n) {
+  const inp = document.getElementById('liq-mes');
+  const [y, m] = (inp.value || hoyISO().slice(0, 7)).split('-').map(Number);
+  const d = new Date(y, m - 1 + n, 1);
+  inp.value = d.getFullYear() + '-' + String(d.getMonth() + 1).padStart(2, '0');
+  cargarLiq();
+}
+function filtroLiq(f) {
+  LIQ_FILTRO = f;
+  document.querySelectorAll('#liq-filtro button').forEach(b => b.classList.toggle('on', b.dataset.f === f));
+  pintarLiq();
+}
+function _qsLiq(extra) {
+  const mes = document.getElementById('liq-mes').value || hoyISO().slice(0, 7);
+  return 'mes=' + mes + (LIQ_SEDE ? '&sede=' + LIQ_SEDE : '') + (extra || '');
+}
+
+async function cargarLiq() {
+  const mes = document.getElementById('liq-mes').value || hoyISO().slice(0, 7);
+  try { sessionStorage.setItem('kdym_liq_mes', mes); } catch (e) {}
+  try { LIQ = await apiGet('/api/liquidacion?' + _qsLiq()); } catch (e) { return; }
+  const sedeNom = LIQ_SEDE ? ((window.SEDES || []).find(s => String(s.id) === LIQ_SEDE) || {}).nombre : 'todas las sedes';
+  document.getElementById('liq-sub').textContent = `${LIQ.mes_txt} · ${sedeNom}`;
+  pintarLiq();
+}
+
+function _pintarStats() {
+  const r = LIQ.resumen;
+  const pct = r.sesiones ? Math.round(100 * r.con_token / r.sesiones) : 0;
+  const tiles = [
+    [r.sesiones, 'Sesiones a liquidar', 'c-navy', 'ses', `${r.pacientes} paciente${r.pacientes === 1 ? '' : 's'} · ${LIQ.obras.length} obra${LIQ.obras.length === 1 ? '' : 's'} social${LIQ.obras.length === 1 ? '' : 'es'}`],
+    [r.con_token, 'Con token', 'c-verde', 'ok', r.sesiones ? pct + '% del total' : ''],
+    [r.sin_token, 'Faltan tokens', r.sin_token ? 'c-amar' : '', 'falta', r.sin_token ? 'Completalos antes de presentar' : 'Está todo'],
+    [r.sin_afiliado, 'Sin nº de afiliado', r.sin_afiliado ? 'c-amar' : '', 'afil', r.sin_afiliado ? 'Pacientes a completar' : 'Está todo'],
+  ];
+  if (LIQ.es_admin) {
+    tiles.push([plata(r.total), 'Total a facturar', 'c-violeta', 'plata',
+      r.sin_arancel ? `${r.sin_arancel} obra${r.sin_arancel === 1 ? '' : 's'} sin valor por sesión` : 'Con los valores cargados']);
+  }
+  document.getElementById('liq-stats').innerHTML = tiles.map(([n, l, c, ic, sub]) =>
+    `<div class="stat ${c}"><span class="stat-ic">${_LIC[ic]}</span><div class="n">${n}</div><div class="l">${l}</div>${sub ? `<div class="sub">${sub}</div>` : ''}</div>`).join('');
+}
+
+function _fechaCorta(iso) { const [, m, d] = iso.split('-'); return d + '/' + m; }
+
+function _chipSesion(pc, x) {
+  const dia = fechaLinda(x.fecha);
+  if (x.token) {
+    return `<button class="liq-ses ok" onclick="editarTokenLiq(${pc.id}, ${x.turno_id})" title="${escapeHtml(dia)} · token ${escapeHtml(x.token)} (tocá para corregir)">
+      <span class="f">${_fechaCorta(x.fecha)}</span><span class="t">${escapeHtml(x.token)}</span></button>`;
+  }
+  return `<button class="liq-ses falta" onclick="editarTokenLiq(${pc.id}, ${x.turno_id})" title="${escapeHtml(dia)}: falta el token (tocá para cargarlo)">
+    <span class="f">${_fechaCorta(x.fecha)}</span><span class="t">Falta token</span></button>`;
+}
+
+function _filaPaciente(o, pc) {
+  const afil = pc.afiliado
+    ? `<button class="liq-afil" onclick="editarAfiliado(${pc.id})" title="Corregir el nº de afiliado">${escapeHtml(pc.afiliado)}</button>`
+    : `<button class="liq-afil falta" onclick="editarAfiliado(${pc.id})">+ Cargar nº</button>`;
+  return `<div class="liq-pac ${pc.sin_token || !pc.afiliado ? 'con-falta' : ''}">
+    <div class="liq-pac-nom">
+      <a href="/paciente/${pc.id}">${escapeHtml(pc.nombre)}</a>
+      <span>${pc.dni ? 'DNI ' + escapeHtml(pc.dni) : 'Sin DNI'}</span>
+    </div>
+    <div class="liq-pac-afil"><small>Nº de afiliado</small>${afil}</div>
+    <div class="liq-pac-ses"><small>${pc.sesiones.length} sesi${pc.sesiones.length === 1 ? 'ón' : 'ones'}</small><div class="liq-chips">${pc.sesiones.map(x => _chipSesion(pc, x)).join('')}</div></div>
+  </div>`;
+}
+
+function _tarjetaObra(o) {
+  const abierta = LIQ_ABIERTAS.has(o.clave) || LIQ_FILTRO === 'falta';
+  const pacs = LIQ_FILTRO === 'falta' ? o.pacientes.filter(pc => pc.sin_token || !pc.afiliado) : o.pacientes;
+  const avisos = [
+    o.sin_token ? `<span class="liq-aviso">${_LIC.falta}Faltan ${o.sin_token} token${o.sin_token === 1 ? '' : 's'}</span>` : '',
+    o.sin_afiliado ? `<span class="liq-aviso">${_LIC.afil}${o.sin_afiliado} sin nº de afiliado</span>` : '',
+    (!o.sin_token && !o.sin_afiliado) ? `<span class="liq-aviso ok">${_LIC.ok}Completa</span>` : '',
+  ].join('');
+  const plataHtml = LIQ.es_admin ? `
+    <div class="liq-plata" onclick="event.stopPropagation()">
+      <label><small>Valor por sesión</small>
+        <span class="liq-arancel"><span>$</span><input class="input" inputmode="decimal" value="${o.arancel ? Math.round(o.arancel) : ''}" placeholder="0"
+          onchange="guardarArancel('${escapeJs(o.obra_social)}', this.value)" aria-label="Valor por sesión de ${escapeHtml(o.obra_social)}"></span></label>
+      <div class="liq-total"><small>Total</small><b>${o.total ? plata(o.total) : '—'}</b></div>
+    </div>` : '';
+  return `<section class="card liq-os ${abierta ? 'abierta' : ''}" data-clave="${escapeHtml(o.clave)}">
+    <div class="liq-os-head" onclick="toggleObra('${escapeJs(o.clave)}')" role="button" tabindex="0" aria-expanded="${abierta}">
+      <div class="liq-os-tit">
+        <div class="liq-os-nom"><b>${escapeHtml(o.obra_social)}</b>
+          <select class="liq-estado est-${o.estado}" onclick="event.stopPropagation()" onchange="cambiarEstadoLiq('${escapeJs(o.obra_social)}', this)" aria-label="Estado de la liquidación">
+            <option value="pendiente" ${o.estado === 'pendiente' ? 'selected' : ''}>Pendiente</option>
+            <option value="presentada" ${o.estado === 'presentada' ? 'selected' : ''}>Presentada</option>
+            <option value="cobrada" ${o.estado === 'cobrada' ? 'selected' : ''}>Cobrada</option>
+          </select>
+        </div>
+        <div class="liq-os-sub">${o.sesiones} sesi${o.sesiones === 1 ? 'ón' : 'ones'} · ${o.pacientes.length} paciente${o.pacientes.length === 1 ? '' : 's'}</div>
+        <div class="liq-avisos">${avisos}</div>
+      </div>
+      ${plataHtml}
+      <div class="liq-os-acc" onclick="event.stopPropagation()">
+        <button class="btn btn-ghost btn-sm" onclick="bajarExcel('${escapeJs(o.clave)}')" title="Excel solo de ${escapeHtml(o.obra_social)}">${_LIC.excel}Excel</button>
+      </div>
+      <span class="liq-chev">${_LIC.chev}</span>
+    </div>
+    <div class="liq-os-body">
+      ${pacs.length ? pacs.map(pc => _filaPaciente(o, pc)).join('') : '<div class="liq-vacio">No falta nada en esta obra social.</div>'}
+    </div>
+  </section>`;
+}
+
+function pintarLiq() {
+  if (!LIQ) return;
+  _pintarStats();
+  const cont = document.getElementById('liq-lista');
+  const obras = LIQ_FILTRO === 'falta' ? LIQ.obras.filter(o => o.sin_token || o.sin_afiliado) : LIQ.obras;
+  if (!LIQ.obras.length) {
+    cont.innerHTML = `<div class="card card-pad liq-empty">
+      <b>No hay sesiones de pacientes con obra social en ${escapeHtml(LIQ.mes_txt)}.</b>
+      <p>Las sesiones aparecen acá cuando en Recepción marcás que el paciente <b>vino</b>. Probá con otro mes con las flechas de arriba.</p></div>`;
+  } else if (!obras.length) {
+    cont.innerHTML = `<div class="card card-pad liq-empty"><b>No falta nada ✓</b><p>Todas las sesiones tienen token y todos los pacientes su nº de afiliado. Ya podés descargar la planilla.</p></div>`;
+  } else {
+    cont.innerHTML = obras.map(_tarjetaObra).join('');
+  }
+  document.getElementById('liq-nota').textContent = LIQ.particulares
+    ? `No se incluyen ${LIQ.particulares} sesi${LIQ.particulares === 1 ? 'ón' : 'ones'} de pacientes particulares. Se cuenta la obra social que el paciente tiene cargada hoy.`
+    : 'Se cuentan las sesiones a las que el paciente vino, con la obra social que tiene cargada hoy.';
+  const todas = LIQ.obras.length && LIQ.obras.every(o => LIQ_ABIERTAS.has(o.clave));
+  document.getElementById('liq-expandir').textContent = todas ? 'Cerrar todas' : 'Abrir todas';
+}
+
+function toggleObra(clave) {
+  if (LIQ_ABIERTAS.has(clave)) LIQ_ABIERTAS.delete(clave); else LIQ_ABIERTAS.add(clave);
+  const el = document.querySelector(`.liq-os[data-clave="${CSS.escape(clave)}"]`);
+  if (el) { el.classList.toggle('abierta', LIQ_ABIERTAS.has(clave)); el.querySelector('.liq-os-head').setAttribute('aria-expanded', LIQ_ABIERTAS.has(clave)); }
+  const todas = LIQ.obras.every(o => LIQ_ABIERTAS.has(o.clave));
+  document.getElementById('liq-expandir').textContent = todas ? 'Cerrar todas' : 'Abrir todas';
+}
+function expandirTodo() {
+  const todas = LIQ && LIQ.obras.every(o => LIQ_ABIERTAS.has(o.clave));
+  LIQ_ABIERTAS.clear();
+  if (!todas && LIQ) LIQ.obras.forEach(o => LIQ_ABIERTAS.add(o.clave));
+  pintarLiq();
+}
+document.addEventListener('keydown', (e) => {
+  const h = e.target.closest && e.target.closest('.liq-os-head');
+  if (h && (e.key === 'Enter' || e.key === ' ') && e.target === h) { e.preventDefault(); h.click(); }
+});
+
+function _buscarSesion(pid, tid) {
+  for (const o of LIQ.obras) for (const pc of o.pacientes) if (pc.id === pid) {
+    const x = pc.sesiones.find(s => s.turno_id === tid);
+    if (x) return { o, pc, x };
+  }
+  return {};
+}
+async function editarTokenLiq(pid, tid) {
+  const { pc, x } = _buscarSesion(pid, tid);
+  if (!x) return;
+  const nuevo = await _dialogo({
+    titulo: (x.token ? 'Corregir el token' : 'Cargar el token') + ' · ' + fechaLinda(x.fecha),
+    mensaje: pc.nombre, input: true, valor: x.token, placeholder: 'Número de token',
+    ayuda: x.token ? 'Si lo dejás vacío, se borra el token de esta sesión.' : '', ok: 'Guardar', icono: _ICO_TOKEN,
+  });
+  if (nuevo === null) return;
+  const num = nuevo.trim();
+  if (num === x.token) return;
+  try {
+    if (!num && x.token_id) {
+      await api('/api/token/' + x.token_id + '/borrar');
+      toast('Token borrado', 'ok');
+    } else if (num && x.token_id) {
+      const r = await api('/api/token/' + x.token_id, { numero: num, turno_id: tid });
+      toast('Token corregido ✓', 'ok'); avisoTokenDuplicado(r.duplicado);
+    } else if (num) {
+      const r = await api('/api/paciente/' + pid + '/token', { numero: num, fecha: x.fecha, turno_id: tid });
+      toast('Token guardado ✓', 'ok'); avisoTokenDuplicado(r.duplicado);
+    }
+  } catch (e) { return; }
+  cargarLiq();
+}
+async function editarAfiliado(pid) {
+  let pc = null;
+  for (const o of LIQ.obras) { pc = o.pacientes.find(p => p.id === pid); if (pc) break; }
+  if (!pc) return;
+  const v = await pedirTexto('Nº de afiliado', pc.afiliado, { mensaje: pc.nombre + ' — el número de la credencial de la obra social.' });
+  if (v === null || v.trim() === pc.afiliado) return;
+  try { await api('/api/paciente/' + pid + '/afiliado', { nro_afiliado: v.trim() }); } catch (e) { return; }
+  toast('Nº de afiliado guardado ✓', 'ok');
+  cargarLiq();
+}
+async function cambiarEstadoLiq(obra, sel) {
+  const mes = document.getElementById('liq-mes').value;
+  try { await api('/api/liquidacion/estado', { obra_social: obra, mes, estado: sel.value }); }
+  catch (e) { cargarLiq(); return; }
+  sel.className = 'liq-estado est-' + sel.value;
+  const o = LIQ.obras.find(x => x.obra_social === obra); if (o) o.estado = sel.value;
+  toast(`${obra}: ${sel.options[sel.selectedIndex].text.toLowerCase()} ✓`, 'ok');
+}
+async function guardarArancel(obra, valor) {
+  const mes = document.getElementById('liq-mes').value;
+  try { await api('/api/liquidacion/arancel', { obra_social: obra, mes, arancel: valor }); } catch (e) { return; }
+  toast('Valor por sesión guardado ✓', 'ok');
+  cargarLiq();
+}
+function bajarExcel(clave) {
+  location.href = '/api/liquidacion/excel?' + _qsLiq(clave ? '&os=' + encodeURIComponent(clave) : '');
+}
+
+// ---- Impresión: una hoja por obra social ----
+function _armarImpresion() {
+  if (!LIQ) return;
+  document.body.classList.add('imprimiendo-liq');
+  const sedeNom = LIQ_SEDE ? ((window.SEDES || []).find(s => String(s.id) === LIQ_SEDE) || {}).nombre : 'Todas las sedes';
+  document.getElementById('liq-print').innerHTML = LIQ.obras.map(o => {
+    let n = 0;
+    const filas = o.pacientes.map(pc => pc.sesiones.map(x => `<tr>
+      <td>${++n}</td><td>${escapeHtml(pc.nombre)}</td><td>${escapeHtml(pc.dni)}</td><td>${escapeHtml(pc.afiliado)}</td>
+      <td>${x.fecha.split('-').reverse().join('/')}</td><td>${x.hora ? escapeHtml(x.hora) : ''}</td><td class="${x.token ? '' : 'falta'}">${x.token ? escapeHtml(x.token) : 'Falta'}</td></tr>`).join('')).join('');
+    return `<section class="lp-hoja">
+      <header class="lp-cab">
+        <div><b>KDYM</b> · Kinesiología y rehabilitación</div>
+        <div>Sede: ${escapeHtml(sedeNom)}</div>
+      </header>
+      <h1>Liquidación ${escapeHtml(o.obra_social)}</h1>
+      <div class="lp-per">Período: <b>${escapeHtml(LIQ.mes_txt)}</b> · ${o.pacientes.length} paciente${o.pacientes.length === 1 ? '' : 's'} · ${o.sesiones} sesi${o.sesiones === 1 ? 'ón' : 'ones'}</div>
+      <table><thead><tr><th>#</th><th>Paciente</th><th>DNI</th><th>Nº de afiliado</th><th>Fecha</th><th>Hora</th><th>Token</th></tr></thead><tbody>${filas}</tbody></table>
+      <div class="lp-tot">
+        <span>Total de sesiones: <b>${o.sesiones}</b></span>
+        ${LIQ.es_admin && o.arancel ? `<span>Valor por sesión: <b>${plata(o.arancel)}</b></span><span>Total: <b>${plata(o.total)}</b></span>` : ''}
+      </div>
+      <div class="lp-firmas"><div>Firma y sello del prestador</div><div>Fecha de presentación</div></div>
+    </section>`;
+  }).join('') || '<p>No hay sesiones para liquidar en este período.</p>';
+}
+function imprimirLiq() { _armarImpresion(); window.print(); }
+window.addEventListener('beforeprint', _armarImpresion);
+window.addEventListener('afterprint', () => document.body.classList.remove('imprimiendo-liq'));
+// El bloque de impresión va directo en <body> para poder ocultar todo lo demás.
+document.body.appendChild(document.getElementById('liq-print'));
+
+pintarSedesLiq();
+cargarLiq();
+</script>
+{% endblock %}

@@ -19,6 +19,8 @@ import threading
 import shutil
 import glob
 import time
+import re
+import secrets
 from datetime import datetime, date, timedelta
 
 # Hora de Argentina. Los servidores en la nube (Railway) corren en UTC: sin esto,
@@ -31,8 +33,9 @@ if hasattr(time, "tzset"):
 
 from flask import (
     Flask, g, render_template, request, jsonify, redirect, url_for, abort,
-    Response, send_file
+    Response, send_file, session
 )
+from werkzeug.security import generate_password_hash, check_password_hash
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 # En local usa el archivo junto al código. En Railway (u otro hosting) definir la
@@ -48,6 +51,16 @@ if _db_dir:
 
 app = Flask(__name__)
 app.config["TEMPLATES_AUTO_RELOAD"] = True
+# Sesión de usuario: cookie firmada, no accesible desde JS, que no viaja en
+# pedidos que vienen de otros sitios, y que dura 30 días (se renueva al usar la app).
+app.config.update(
+    SESSION_COOKIE_NAME="kdym_sesion",
+    SESSION_COOKIE_HTTPONLY=True,
+    SESSION_COOKIE_SAMESITE="Lax",
+    SESSION_COOKIE_SECURE=bool(os.environ.get("RAILWAY_PROJECT_ID") or os.environ.get("RAILWAY_ENVIRONMENT")
+                               or os.environ.get("KDYM_HTTPS")),
+    PERMANENT_SESSION_LIFETIME=timedelta(days=30),
+)
 
 DURACION_DEFAULT = 30
 TOLERANCIA_DEFAULT = 30   # minutos de tolerancia antes de marcar "no vino" automático
@@ -140,6 +153,9 @@ def no_cache_html(resp):
             resp.headers["Expires"] = "0"
         elif request.path.startswith("/static/") and request.args.get("v"):
             resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        resp.headers.setdefault("X-Content-Type-Options", "nosniff")
+        resp.headers.setdefault("X-Frame-Options", "SAMEORIGIN")
+        resp.headers.setdefault("Referrer-Policy", "same-origin")
         _comprimir(resp)
     except Exception:
         pass
@@ -360,6 +376,28 @@ def init_db():
             nombre TEXT,
             creado TEXT
         );
+
+        -- Personas que usan la app (cada una con su usuario y contraseña).
+        CREATE TABLE IF NOT EXISTS usuarios (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre TEXT,
+            usuario TEXT,
+            clave TEXT,
+            rol TEXT DEFAULT 'recepcion',
+            activo INTEGER DEFAULT 1,
+            creado TEXT,
+            ultimo_acceso TEXT
+        );
+
+        -- Liquidación mensual a cada obra social: estado y valor por sesión.
+        CREATE TABLE IF NOT EXISTS liquidaciones (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            obra_social TEXT,
+            mes TEXT,
+            estado TEXT DEFAULT 'pendiente',
+            arancel REAL,
+            actualizado TEXT
+        );
         """
     )
     db.commit()
@@ -393,6 +431,12 @@ def init_db():
     # Sede donde se cargó el paciente (se usa si todavía no tiene turnos).
     if "sede_id" not in _cols(db, "pacientes"):
         db.execute("ALTER TABLE pacientes ADD COLUMN sede_id INTEGER")
+    # Número de afiliado de la obra social (para la liquidación).
+    if "nro_afiliado" not in _cols(db, "pacientes"):
+        db.execute("ALTER TABLE pacientes ADD COLUMN nro_afiliado TEXT")
+    # Valor por sesión que paga cada obra social (se propone en la liquidación).
+    if "arancel" not in _cols(db, "obras_sociales"):
+        db.execute("ALTER TABLE obras_sociales ADD COLUMN arancel REAL")
     # Precio de sesión (para calcular saldos / cobros).
     if "precio_sesion" not in _cols(db, "pacientes"):
         db.execute("ALTER TABLE pacientes ADD COLUMN precio_sesion REAL")
@@ -591,6 +635,7 @@ def paciente_dict(p):
         "dni": p["dni"] or "",
         "telefono": p["telefono"] or "",
         "obra_social": (p["obra_social"] if "obra_social" in keys else "") or "",
+        "nro_afiliado": (p["nro_afiliado"] if "nro_afiliado" in keys else "") or "",
         "diagnostico": p["diagnostico"] or "",
         "sesiones_totales": p["sesiones_totales"] or 0,
         "sesiones_usadas": p["sesiones_usadas"] or 0,
@@ -812,6 +857,323 @@ def inject_sedes():
 
 
 # --------------------------------------------------------------------------
+# Usuarios y acceso
+# --------------------------------------------------------------------------
+ROLES = {"admin": "Administrador", "recepcion": "Recepción"}
+CLAVE_MIN = 8
+
+# Lo único que se ve sin haber entrado: la pantalla de ingreso y lo que necesita.
+_ENDPOINTS_PUBLICOS = {"login", "login_post", "primer_usuario", "static", "sw_js", "manifest"}
+# Sólo administradores: la plata del centro, los usuarios, la base completa y el modo demo.
+_ENDPOINTS_ADMIN = {
+    "reportes_page", "api_reportes",
+    "api_backup", "api_backups", "api_backup_ahora", "api_backup_descargar",
+    "api_usuarios", "api_nuevo_usuario", "api_editar_usuario", "api_borrar_usuario",
+    "api_nuevo_precio", "api_borrar_precio", "api_liquidacion_arancel",
+    "api_seed_prueba", "api_simular_agenda", "api_limpiar_simulacion",
+}
+
+
+def _clave_de_sesion():
+    """Clave que firma las cookies de sesión. Se genera una vez y se guarda en
+    un archivo junto a la base (no en la tabla config, que se lee por la API)."""
+    if os.environ.get("SECRET_KEY"):
+        return os.environ["SECRET_KEY"]
+    ruta = os.path.join(_db_dir or BASE_DIR, ".kdym_clave_sesion")
+    try:
+        with open(ruta, encoding="utf-8") as f:
+            k = f.read().strip()
+        if len(k) >= 32:
+            return k
+    except OSError:
+        pass
+    k = secrets.token_hex(32)
+    try:
+        with open(ruta, "w", encoding="utf-8") as f:
+            f.write(k)
+    except OSError:
+        pass
+    return k
+
+
+def _huella(u):
+    # Cambia cuando cambia la contraseña: así se cierran las sesiones viejas.
+    return (u["clave"] or "")[-16:]
+
+
+def usuario_actual():
+    if "usuario" in g:
+        return g.usuario
+    u = None
+    uid = session.get("uid")
+    if uid:
+        r = q1("SELECT * FROM usuarios WHERE id=?", (uid,))
+        if r and r["activo"] and session.get("hv") == _huella(r):
+            u = r
+    g.usuario = u
+    return u
+
+
+def es_admin():
+    u = usuario_actual()
+    return bool(u and u["rol"] == "admin")
+
+
+def _hay_usuarios():
+    return bool(q1("SELECT 1 FROM usuarios LIMIT 1"))
+
+
+def _iniciar_sesion(u, recordar=True):
+    session.clear()
+    session["uid"] = u["id"]
+    session["hv"] = _huella(u)
+    session.permanent = bool(recordar)
+    run("UPDATE usuarios SET ultimo_acceso=? WHERE id=?",
+        (datetime.now().strftime("%Y-%m-%d %H:%M"), u["id"]))
+
+
+def _destino_seguro(nxt):
+    # Sólo rutas propias ("/agenda"), nunca otro sitio ("//x.com", "https://...").
+    nxt = (nxt or "").strip()
+    if (nxt.startswith("/") and not nxt.startswith("//") and "\\" not in nxt
+            and not any(c.isspace() or ord(c) < 32 for c in nxt) and not nxt.startswith("/login")):
+        return nxt
+    return "/"
+
+
+# Freno a quien prueba contraseñas: 5 intentos fallidos por usuario (o 20 desde
+# la misma conexión) en 10 minutos, y hay que esperar.
+_INTENTOS = {}
+_INTENTOS_LOCK = threading.Lock()
+_HASH_VACIO = generate_password_hash(secrets.token_hex(8))
+
+
+def _ip_cliente():
+    # Railway agrega la IP real al final de X-Forwarded-For (lo de adelante lo puede inventar el cliente).
+    return (request.headers.get("X-Forwarded-For") or request.remote_addr or "").split(",")[-1].strip()
+
+
+def _intentos(clave):
+    ahora = time.time()
+    with _INTENTOS_LOCK:
+        lst = [t for t in _INTENTOS.get(clave, []) if ahora - t < 600]
+        _INTENTOS[clave] = lst
+        return len(lst)
+
+
+def _fallo(*claves):
+    with _INTENTOS_LOCK:
+        for c in claves:
+            _INTENTOS.setdefault(c, []).append(time.time())
+
+
+def _usuario_valido(txt):
+    txt = (txt or "").strip().lower()
+    return txt if re.fullmatch(r"[a-z0-9._-]{3,30}", txt) else ""
+
+
+def _usuario_json(r):
+    return {"id": r["id"], "nombre": r["nombre"] or "", "usuario": r["usuario"] or "",
+            "rol": r["rol"], "rol_txt": ROLES.get(r["rol"], r["rol"]),
+            "activo": bool(r["activo"]), "ultimo_acceso": r["ultimo_acceso"] or ""}
+
+
+@app.before_request
+def _exigir_ingreso():
+    ep = request.endpoint
+    if ep in _ENDPOINTS_PUBLICOS:
+        return None
+    u = usuario_actual()
+    if not u:
+        if request.path.startswith("/api/"):
+            return jsonify(ok=False, login=True, error="Tu sesión se cerró. Volvé a entrar."), 401
+        dest = request.full_path if request.query_string else request.path
+        return redirect(url_for("login", next=dest))
+    if ep in _ENDPOINTS_ADMIN and u["rol"] != "admin":
+        if request.path.startswith("/api/"):
+            return jsonify(ok=False, error="Esto lo puede hacer solo un administrador."), 403
+        return redirect(url_for("recepcion"))
+    return None
+
+
+@app.context_processor
+def inject_usuario():
+    try:
+        u = usuario_actual()
+    except Exception:
+        u = None
+    if not u:
+        return {"usuario": None, "es_admin": False}
+    nom = (u["nombre"] or u["usuario"] or "").strip()
+    ini = "".join(w[0] for w in nom.split()[:2]).upper() or "?"
+    return {"usuario": {"nombre": nom, "usuario": u["usuario"], "rol": u["rol"],
+                        "rol_txt": ROLES.get(u["rol"], u["rol"]), "iniciales": ini},
+            "es_admin": u["rol"] == "admin"}
+
+
+@app.route("/login")
+def login():
+    if usuario_actual():
+        return redirect(_destino_seguro(request.args.get("next")))
+    return render_template("login.html", alta=not _hay_usuarios(),
+                           next=_destino_seguro(request.args.get("next")), error="", valor="")
+
+
+@app.route("/login", methods=["POST"])
+def login_post():
+    f = request.form
+    nxt = _destino_seguro(f.get("next"))
+    usuario = (f.get("usuario") or "").strip().lower()
+    clave = f.get("clave") or ""
+    ip = _ip_cliente()
+    if _intentos(("u", usuario)) >= 5 or _intentos(("ip", ip)) >= 20:
+        return render_template("login.html", alta=False, next=nxt, valor=usuario,
+                               error="Demasiados intentos fallidos. Esperá 10 minutos y probá de nuevo."), 429
+    r = q1("SELECT * FROM usuarios WHERE usuario=?", (usuario,)) if usuario else None
+    if not r:
+        check_password_hash(_HASH_VACIO, clave)   # tarda lo mismo exista o no el usuario
+    if not r or not r["activo"] or not check_password_hash(r["clave"] or "", clave):
+        _fallo(("u", usuario), ("ip", ip))
+        err = ("Ese usuario está desactivado. Pedile a un administrador que lo vuelva a activar."
+               if r and not r["activo"] and check_password_hash(r["clave"] or "", clave)
+               else "Usuario o contraseña incorrectos.")
+        return render_template("login.html", alta=False, next=nxt, valor=usuario, error=err), 401
+    _iniciar_sesion(r, recordar=bool(f.get("recordar")))
+    return redirect(nxt)
+
+
+@app.route("/login/alta", methods=["POST"])
+def primer_usuario():
+    """Crea la cuenta del primer administrador. Sólo funciona mientras no haya
+    ningún usuario (después, los usuarios se crean desde Configuración)."""
+    if _hay_usuarios():
+        return redirect(url_for("login"))
+    f = request.form
+    nombre = " ".join((f.get("nombre") or "").split())
+    usuario = _usuario_valido(f.get("usuario"))
+    clave = f.get("clave") or ""
+    err = ""
+    if not nombre:
+        err = "Escribí tu nombre."
+    elif not usuario:
+        err = "El usuario tiene que tener entre 3 y 30 letras o números, sin espacios."
+    elif len(clave) < CLAVE_MIN:
+        err = f"La contraseña tiene que tener al menos {CLAVE_MIN} caracteres."
+    elif clave != (f.get("clave2") or ""):
+        err = "Las dos contraseñas no coinciden."
+    if err:
+        return render_template("login.html", alta=True, next="/", error=err,
+                               valor=(f.get("usuario") or "").strip(), nombre=nombre), 400
+    uid = run("INSERT INTO usuarios (nombre, usuario, clave, rol, activo, creado) VALUES (?,?,?,?,1,?)",
+              (nombre, usuario, generate_password_hash(clave), "admin", date.today().isoformat()))
+    _iniciar_sesion(q1("SELECT * FROM usuarios WHERE id=?", (uid,)), recordar=True)
+    return redirect("/")
+
+
+@app.route("/logout", methods=["POST"])
+def logout():
+    session.clear()
+    return jsonify(ok=True)
+
+
+@app.route("/api/yo/clave", methods=["POST"])
+def api_cambiar_mi_clave():
+    u = usuario_actual()
+    d = request.get_json(force=True, silent=True) or {}
+    nueva = d.get("nueva") or ""
+    if not check_password_hash(u["clave"] or "", d.get("actual") or ""):
+        return jsonify(ok=False, error="La contraseña actual no es correcta."), 400
+    if len(nueva) < CLAVE_MIN:
+        return jsonify(ok=False, error=f"La contraseña nueva tiene que tener al menos {CLAVE_MIN} caracteres."), 400
+    run("UPDATE usuarios SET clave=? WHERE id=?", (generate_password_hash(nueva), u["id"]))
+    # Esta sesión sigue abierta; las de otros dispositivos se cierran.
+    session["hv"] = _huella(q1("SELECT * FROM usuarios WHERE id=?", (u["id"],)))
+    return jsonify(ok=True)
+
+
+def _admins_activos(salvo_id=None):
+    return q1("SELECT COUNT(*) c FROM usuarios WHERE rol='admin' AND activo=1 AND id<>?",
+              (salvo_id or 0,))["c"]
+
+
+@app.route("/api/usuarios")
+def api_usuarios():
+    yo = usuario_actual()["id"]
+    return jsonify([dict(_usuario_json(r), yo=(r["id"] == yo))
+                    for r in q("SELECT * FROM usuarios ORDER BY activo DESC, nombre COLLATE NOCASE")])
+
+
+@app.route("/api/usuario", methods=["POST"])
+def api_nuevo_usuario():
+    d = request.get_json(force=True, silent=True) or {}
+    nombre = " ".join((d.get("nombre") or "").split())
+    usuario = _usuario_valido(d.get("usuario"))
+    clave = d.get("clave") or ""
+    rol = d.get("rol") if d.get("rol") in ROLES else "recepcion"
+    if not nombre:
+        return jsonify(ok=False, error="Escribí el nombre de la persona."), 400
+    if not usuario:
+        return jsonify(ok=False, error="El usuario tiene que tener entre 3 y 30 letras o números, sin espacios."), 400
+    if q1("SELECT 1 FROM usuarios WHERE usuario=?", (usuario,)):
+        return jsonify(ok=False, error="Ese usuario ya existe. Elegí otro."), 400
+    if len(clave) < CLAVE_MIN:
+        return jsonify(ok=False, error=f"La contraseña tiene que tener al menos {CLAVE_MIN} caracteres."), 400
+    uid = run("INSERT INTO usuarios (nombre, usuario, clave, rol, activo, creado) VALUES (?,?,?,?,1,?)",
+              (nombre, usuario, generate_password_hash(clave), rol, date.today().isoformat()))
+    return jsonify(ok=True, id=uid)
+
+
+@app.route("/api/usuario/<int:uid>", methods=["POST"])
+def api_editar_usuario(uid):
+    r = q1("SELECT * FROM usuarios WHERE id=?", (uid,))
+    if not r:
+        return jsonify(ok=False, error="Ese usuario no existe."), 404
+    d = request.get_json(force=True, silent=True) or {}
+    yo = usuario_actual()["id"]
+    if "nombre" in d:
+        nombre = " ".join((d.get("nombre") or "").split())
+        if not nombre:
+            return jsonify(ok=False, error="Escribí el nombre."), 400
+        run("UPDATE usuarios SET nombre=? WHERE id=?", (nombre, uid))
+    if "rol" in d:
+        if d["rol"] not in ROLES:
+            return jsonify(ok=False, error="Rol inválido."), 400
+        if d["rol"] != r["rol"]:
+            if uid == yo:
+                return jsonify(ok=False, error="No podés cambiar tu propio rol."), 400
+            if r["rol"] == "admin" and r["activo"] and not _admins_activos(uid):
+                return jsonify(ok=False, error="Tiene que quedar al menos un administrador."), 400
+            run("UPDATE usuarios SET rol=? WHERE id=?", (d["rol"], uid))
+    if "activo" in d:
+        activo = 1 if d["activo"] else 0
+        if not activo and uid == yo:
+            return jsonify(ok=False, error="No podés desactivar tu propio usuario."), 400
+        if not activo and r["rol"] == "admin" and not _admins_activos(uid):
+            return jsonify(ok=False, error="Tiene que quedar al menos un administrador."), 400
+        run("UPDATE usuarios SET activo=? WHERE id=?", (activo, uid))
+    if d.get("clave"):
+        if len(d["clave"]) < CLAVE_MIN:
+            return jsonify(ok=False, error=f"La contraseña tiene que tener al menos {CLAVE_MIN} caracteres."), 400
+        run("UPDATE usuarios SET clave=? WHERE id=?", (generate_password_hash(d["clave"]), uid))
+        if uid == yo:
+            session["hv"] = _huella(q1("SELECT * FROM usuarios WHERE id=?", (uid,)))
+    return jsonify(ok=True)
+
+
+@app.route("/api/usuario/<int:uid>/borrar", methods=["POST"])
+def api_borrar_usuario(uid):
+    r = q1("SELECT * FROM usuarios WHERE id=?", (uid,))
+    if not r:
+        return jsonify(ok=True)
+    if uid == usuario_actual()["id"]:
+        return jsonify(ok=False, error="No podés borrar tu propio usuario."), 400
+    if r["rol"] == "admin" and r["activo"] and not _admins_activos(uid):
+        return jsonify(ok=False, error="Tiene que quedar al menos un administrador."), 400
+    run("DELETE FROM usuarios WHERE id=?", (uid,))
+    return jsonify(ok=True)
+
+
+# --------------------------------------------------------------------------
 # Vistas
 # --------------------------------------------------------------------------
 @app.route("/")
@@ -862,6 +1224,11 @@ def plantillas_page():
 @app.route("/reportes")
 def reportes_page():
     return render_template("reportes.html", activo="reportes")
+
+
+@app.route("/liquidacion")
+def liquidacion_page():
+    return render_template("liquidacion.html", activo="liquidacion")
 
 
 @app.route("/pacientes")
@@ -2282,15 +2649,15 @@ def api_nuevo_paciente():
     pid = run(
         """INSERT INTO pacientes
            (nombre, apellido, dni, telefono, obra_social, diagnostico,
-            sesiones_totales, sesiones_usadas, dias, notas, creado, sede_id)
-           VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+            sesiones_totales, sesiones_usadas, dias, notas, creado, sede_id, nro_afiliado)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?)""",
         (
             nombre, apellido, (d.get("dni") or "").strip(),
             (d.get("telefono") or "").strip(), _obra_social_canonica(d.get("obra_social")),
             (d.get("diagnostico") or "").strip(),
             int(d.get("sesiones_totales") or 0), int(d.get("sesiones_usadas") or 0),
             (d.get("dias") or "").strip(), (d.get("notas") or "").strip(),
-            date.today().isoformat(), _sede_de_request(d),
+            date.today().isoformat(), _sede_de_request(d), (d.get("nro_afiliado") or "").strip(),
         ),
     )
     return jsonify(ok=True, id=pid)
@@ -2316,8 +2683,20 @@ def api_editar_paciente(pid):
             (d.get("dias") or "").strip(), (d.get("notas") or "").strip(), pid,
         ),
     )
+    # El nº de afiliado se toca sólo si viene (así no lo borran pantallas que no lo muestran).
+    if "nro_afiliado" in d:
+        run("UPDATE pacientes SET nro_afiliado=? WHERE id=?", ((d.get("nro_afiliado") or "").strip(), pid))
     # Si le renovaron/cambiaron sesiones, re-habilitar su alerta de últimas sesiones.
     run("DELETE FROM notif_cerradas WHERE clave=?", (f"alerta:{pid}",))
+    return jsonify(ok=True)
+
+
+@app.route("/api/paciente/<int:pid>/afiliado", methods=["POST"])
+def api_paciente_afiliado(pid):
+    d = request.get_json(force=True, silent=True) or {}
+    if not q1("SELECT 1 FROM pacientes WHERE id=?", (pid,)):
+        return jsonify(ok=False, error="Paciente inexistente"), 404
+    run("UPDATE pacientes SET nro_afiliado=? WHERE id=?", ((d.get("nro_afiliado") or "").strip(), pid))
     return jsonify(ok=True)
 
 
@@ -2537,6 +2916,8 @@ def api_config_get():
 @app.route("/api/config", methods=["POST"])
 def api_config_set():
     d = request.get_json(force=True, silent=True) or {}
+    if "modo_demo" in d and not es_admin():
+        return jsonify(ok=False, error="El modo demo lo cambia un administrador."), 403
     for k, v in d.items():
         run("INSERT INTO config (clave, valor) VALUES (?,?) "
             "ON CONFLICT(clave) DO UPDATE SET valor=excluded.valor",
@@ -2944,6 +3325,272 @@ def api_precio_sesion(pid):
     return jsonify(ok=True)
 
 
+# --------------------------------------------------------------------------
+# Liquidación mensual a las obras sociales
+# --------------------------------------------------------------------------
+MESES = ["Enero", "Febrero", "Marzo", "Abril", "Mayo", "Junio", "Julio",
+         "Agosto", "Septiembre", "Octubre", "Noviembre", "Diciembre"]
+ESTADOS_LIQ = {"pendiente": "Pendiente", "presentada": "Presentada", "cobrada": "Cobrada"}
+
+
+def _es_particular(os_):
+    k = _sin_acentos(" ".join((os_ or "").split()))
+    return not k or k in ("particular", "sin obra social", "ninguna", "no tiene", "-")
+
+
+def _mes_param(txt):
+    txt = (txt or "").strip()
+    if re.fullmatch(r"\d{4}-(0[1-9]|1[0-2])", txt):
+        return txt
+    return date.today().strftime("%Y-%m")
+
+
+def _mes_txt(mes):
+    y, m = mes.split("-")
+    return f"{MESES[int(m) - 1]} {y}"
+
+
+def _datos_liquidacion(mes, sede):
+    """Sesiones realizadas del mes (vino / en sesión / terminó), agrupadas por
+    obra social y paciente, con el token de cada una. No cuenta los turnos de
+    'Simular agenda' ni a los particulares."""
+    sql = """SELECT t.id tid, t.fecha, t.hora, p.id pid, p.nombre, p.apellido, p.dni,
+                    p.nro_afiliado, p.obra_social
+             FROM turnos t JOIN pacientes p ON p.id = t.paciente_id
+             WHERE t.fecha >= ? AND t.fecha <= ? AND COALESCE(t.sim, 0) = 0
+               AND t.estado IN ('presente', 'en_curso', 'terminado')"""
+    args = [mes + "-01", mes + "-31"]
+    if str(sede or "").isdigit():
+        sql += " AND t.sede_id = ?"
+        args.append(int(sede))
+    filas = q(sql + " ORDER BY p.apellido COLLATE NOCASE, p.nombre COLLATE NOCASE, t.fecha, t.hora", args)
+
+    # Tokens: los ligados al turno, y si no, uno cargado suelto para ese día.
+    pids = sorted({f["pid"] for f in filas})
+    por_turno, sueltos = {}, {}
+    for i in range(0, len(pids), 500):
+        lote = pids[i:i + 500]
+        for k in q(f"SELECT * FROM tokens WHERE paciente_id IN ({','.join('?' * len(lote))})", lote):
+            if k["turno_id"]:
+                por_turno[k["turno_id"]] = k
+            else:
+                sueltos.setdefault((k["paciente_id"], k["fecha"]), []).append(k)
+
+    obras = {_sin_acentos(o["nombre"]): o for o in q("SELECT * FROM obras_sociales")}
+    liqs = {_sin_acentos(r["obra_social"]): r for r in q("SELECT * FROM liquidaciones WHERE mes=?", (mes,))}
+    grupos, particulares = {}, 0
+    for f in filas:
+        os_ = " ".join((f["obra_social"] or "").split())
+        if _es_particular(os_):
+            particulares += 1
+            continue
+        k = _sin_acentos(os_)
+        if k not in grupos:
+            o, lq = obras.get(k), liqs.get(k)
+            arancel = lq["arancel"] if (lq and lq["arancel"] is not None) else (o["arancel"] if o else None)
+            grupos[k] = {"obra_social": o["nombre"] if o else os_, "clave": k,
+                         "estado": (lq["estado"] if lq else "pendiente"), "arancel": arancel,
+                         "pacientes": {}}
+        pacs = grupos[k]["pacientes"]
+        if f["pid"] not in pacs:
+            pacs[f["pid"]] = {"id": f["pid"], "nombre": f"{f['apellido']}, {f['nombre']}",
+                              "dni": f["dni"] or "", "afiliado": f["nro_afiliado"] or "", "sesiones": []}
+        tk = por_turno.get(f["tid"])
+        if not tk and sueltos.get((f["pid"], f["fecha"])):
+            tk = sueltos[(f["pid"], f["fecha"])].pop(0)
+        pacs[f["pid"]]["sesiones"].append({"turno_id": f["tid"], "fecha": f["fecha"], "hora": f["hora"] or "",
+                                           "token": (tk["numero"] if tk else "") or "",
+                                           "token_id": tk["id"] if tk else None})
+
+    out = []
+    for gr in sorted(grupos.values(), key=lambda x: _sin_acentos(x["obra_social"])):
+        pacientes = list(gr.pop("pacientes").values())
+        ses = [x for pc in pacientes for x in pc["sesiones"]]
+        con = sum(1 for x in ses if x["token"])
+        for pc in pacientes:
+            pc["sin_token"] = sum(1 for x in pc["sesiones"] if not x["token"])
+        gr.update(pacientes=pacientes, sesiones=len(ses), con_token=con, sin_token=len(ses) - con,
+                  sin_afiliado=sum(1 for pc in pacientes if not pc["afiliado"]),
+                  total=(round(gr["arancel"] * len(ses), 2) if gr["arancel"] else None),
+                  estado_txt=ESTADOS_LIQ.get(gr["estado"], gr["estado"]))
+        out.append(gr)
+    return out, particulares
+
+
+@app.route("/api/liquidacion")
+def api_liquidacion():
+    mes = _mes_param(request.args.get("mes"))
+    sede = request.args.get("sede") or ""
+    obras, particulares = _datos_liquidacion(mes, sede)
+    admin = es_admin()
+    if not admin:   # la plata la ve sólo un administrador
+        for o in obras:
+            o["arancel"] = o["total"] = None
+    res = {"sesiones": sum(o["sesiones"] for o in obras),
+           "con_token": sum(o["con_token"] for o in obras),
+           "sin_token": sum(o["sin_token"] for o in obras),
+           "sin_afiliado": sum(o["sin_afiliado"] for o in obras),
+           "pacientes": sum(len(o["pacientes"]) for o in obras),
+           "total": (round(sum(o["total"] or 0 for o in obras), 2) if admin else None),
+           "sin_arancel": (sum(1 for o in obras if not o["arancel"]) if admin else None)}
+    return jsonify(ok=True, mes=mes, mes_txt=_mes_txt(mes), sede=sede, es_admin=admin,
+                   particulares=particulares, resumen=res, obras=obras)
+
+
+def _liq_fila(obra_social, mes):
+    k = _sin_acentos(" ".join((obra_social or "").split()))
+    for r in q("SELECT * FROM liquidaciones WHERE mes=?", (mes,)):
+        if _sin_acentos(r["obra_social"]) == k:
+            return r
+    lid = run("INSERT INTO liquidaciones (obra_social, mes, estado, actualizado) VALUES (?,?,?,?)",
+              (" ".join(obra_social.split()), mes, "pendiente", datetime.now().strftime("%Y-%m-%d %H:%M")))
+    return q1("SELECT * FROM liquidaciones WHERE id=?", (lid,))
+
+
+@app.route("/api/liquidacion/estado", methods=["POST"])
+def api_liquidacion_estado():
+    d = request.get_json(force=True, silent=True) or {}
+    estado, os_ = d.get("estado"), (d.get("obra_social") or "").strip()
+    if estado not in ESTADOS_LIQ or not os_:
+        return jsonify(ok=False, error="Datos incompletos"), 400
+    mes = _mes_param(d.get("mes"))
+    r = _liq_fila(os_, mes)
+    run("UPDATE liquidaciones SET estado=?, actualizado=? WHERE id=?",
+        (estado, datetime.now().strftime("%Y-%m-%d %H:%M"), r["id"]))
+    return jsonify(ok=True, estado=estado, estado_txt=ESTADOS_LIQ[estado])
+
+
+@app.route("/api/liquidacion/arancel", methods=["POST"])
+def api_liquidacion_arancel():
+    """Valor por sesión de una obra social para ese mes. También queda como
+    valor propuesto para los meses siguientes."""
+    d = request.get_json(force=True, silent=True) or {}
+    os_ = (d.get("obra_social") or "").strip()
+    v = d.get("arancel")
+    try:
+        if isinstance(v, str):   # acepta "12.500,50" o "12500.5"
+            v = v.strip().replace("$", "").replace(" ", "")
+            if "," in v:
+                v = v.replace(".", "").replace(",", ".")
+        arancel = float(v or 0)
+    except (TypeError, ValueError):
+        return jsonify(ok=False, error="El valor tiene que ser un número"), 400
+    if not os_ or arancel < 0:
+        return jsonify(ok=False, error="Datos incompletos"), 400
+    mes = _mes_param(d.get("mes"))
+    r = _liq_fila(os_, mes)
+    run("UPDATE liquidaciones SET arancel=?, actualizado=? WHERE id=?",
+        (arancel or None, datetime.now().strftime("%Y-%m-%d %H:%M"), r["id"]))
+    nombre = _obra_social_canonica(os_)
+    run("UPDATE obras_sociales SET arancel=? WHERE nombre=?", (arancel or None, nombre))
+    return jsonify(ok=True, arancel=arancel)
+
+
+@app.route("/api/liquidacion/excel")
+def api_liquidacion_excel():
+    from io import BytesIO
+    from openpyxl import Workbook
+    from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+    mes = _mes_param(request.args.get("mes"))
+    sede = request.args.get("sede") or ""
+    solo = _sin_acentos((request.args.get("os") or "").strip())
+    obras, _ = _datos_liquidacion(mes, sede)
+    if solo:
+        obras = [o for o in obras if o["clave"] == solo]
+    admin = es_admin()
+    sede_nom = next((x["nombre"] for x in sedes_list() if str(x["id"]) == str(sede)), "Todas las sedes")
+
+    wb = Workbook()
+    negrita, titulo = Font(bold=True), Font(bold=True, size=14)
+    cab = PatternFill("solid", fgColor="0F2350")
+    amarillo = PatternFill("solid", fgColor="FFF4D6")
+    fino = Side(style="thin", color="D5DCE8")
+    borde = Border(left=fino, right=fino, top=fino, bottom=fino)
+    usados = set()
+
+    def hoja_nombre(txt):
+        base = re.sub(r"[\[\]\:\*\?\/\\]", " ", txt).strip()[:28] or "Hoja"
+        nom, i = base, 2
+        while nom.lower() in usados:
+            nom, i = f"{base[:25]} ({i})", i + 1
+        usados.add(nom.lower())
+        return nom
+
+    # Resumen
+    ws = wb.active
+    ws.title = hoja_nombre("Resumen")
+    ws.append(["KDYM · Liquidación a obras sociales"]); ws["A1"].font = titulo
+    ws.append([f"Período: {_mes_txt(mes)}", "", f"Sede: {sede_nom}"])
+    ws.append([])
+    cols = ["Obra social", "Pacientes", "Sesiones", "Con token", "Sin token", "Estado"]
+    if admin:
+        cols += ["Valor por sesión", "Total"]
+    ws.append(cols)
+    for c in ws[4]:
+        c.font = Font(bold=True, color="FFFFFF"); c.fill = cab; c.border = borde
+    for o in obras:
+        fila = [o["obra_social"], len(o["pacientes"]), o["sesiones"], o["con_token"], o["sin_token"], o["estado_txt"]]
+        if admin:
+            fila += [o["arancel"] or None, o["total"] or None]
+        ws.append(fila)
+        for c in ws[ws.max_row]:
+            c.border = borde
+        if o["sin_token"]:
+            ws.cell(ws.max_row, 5).fill = amarillo
+    if admin and obras:
+        ws.append(["Total", sum(len(o["pacientes"]) for o in obras), sum(o["sesiones"] for o in obras),
+                   sum(o["con_token"] for o in obras), sum(o["sin_token"] for o in obras), "", "",
+                   sum(o["total"] or 0 for o in obras)])
+        for c in ws[ws.max_row]:
+            c.font = negrita; c.border = borde
+        for r in ws.iter_rows(min_row=5, min_col=7, max_col=8):
+            for c in r:
+                c.number_format = '"$" #,##0.00'
+    for col, ancho in zip("ABCDEFGH", [28, 11, 10, 11, 10, 13, 16, 16]):
+        ws.column_dimensions[col].width = ancho
+
+    # Una hoja por obra social: una fila por sesión
+    for o in obras:
+        ws = wb.create_sheet(hoja_nombre(o["obra_social"]))
+        ws.append([f"Liquidación {o['obra_social']}"]); ws["A1"].font = titulo
+        ws.append([f"Período: {_mes_txt(mes)}", "", f"Sede: {sede_nom}"])
+        ws.append([])
+        ws.append(["Paciente", "DNI", "Nº de afiliado", "Fecha", "Hora", "Token"])
+        for c in ws[4]:
+            c.font = Font(bold=True, color="FFFFFF"); c.fill = cab; c.border = borde
+        for pc in o["pacientes"]:
+            for x in pc["sesiones"]:
+                ws.append([pc["nombre"], pc["dni"], pc["afiliado"],
+                           date.fromisoformat(x["fecha"]).strftime("%d/%m/%Y"), x["hora"], x["token"]])
+                for c in ws[ws.max_row]:
+                    c.border = borde
+                if not x["token"]:
+                    ws.cell(ws.max_row, 6).fill = amarillo
+                if not pc["afiliado"]:
+                    ws.cell(ws.max_row, 3).fill = amarillo
+        ws.append([])
+        ws.append(["Pacientes", len(o["pacientes"])])
+        ws.append(["Sesiones", o["sesiones"]])
+        if o["sin_token"]:
+            ws.append(["Sesiones sin token", o["sin_token"]])
+        if admin and o["arancel"]:
+            ws.append(["Valor por sesión", o["arancel"]]); ws.cell(ws.max_row, 2).number_format = '"$" #,##0.00'
+            ws.append(["Total", o["total"]]); ws.cell(ws.max_row, 2).number_format = '"$" #,##0.00'
+            ws.cell(ws.max_row, 1).font = negrita; ws.cell(ws.max_row, 2).font = negrita
+        for col, ancho in zip("ABCDEF", [30, 13, 18, 12, 8, 18]):
+            ws.column_dimensions[col].width = ancho
+        ws.freeze_panes = "A5"
+        for c in ws["B"] + ws["C"] + ws["F"]:
+            c.alignment = Alignment(horizontal="left")
+
+    buf = BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    nombre = f"liquidacion_{mes}" + (f"_{re.sub(r'[^a-z0-9]+', '_', solo)}" if solo else "") + ".xlsx"
+    return send_file(buf, as_attachment=True, download_name=nombre,
+                     mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+
 @app.route("/api/obras_sociales")
 def api_obras_sociales():
     usos = {}
@@ -3264,6 +3911,7 @@ def _start_backup_thread():
 # init_db() se ejecuta al importar el módulo para que las tablas existan también
 # cuando corre bajo gunicorn (Railway no ejecuta el bloque __main__).
 init_db()
+app.secret_key = _clave_de_sesion()
 _start_backup_thread()
 
 if __name__ == "__main__":

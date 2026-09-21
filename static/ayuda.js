@@ -218,6 +218,36 @@ const AYUDA = {
     ],
   },
 
+  liquidacion: {
+    titulo: 'Liquidación',
+    intro: 'Todo lo que hay que presentarle a cada obra social en el mes: las sesiones a las que el paciente vino, con su token y su nº de afiliado.',
+    secciones: [
+      { t: 'Antes de presentar', pasos: [
+        'Elegí el <b>mes</b> (hasta el día 15 aparece el mes anterior, que es el que se suele liquidar) y la <b>sede</b>.',
+        'Tocá <b>Solo lo que falta</b>: quedan a la vista las sesiones sin token y los pacientes sin nº de afiliado.',
+        'Tocá una sesión que dice <b>Falta token</b> para cargarlo, o <b>+ Cargar nº</b> para el nº de afiliado.',
+        'Cuando no falta nada, descargá el <b>Excel</b> (una hoja por obra social) o tocá <b>Imprimir / PDF</b> (una hoja por obra social, con lugar para firma y sello).',
+      ] },
+      { t: 'Seguimiento', pasos: [
+        'Al lado del nombre de cada obra social está el <b>estado</b>: Pendiente → Presentada → Cobrada. Cambialo cuando la presentes y cuando te paguen.',
+        'Tocá una obra social para abrirla y ver paciente por paciente.',
+      ] },
+      { t: 'Valores (solo administradores)', pasos: [
+        'Cargá el <b>valor por sesión</b> que paga cada obra social y la app calcula el <b>total a facturar</b>.',
+        'El valor queda propuesto para los meses siguientes; si cambia, lo corregís ese mes y los anteriores no se tocan.',
+      ] },
+    ],
+    tips: [
+      'Cuentan las sesiones marcadas como <b>Vino</b> en Recepción. Los particulares no aparecen.',
+      'Los tokens también se cargan al registrar la llegada o desde la ficha del paciente.',
+    ],
+    tour: [
+      { sel: '[data-tour="liq-filtros"]', t: 'Mes y sede', x: 'Elegí qué mes vas a liquidar y de qué sede.' },
+      { sel: '[data-tour="liq-stats"]', t: 'Cómo viene', x: 'Cuántas sesiones hay para presentar y cuántos tokens o números de afiliado faltan.' },
+      { sel: '[data-tour="liq-acciones"]', t: 'Completar y descargar', x: '“Solo lo que falta” te deja a la vista lo pendiente. Después descargás el Excel o imprimís las planillas.' },
+      { sel: '[data-tour="liq-lista"]', t: 'Cada obra social', x: 'Tocala para ver paciente por paciente. Las sesiones en amarillo no tienen token: tocalas para cargarlo.' },
+    ],
+  },
   reportes: {
     titulo: 'Reportes',
     intro: 'Cómo viene el mes: asistencia, cantidad de turnos, ingresos, obras sociales y lo que falta cobrar.',
@@ -359,6 +389,11 @@ const AYUDA = {
         'Tocá <b>Cargar feriados de Argentina</b>.',
         'Cargá los <b>precios</b> que usan y el horario y la dirección de <b>retiro de plantillas</b>.',
         'Revisá la lista de <b>obras sociales</b>: agregá las que falten y quitá las que no usan.',
+      ] },
+      { t: 'Usuarios (solo administradores)', pasos: [
+        'En <b>Usuarios</b> creá uno para cada persona del equipo, con su contraseña inicial.',
+        '<b>Recepción</b> usa el día a día; <b>Administrador</b> además ve la plata, la copia de seguridad y los usuarios.',
+        'Si alguien se olvida la contraseña, tocá <b>Nueva contraseña</b>. Si deja de trabajar, <b>Desactivar</b>.',
       ] },
       { t: 'En este dispositivo', pasos: [
         '<b>Modo oscuro</b> y <b>sonido de la alarma</b> se guardan solo en este celular o compu.',

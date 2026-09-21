@@ -21,3 +21,6 @@ env/
 # Sistema
 .DS_Store
 Thumbs.db
+
+# Clave que firma las sesiones (se genera sola en cada servidor)
+.kdym_clave_sesion

@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>{{ 'Crear la cuenta' if alta else 'Ingresar' }} — KDYM</title>
+  <meta name="robots" content="noindex, nofollow">
+  <script>
+    try { if (localStorage.getItem('kdym_tema') === 'oscuro') document.documentElement.dataset.theme = 'dark'; } catch (e) {}
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ asset_v('style.css') }}">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#0F2350">
+  <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/apple-touch-icon.png') }}">
+  <link rel="icon" type="image/png" href="{{ url_for('static', filename='icons/favicon-64.png') }}">
+</head>
+<body class="hub-body login-body">
+  <main class="login-wrap">
+    <div class="login-brand">
+      <span class="hub-mark">{% include "_logo_svg.html" %}</span>
+      <div>
+        <div class="hub-nom">KDYM</div>
+        <div class="hub-sub">Kinesiología y rehabilitación</div>
+      </div>
+    </div>
+
+    <div class="login-card">
+      {% if alta %}
+      <h1>Creá la cuenta del administrador</h1>
+      <p class="login-sub">Es la primera vez que se abre la app. Con esta cuenta vas a poder crear los usuarios del resto del equipo.</p>
+      {% if error %}<div class="login-error" role="alert">{{ error }}</div>{% endif %}
+      <form method="post" action="{{ url_for('primer_usuario') }}" autocomplete="on" novalidate>
+        <div class="field">
+          <label for="f-nombre">Tu nombre</label>
+          <input class="input" id="f-nombre" name="nombre" value="{{ nombre or '' }}" autocomplete="name" placeholder="Ej: Laura Gómez" required autofocus>
+        </div>
+        <div class="field">
+          <label for="f-usuario">Usuario</label>
+          <input class="input" id="f-usuario" name="usuario" value="{{ valor }}" autocomplete="username" autocapitalize="none" spellcheck="false" placeholder="Ej: laura" required>
+          <div class="hint">Con esto vas a entrar. Sin espacios ni tildes.</div>
+        </div>
+        <div class="field">
+          <label for="f-clave">Contraseña</label>
+          <div class="login-clave">
+            <input class="input" id="f-clave" name="clave" type="password" autocomplete="new-password" minlength="8" required>
+            <button type="button" class="login-ojo" onclick="verClave(this)" aria-label="Mostrar la contraseña"></button>
+          </div>
+          <div class="hint">Al menos 8 caracteres. Que no sea fácil de adivinar.</div>
+        </div>
+        <div class="field">
+          <label for="f-clave2">Repetí la contraseña</label>
+          <input class="input" id="f-clave2" name="clave2" type="password" autocomplete="new-password" minlength="8" required>
+        </div>
+        <button class="btn btn-primary login-btn" type="submit">Crear cuenta y entrar</button>
+      </form>
+      {% else %}
+      <h1>Ingresá</h1>
+      <p class="login-sub">Con tu usuario y contraseña.</p>
+      {% if error %}<div class="login-error" role="alert">{{ error }}</div>{% endif %}
+      <form method="post" action="{{ url_for('login_post') }}" autocomplete="on" novalidate>
+        <input type="hidden" name="next" value="{{ next }}">
+        <div class="field">
+          <label for="f-usuario">Usuario</label>
+          <input class="input" id="f-usuario" name="usuario" value="{{ valor }}" autocomplete="username" autocapitalize="none" spellcheck="false" required {{ '' if valor else 'autofocus' }}>
+        </div>
+        <div class="field">
+          <label for="f-clave">Contraseña</label>
+          <div class="login-clave">
+            <input class="input" id="f-clave" name="clave" type="password" autocomplete="current-password" required {{ 'autofocus' if valor }}>
+            <button type="button" class="login-ojo" onclick="verClave(this)" aria-label="Mostrar la contraseña"></button>
+          </div>
+        </div>
+        <label class="login-recordar"><input type="checkbox" name="recordar" value="1" checked> Mantener la sesión iniciada en este dispositivo</label>
+        <button class="btn btn-primary login-btn" type="submit">Entrar</button>
+      </form>
+      <p class="login-pie">¿Te olvidaste la contraseña? Pedile a un administrador que te ponga una nueva desde <b>Configuración → Usuarios</b>.</p>
+      {% endif %}
+    </div>
+  </main>
+
+  <script>
+    const OJO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M2.5 12S6 5.5 12 5.5 21.5 12 21.5 12 18 18.5 12 18.5 2.5 12 2.5 12z"/><circle cx="12" cy="12" r="3"/></svg>';
+    const OJO_NO = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3l18 18M10.6 5.6A10 10 0 0112 5.5c6 0 9.5 6.5 9.5 6.5a17 17 0 01-3.2 3.9M6.6 6.7C4 8.4 2.5 12 2.5 12S6 18.5 12 18.5c1.6 0 3-.4 4.2-1M9.9 9.9a3 3 0 004.2 4.2"/></svg>';
+    document.querySelectorAll('.login-ojo').forEach(b => b.innerHTML = OJO);
+    function verClave(btn) {
+      const form = btn.closest('form');
+      const inputs = form.querySelectorAll('input[name="clave"], input[name="clave2"]');
+      const mostrar = inputs[0].type === 'password';
+      inputs.forEach(i => i.type = mostrar ? 'text' : 'password');
+      btn.innerHTML = mostrar ? OJO_NO : OJO;
+      btn.setAttribute('aria-label', mostrar ? 'Ocultar la contraseña' : 'Mostrar la contraseña');
+    }
+    // Evita mandar el formulario dos veces con doble toque.
+    document.querySelectorAll('form').forEach(f => f.addEventListener('submit', e => {
+      if (f.dataset.enviando) { e.preventDefault(); return; }
+      f.dataset.enviando = '1';
+      const b = f.querySelector('.login-btn'); if (b) b.classList.add('enviando');
+    }));
+  </script>
+</body>
+</html>

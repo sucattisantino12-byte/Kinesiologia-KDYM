@@ -12,6 +12,7 @@
 <div class="cfg-layout">
   <nav class="cfg-indice" data-tour="cfg-indice">
     <a href="#cfg-dispositivo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M11 18.5h2"/></svg>Este dispositivo</a>
+    {% if es_admin %}<a href="#cfg-usuarios"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="9.5" cy="8" r="3.6"/><path d="M3 19.5c.6-3.4 3.3-5.3 6.5-5.3s5.9 1.9 6.5 5.3M17 5.2a3.4 3.4 0 010 6.3M18.5 14.6c1.4.7 2.3 2.2 2.6 4.4"/></svg>Usuarios</a>{% endif %}
     <a href="#cfg-sedes"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6.5-5.2-6.5-10A6.5 6.5 0 0112 4.5 6.5 6.5 0 0118.5 11c0 4.8-6.5 10-6.5 10z"/><circle cx="12" cy="11" r="2.2"/></svg>Sedes y tope</a>
     <a href="#cfg-horario"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>Horario del centro</a>
     <a href="#cfg-asistencia"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.8"/><path d="M4.5 20c.7-3.7 3.7-5.8 7.5-5.8M16 16l4 4M20 16l-4 4"/></svg>No vino automático</a>
@@ -19,8 +20,10 @@
     <a href="#cfg-precios"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2.5"/><circle cx="12" cy="12" r="2.6"/></svg>Precios</a>
     <a href="#cfg-obras"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7.5 3v5.5c0 4.6-3.2 8.2-7.5 9.5-4.3-1.3-7.5-4.9-7.5-9.5V6z"/><path d="M12 8.5v6M9 11.5h6"/></svg>Obras sociales</a>
     <a href="#cfg-whatsapp"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l1.3-4A8 8 0 1112 20a8 8 0 01-4-1.1z"/></svg>Retiro de plantillas</a>
+    {% if es_admin %}
     <a href="#cfg-datos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="7.5" ry="3"/><path d="M4.5 6v6c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3V6M4.5 12v6c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3v-6"/></svg>Copia de seguridad</a>
     <a href="#cfg-demo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6M10 3v6l-5.5 9.5A1.7 1.7 0 006 21h12a1.7 1.7 0 001.5-2.5L14 9V3"/><path d="M7.5 15h9"/></svg>Modo demo</a>
+    {% endif %}
   </nav>
 
   <div class="cfg-main">
@@ -53,6 +56,14 @@
       </div>
     </section>
 
+    {% if es_admin %}
+    <section class="card cfg-card" id="cfg-usuarios">
+      <div class="cfg-card-head"><span class="cfg-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="9.5" cy="8" r="3.6"/><path d="M3 19.5c.6-3.4 3.3-5.3 6.5-5.3s5.9 1.9 6.5 5.3M17 5.2a3.4 3.4 0 010 6.3M18.5 14.6c1.4.7 2.3 2.2 2.6 4.4"/></svg></span><div><h3>Usuarios y accesos</h3><p>Cada persona entra con su propio usuario y contraseña. Un <b>administrador</b> ve todo, incluida la plata del centro. <b>Recepción</b> usa todo el día a día (sala, turnos, pacientes, liquidación), pero no ve los reportes de ingresos ni los valores que pagan las obras sociales, no descarga la base completa y no administra usuarios.</p></div></div>
+      <div class="us-lista" id="us-lista"><div class="cargando"></div></div>
+      <div class="cfg-acciones"><button class="btn btn-primary" onclick="abrirNuevoUsuario()">+ Agregar usuario</button></div>
+    </section>
+    {% endif %}
+
     <section class="card cfg-card" id="cfg-sedes">
       <div class="cfg-card-head"><span class="cfg-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21s-6.5-5.2-6.5-10A6.5 6.5 0 0112 4.5 6.5 6.5 0 0118.5 11c0 4.8-6.5 10-6.5 10z"/><circle cx="12" cy="11" r="2.2"/></svg></span><div><h3>Sedes y tope de turnos por horario</h3><p>El <b>tope</b> es cuántos turnos se pueden dar a la misma hora (normalmente, la cantidad de boxes). Si un horario llega al tope, se marca en rojo y no deja dar más.</p></div></div>
       <div id="sedes-cfg"><div class="cargando"></div></div>
@@ -83,11 +94,15 @@
 
     <section class="card cfg-card" id="cfg-precios">
       <div class="cfg-card-head"><span class="cfg-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2.5"/><circle cx="12" cy="12" r="2.6"/></svg></span><div><h3>Precios de sesión</h3><p>Los precios que usan (sesión, bono, oferta…). Después se eligen con un toque al registrar un pago.</p></div></div>
+      {% if es_admin %}
       <div class="cfg-fila">
         <div class="field grow" style="margin:0;"><label>Nombre</label><input class="input" id="pr-nombre" placeholder="Ej: Sesión particular, Bono 10 sesiones…"></div>
         <div class="field" style="max-width:140px; margin:0;"><label>Monto</label><input class="input" id="pr-monto" inputmode="decimal" placeholder="$"></div>
         <button class="btn btn-primary" onclick="agregarPrecioPreset()">Agregar</button>
       </div>
+      {% else %}
+      <div class="hint" style="margin:0;">Los precios los carga y cambia un administrador.</div>
+      {% endif %}
       <div id="precios-lista" style="margin-top:10px;"></div>
     </section>
 
@@ -114,6 +129,7 @@
       <div class="cfg-acciones"><button class="btn btn-primary" onclick="guardarRetiro()">Guardar</button></div>
     </section>
 
+    {% if es_admin %}
     <section class="card cfg-card" id="cfg-datos">
       <div class="cfg-card-head"><span class="cfg-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="7.5" ry="3"/><path d="M4.5 6v6c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3V6M4.5 12v6c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3v-6"/></svg></span><div><h3>Copia de seguridad</h3><p>Descargá todos los datos (pacientes, turnos, ejercicios, evolución, pagos) y guardalos en Drive o un pendrive cada tanto.</p></div></div>
       <div class="cfg-acciones" style="margin-top:0;"><a class="btn btn-primary" href="/api/backup">Descargar copia de seguridad</a></div>
@@ -130,8 +146,46 @@
         <button class="btn btn-ghost" onclick="cargarPrueba()">+ Cargar pacientes de prueba (hoy)</button>
       </div>
     </section>
+    {% endif %}
   </div>
 </div>
+{% if es_admin %}
+<div class="modal-bg" id="modal-usuario">
+  <div class="modal modal-sm">
+    <div class="modal-head">
+      <h3>Agregar usuario</h3>
+      <button class="x" onclick="cerrarModal('modal-usuario')">&times;</button>
+    </div>
+    <div class="modal-body">
+      <div class="field"><label for="us-nombre">Nombre de la persona</label><input class="input" id="us-nombre" placeholder="Ej: Sofía Pérez" autocomplete="off"></div>
+      <div class="field">
+        <label for="us-usuario">Usuario</label>
+        <input class="input" id="us-usuario" placeholder="Ej: sofia" autocomplete="off" autocapitalize="none" spellcheck="false">
+        <div class="hint">Con esto entra. Sin espacios ni tildes.</div>
+      </div>
+      <div class="field">
+        <label for="us-clave">Contraseña inicial</label>
+        <div class="us-clave-fila">
+          <input class="input" id="us-clave" autocomplete="off" spellcheck="false">
+          <button type="button" class="btn btn-ghost" onclick="document.getElementById('us-clave').value = _claveAlAzar()">Generar otra</button>
+        </div>
+        <div class="hint">Pasásela a la persona. Después la puede cambiar desde su cuenta.</div>
+      </div>
+      <div class="field">
+        <label>Qué puede hacer</label>
+        <div class="us-roles">
+          <label class="us-rol-op"><input type="radio" name="us-rol" value="recepcion" checked><span><b>Recepción</b><small>Día a día: sala, turnos, pacientes, plantillas y liquidación. No ve la plata del centro.</small></span></label>
+          <label class="us-rol-op"><input type="radio" name="us-rol" value="admin"><span><b>Administrador</b><small>Todo, incluidos reportes de ingresos, valores de las obras sociales, copia de seguridad y usuarios.</small></span></label>
+        </div>
+      </div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn btn-ghost" onclick="cerrarModal('modal-usuario')">Cancelar</button>
+      <button class="btn btn-primary" id="us-guardar" onclick="guardarNuevoUsuario()">Crear usuario</button>
+    </div>
+  </div>
+</div>
+{% endif %}
 {% endblock %}
 
 {% block scripts %}
@@ -280,7 +334,7 @@ async function cargarPrecios() {
     <div class="list-item" style="padding:8px 4px;">
       <div class="li-main"><div class="li-name">$${(Math.round(p.monto)).toLocaleString('es-AR')}</div>
         <div class="li-sub">${(p.nombre || '').replace(/</g,'&lt;')}</div></div>
-      <button class="btn btn-ghost btn-sm" onclick="borrarPrecioPreset(${p.id})">Quitar</button>
+      ${window.ES_ADMIN ? `<button class="btn btn-ghost btn-sm" onclick="borrarPrecioPreset(${p.id})">Quitar</button>` : ''}
     </div>`).join('');
 }
 async function agregarPrecioPreset() {
@@ -299,6 +353,115 @@ async function borrarPrecioPreset(id) {
   cargarPrecios();
 }
 cargarPrecios();
+
+// ---- Usuarios (sólo administradores) ----
+let USUARIOS = [];
+function _claveAlAzar() {
+  const sil = ['ka', 'le', 'mi', 'no', 'pu', 'ra', 'se', 'ti', 'vo', 'da', 'fe', 'gu', 'lo', 'ma', 'ni', 'pe', 'ro', 'su', 'ta', 've'];
+  const a = new Uint32Array(6); crypto.getRandomValues(a);
+  return sil[a[0] % 20] + sil[a[1] % 20] + sil[a[2] % 20] + '-' + (1000 + a[3] % 9000) + '-' + sil[a[4] % 20] + sil[a[5] % 20];
+}
+function _ultimoIngreso(ts) {
+  if (!ts) return 'Todavía no entró';
+  const [f, h] = ts.split(' ');
+  const hoy = hoyISO();
+  if (f === hoy) return 'Entró hoy a las ' + (h || '');
+  const [y, m, d] = f.split('-');
+  return 'Último ingreso: ' + d + '/' + m + (y !== hoy.slice(0, 4) ? '/' + y : '') + (h ? ' ' + h : '');
+}
+async function cargarUsuarios() {
+  const cont = document.getElementById('us-lista');
+  if (!cont) return;
+  try { USUARIOS = await apiGet('/api/usuarios'); } catch (e) { return; }
+  cont.innerHTML = USUARIOS.map(u => {
+    const ini = (u.nombre || u.usuario).split(/\s+/).slice(0, 2).map(w => w[0] || '').join('').toUpperCase();
+    return `<div class="us-item ${u.activo ? '' : 'off'}">
+      <span class="us-av">${escapeHtml(ini)}</span>
+      <div class="us-txt">
+        <div class="us-nom"><b>${escapeHtml(u.nombre)}</b>${u.yo ? '<span class="pill">Vos</span>' : ''}${u.activo ? '' : '<span class="pill us-pill-off">Desactivado</span>'}</div>
+        <span>${escapeHtml(u.usuario)} · ${_ultimoIngreso(u.ultimo_acceso)}</span>
+      </div>
+      <select class="input us-rol" aria-label="Rol de ${escapeHtml(u.nombre)}" ${u.yo ? 'disabled title="No podés cambiar tu propio rol"' : ''} onchange="cambiarRolUsuario(${u.id}, this)">
+        <option value="recepcion" ${u.rol === 'recepcion' ? 'selected' : ''}>Recepción</option>
+        <option value="admin" ${u.rol === 'admin' ? 'selected' : ''}>Administrador</option>
+      </select>
+      <div class="us-acc">
+        ${u.yo ? `<button class="btn btn-ghost btn-sm" onclick="abrirCambiarClave()">Cambiar mi contraseña</button>` : `
+        <button class="btn btn-ghost btn-sm" onclick="nuevaClaveUsuario(${u.id})">Nueva contraseña</button>
+        <button class="btn btn-ghost btn-sm" onclick="activarUsuario(${u.id}, ${u.activo ? 'false' : 'true'})">${u.activo ? 'Desactivar' : 'Activar'}</button>
+        <button class="btn btn-danger-soft btn-sm" onclick="borrarUsuario(${u.id})">Borrar</button>`}
+      </div>
+    </div>`;
+  }).join('');
+}
+function abrirNuevoUsuario() {
+  ['us-nombre', 'us-usuario'].forEach(id => document.getElementById(id).value = '');
+  document.getElementById('us-clave').value = _claveAlAzar();
+  document.querySelector('input[name="us-rol"][value="recepcion"]').checked = true;
+  abrirModal('modal-usuario');
+  setTimeout(() => document.getElementById('us-nombre').focus(), 100);
+}
+// Propone el usuario a partir del nombre ("Sofía Pérez" -> "sofia").
+document.getElementById('us-nombre')?.addEventListener('input', (e) => {
+  const u = document.getElementById('us-usuario');
+  if (u.dataset.tocado) return;
+  u.value = _sinAcentos((e.target.value.trim().split(/\s+/)[0] || '')).replace(/[^a-z0-9._-]/g, '');
+});
+document.getElementById('us-usuario')?.addEventListener('input', (e) => { e.target.dataset.tocado = e.target.value ? '1' : ''; });
+async function guardarNuevoUsuario() {
+  const v = id => document.getElementById(id).value.trim();
+  const body = { nombre: v('us-nombre'), usuario: v('us-usuario').toLowerCase(), clave: v('us-clave'),
+                 rol: document.querySelector('input[name="us-rol"]:checked').value };
+  if (!body.nombre) { toast('Escribí el nombre de la persona', 'alert'); return; }
+  try { await api('/api/usuario', body); } catch (e) { return; }
+  cerrarModal('modal-usuario');
+  delete document.getElementById('us-usuario').dataset.tocado;
+  await cargarUsuarios();
+  const txt = `Usuario: ${body.usuario}
+Contraseña: ${body.clave}`;
+  const copiar = await _dialogo({ titulo: 'Usuario creado ✓', mensaje: `Pasale estos datos a ${body.nombre}:
+${txt}`,
+                   ok: 'Copiar para mandar', cancelar: 'Cerrar', ayuda: 'La contraseña no se vuelve a mostrar. Si se la olvida, le ponés una nueva desde acá.' });
+  if (copiar) {
+    try { await navigator.clipboard.writeText(`KDYM — ${location.origin}
+${txt}`); toast('Copiado: pegalo en un mensaje ✓', 'ok'); }
+    catch (e) { toast('No se pudo copiar. Anotalos a mano.', 'alert'); }
+  }
+}
+async function cambiarRolUsuario(id, sel) {
+  const u = USUARIOS.find(x => x.id === id);
+  try { await api('/api/usuario/' + id, { rol: sel.value }); }
+  catch (e) { sel.value = u ? u.rol : 'recepcion'; return; }
+  toast(`${u ? u.nombre : 'Usuario'}: ahora es ${sel.value === 'admin' ? 'administrador' : 'recepción'} ✓`, 'ok');
+  cargarUsuarios();
+}
+async function nuevaClaveUsuario(id) {
+  const u = USUARIOS.find(x => x.id === id); if (!u) return;
+  const clave = await pedirTexto('Nueva contraseña para ' + u.nombre, _claveAlAzar(),
+    { mensaje: 'Pasásela a ' + u.nombre + '. Las sesiones que tenga abiertas se cierran.', ok: 'Guardar contraseña' });
+  if (clave === null) return;
+  if (clave.trim().length < 8) { toast('Tiene que tener al menos 8 caracteres', 'alert'); return; }
+  try { await api('/api/usuario/' + id, { clave: clave.trim() }); } catch (e) { return; }
+  toast('Contraseña cambiada ✓', 'ok');
+  cargarUsuarios();
+}
+async function activarUsuario(id, activo) {
+  const u = USUARIOS.find(x => x.id === id); if (!u) return;
+  if (!activo && !await confirmar(`¿Desactivar a ${u.nombre}?`, {
+    mensaje: 'No va a poder entrar hasta que lo vuelvas a activar. Sirve si alguien deja de trabajar en el centro.', ok: 'Desactivar' })) return;
+  try { await api('/api/usuario/' + id, { activo }); } catch (e) { return; }
+  toast(activo ? `${u.nombre} puede volver a entrar ✓` : `${u.nombre} ya no puede entrar`, 'ok');
+  cargarUsuarios();
+}
+async function borrarUsuario(id) {
+  const u = USUARIOS.find(x => x.id === id); if (!u) return;
+  if (!await confirmar(`¿Borrar el usuario de ${u.nombre}?`, {
+    mensaje: 'No se borra nada de lo que cargó (pacientes, turnos). Si solo querés que no entre por un tiempo, mejor desactivalo.', ok: 'Borrar' })) return;
+  try { await api('/api/usuario/' + id + '/borrar'); } catch (e) { return; }
+  toast('Usuario borrado', 'ok');
+  cargarUsuarios();
+}
+cargarUsuarios();
 
 // ---- Obras sociales ----
 let OBRAS = [];
@@ -356,7 +519,7 @@ async function quitarObra(id) {
 cargarObras();
 
 // Modo demo: se guarda en el servidor y recarga para mostrar/ocultar los botones de prueba.
-document.getElementById('cfg-demo-on').addEventListener('change', async (e) => {
+document.getElementById('cfg-demo-on')?.addEventListener('change', async (e) => {
   await api('/api/config', { modo_demo: e.target.checked ? '1' : '0' });
   toast(e.target.checked ? 'Modo demo activado' : 'Modo demo desactivado', 'ok');
   setTimeout(() => location.reload(), 500);

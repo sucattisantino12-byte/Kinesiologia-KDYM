@@ -98,6 +98,7 @@ async function api(url, body) {
     }
     let data = {};
     try { data = await r.json(); } catch (e) {}
+    if (r.status === 401 && data.login) { irALogin(); throw new Error('sesion'); }
     if (!r.ok || data.ok === false) {
       toast(data.error || 'Ocurrió un error', 'alert');
       throw new Error(data.error || 'error');
@@ -132,7 +133,48 @@ async function api(url, body) {
 
 async function apiGet(url) {
   const r = await fetch(url);
+  if (r.status === 401) { irALogin(); throw new Error('sesion'); }
   return r.json();
+}
+
+// ---- Sesión del usuario ----
+function irALogin() {
+  if (window._yendoALogin) return;
+  window._yendoALogin = true;
+  toast('Tu sesión se cerró. Volvé a entrar.', 'alert');
+  setTimeout(() => { location.href = '/login?next=' + encodeURIComponent(location.pathname + location.search); }, 700);
+}
+async function cerrarSesion() {
+  if (!await confirmar('¿Cerrar sesión?', { mensaje: 'Para volver a entrar vas a necesitar tu usuario y contraseña.', ok: 'Cerrar sesión', peligro: false })) return;
+  try { await fetch('/logout', { method: 'POST' }); } catch (e) {}
+  location.href = '/login';
+}
+function toggleMenuUsuario(ev) {
+  if (ev) ev.stopPropagation();
+  const m = document.getElementById('menu-usuario');
+  if (!m) return;
+  m.hidden = !m.hidden;
+  const b = m.previousElementSibling; if (b) b.setAttribute('aria-expanded', String(!m.hidden));
+}
+document.addEventListener('click', (e) => {
+  const m = document.getElementById('menu-usuario');
+  if (m && !m.hidden && !e.target.closest('.side-user')) { m.hidden = true; }
+});
+function abrirCambiarClave() {
+  const m = document.getElementById('menu-usuario'); if (m) m.hidden = true;
+  ['cl-actual', 'cl-nueva', 'cl-nueva2'].forEach(id => { const el = document.getElementById(id); if (el) el.value = ''; });
+  abrirModal('modal-clave');
+  setTimeout(() => document.getElementById('cl-actual')?.focus(), 100);
+}
+async function guardarClave(ev) {
+  if (ev) ev.preventDefault();
+  const v = id => document.getElementById(id).value;
+  if (!v('cl-actual')) { toast('Escribí tu contraseña actual', 'alert'); return; }
+  if (v('cl-nueva').length < 8) { toast('La nueva tiene que tener al menos 8 caracteres', 'alert'); return; }
+  if (v('cl-nueva') !== v('cl-nueva2')) { toast('Las dos contraseñas nuevas no coinciden', 'alert'); return; }
+  try { await api('/api/yo/clave', { actual: v('cl-actual'), nueva: v('cl-nueva') }); } catch (e) { return; }
+  cerrarModal('modal-clave');
+  toast('Contraseña cambiada ✓', 'ok');
 }
 
 function iniciales(nombre) {
@@ -180,7 +222,7 @@ const DIAS_ABBR = ['Lun', 'Mar', 'Mié', 'Jue', 'Vie', 'Sáb', 'Dom'];
 let NP_CB = null;
 function abrirNuevoPaciente(onSaved) {
   if (!document.getElementById('modal-paciente')) return;
-  ['np-nombre', 'np-apellido', 'np-dni', 'np-telefono', 'np-obra',
+  ['np-nombre', 'np-apellido', 'np-dni', 'np-telefono', 'np-obra', 'np-afiliado',
    'np-diagnostico', 'np-notas'].forEach(id => {
     const el = document.getElementById(id); if (el) el.value = '';
   });
@@ -205,7 +247,7 @@ async function _guardarNuevoPaciente() {
   const v = id => (document.getElementById(id) || {}).value || '';
   const body = {
     nombre: v('np-nombre'), apellido: v('np-apellido'), dni: v('np-dni'),
-    telefono: v('np-telefono'), obra_social: v('np-obra'),
+    telefono: v('np-telefono'), obra_social: v('np-obra'), nro_afiliado: v('np-afiliado'),
     diagnostico: v('np-diagnostico'), sesiones_totales: v('np-tot'),
     sesiones_usadas: v('np-usadas'), notas: v('np-notas'),
   };
@@ -1311,14 +1353,18 @@ const _CMDK_BASE = [
   { sec: 'Ir a', t: 'Pacientes', s: 'Lista de pacientes', ic: 'pacientes', k: 'pacientes lista', go: () => location.href = '/pacientes' },
   { sec: 'Ir a', t: 'Ejercicios', s: 'Biblioteca de ejercicios', ic: 'ejercicios', k: 'ejercicios biblioteca', go: () => location.href = '/ejercicios' },
   { sec: 'Ir a', t: 'Plantillas', s: 'Pedidos de plantillas ortopédicas', ic: 'plantillas', k: 'plantillas', go: () => location.href = '/plantillas' },
-  { sec: 'Ir a', t: 'Reportes', s: 'Asistencia, turnos y cobros', ic: 'reportes', k: 'reportes estadisticas cobros', go: () => location.href = '/reportes' },
+  { sec: 'Ir a', t: 'Liquidación', s: 'Sesiones y tokens por obra social', ic: 'reportes', k: 'liquidacion obra social facturar presentar tokens planilla excel', go: () => location.href = '/liquidacion' },
+  { sec: 'Ir a', t: 'Reportes', s: 'Asistencia, turnos y cobros', ic: 'reportes', k: 'reportes estadisticas cobros', go: () => location.href = '/reportes', admin: true },
   { sec: 'Ir a', t: 'Notificaciones', s: 'Pacientes por renovar', ic: 'notificaciones', k: 'notificaciones alertas renovar', go: () => location.href = '/notificaciones' },
   { sec: 'Ir a', t: 'Configuración', s: 'Sedes, horarios, precios, alarma', ic: 'configuracion', k: 'configuracion ajustes', go: () => location.href = '/configuracion' },
   { sec: 'Ir a', t: 'Cambiar de sede', s: 'Elegir Morón o Ramos', ic: 'pin', k: 'sede cambiar moron ramos', go: () => location.href = '/hub' },
   { sec: 'Ayuda', t: 'Guía de esta pestaña', s: 'Cómo se usa, paso a paso', ic: 'ayuda', k: 'ayuda guia como instrucciones', go: () => abrirAyuda() },
   { sec: 'Ayuda', t: 'Hacer el recorrido guiado', s: 'Te muestra cada botón', ic: 'tour', k: 'tour recorrido tutorial', go: () => iniciarTour() },
   { sec: 'Ayuda', t: 'Modo oscuro / claro', s: 'Cambiar la apariencia', ic: 'luna', k: 'oscuro claro tema noche', go: () => toggleTema() },
-];
+  { sec: 'Cuenta', t: 'Cambiar mi contraseña', s: 'Tu usuario', ic: 'configuracion', k: 'contraseña clave password cuenta', go: () => abrirCambiarClave() },
+  { sec: 'Cuenta', t: 'Usuarios del equipo', s: 'Crear y administrar usuarios', ic: 'pacientes', k: 'usuarios equipo accesos permisos', go: () => location.href = '/configuracion#cfg-usuarios', admin: true },
+  { sec: 'Cuenta', t: 'Cerrar sesión', s: 'Salir de la app en este dispositivo', ic: 'configuracion', k: 'salir cerrar sesion logout', go: () => cerrarSesion() },
+].filter(x => !x.admin || window.ES_ADMIN);
 let _CMDK_PAC = null, _CMDK_SEL = 0, _CMDK_ITEMS = [];
 
 function _cmdkMarcar(txt, q) {

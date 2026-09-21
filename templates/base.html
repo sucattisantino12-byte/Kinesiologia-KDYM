@@ -29,13 +29,17 @@
   <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/apple-touch-icon.png') }}">
   <link rel="icon" type="image/png" href="{{ url_for('static', filename='icons/favicon-64.png') }}">
 </head>
-{% set _tit = {'recepcion':'Recepción','agenda':'Agenda','pacientes':'Pacientes','ficha':'Ficha del paciente','ejercicios':'Ejercicios','plantillas':'Plantillas','reportes':'Reportes','notificaciones':'Notificaciones','configuracion':'Configuración'} %}
+{% set _tit = {'recepcion':'Recepción','agenda':'Agenda','pacientes':'Pacientes','ficha':'Ficha del paciente','ejercicios':'Ejercicios','plantillas':'Plantillas','reportes':'Reportes','liquidacion':'Liquidación','notificaciones':'Notificaciones','configuracion':'Configuración'} %}
 {% set _ic = {
   'recepcion': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg>',
   'agenda': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4"/></svg>',
   'pacientes': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="9.5" cy="8" r="3.6"/><path d="M3 19.5c.6-3.4 3.3-5.3 6.5-5.3s5.9 1.9 6.5 5.3M17 5.2a3.4 3.4 0 010 6.4M19 19.5c-.2-1.6-.7-2.9-1.6-3.9"/></svg>',
   'ejercicios': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M4 9v6M7 7v10M17 7v10M20 9v6M7 12h10"/></svg>',
   'plantillas': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M8 4c2.2 0 3.5 1.8 3.5 4.5 0 3-1.2 4-1.2 7 0 2.4-1 4-3.3 4S4 18 4 15.5 6 12 6 8.5C6 5.8 5.8 4 8 4z"/><circle cx="16.5" cy="6" r="1.3"/><circle cx="19" cy="8.7" r="1.1"/><circle cx="19.3" cy="11.6" r="1"/></svg>',
+  'liquidacion': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M6 3h12v18l-2.5-1.6L13 21l-2.5-1.6L8 21l-2-1.3z"/><path d="M9 8h6M9 12h6M9 16h3"/></svg>',
+  'llave': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="15" r="4"/><path d="M11 12l9-9M17 6l3 3M14.5 8.5l2 2"/></svg>',
+  'salir': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M14 4h4a2 2 0 012 2v12a2 2 0 01-2 2h-4M10 16l4-4-4-4M14 12H4"/></svg>',
+  'equipo': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="9.5" cy="8" r="3.6"/><path d="M3 19.5c.6-3.4 3.3-5.3 6.5-5.3s5.9 1.9 6.5 5.3M17 5.2a3.4 3.4 0 010 6.3M18.5 14.6c1.4.7 2.3 2.2 2.6 4.4"/></svg>',
   'reportes': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20V4M4 20h16M8 16v-5M12 16V8M16 16v-8"/></svg>',
   'notificaciones': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M6 10a6 6 0 1112 0c0 4 1.5 5.5 1.5 5.5h-15S6 14 6 10zM10 19a2.2 2.2 0 004 0"/></svg>',
   'configuracion': '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="3.2"/><path d="M12 3v2.2M12 18.8V21M21 12h-2.2M5.2 12H3M18.4 5.6l-1.6 1.6M7.2 16.8l-1.6 1.6M18.4 18.4l-1.6-1.6M7.2 7.2L5.6 5.6"/></svg>',
@@ -130,7 +134,8 @@
         <a href="{{ url_for('ejercicios_page') }}" class="{{ 'on' if activo=='ejercicios' }}">{{ _ic.ejercicios|safe }}<span>Ejercicios</span></a>
         <a href="{{ url_for('plantillas_page') }}" class="{{ 'on' if activo=='plantillas' }}">{{ _ic.plantillas|safe }}<span>Plantillas</span></a>
         <div class="side-grupo">Gestión</div>
-        <a href="{{ url_for('reportes_page') }}" class="{{ 'on' if activo=='reportes' }}">{{ _ic.reportes|safe }}<span>Reportes</span></a>
+        <a href="{{ url_for('liquidacion_page') }}" class="{{ 'on' if activo=='liquidacion' }}">{{ _ic.liquidacion|safe }}<span>Liquidación</span></a>
+        {% if es_admin %}<a href="{{ url_for('reportes_page') }}" class="{{ 'on' if activo=='reportes' }}">{{ _ic.reportes|safe }}<span>Reportes</span></a>{% endif %}
         <a href="{{ url_for('notificaciones_page') }}" class="{{ 'on' if activo=='notificaciones' }}">{{ _ic.notificaciones|safe }}<span>Notificaciones</span><span class="nav-badge" id="nav-notif-badge" {{ '' if notif_n else 'style="display:none;"'|safe }}>{{ notif_n or '' }}</span></a>
         <a href="{{ url_for('configuracion_page') }}" class="{{ 'on' if activo=='configuracion' }}">{{ _ic.configuracion|safe }}<span>Configuración</span></a>
       </nav>
@@ -146,6 +151,20 @@
           <div class="k">En sesión ahora</div>
           <div class="v"><span id="side-encurso">{{ side_encurso_n }}</span><small> / <span id="side-boxes">{{ side_boxes_n }}</span> boxes</small></div>
         </div>
+        {% if usuario %}
+        <div class="side-user">
+          <button type="button" class="side-user-btn" onclick="toggleMenuUsuario(event)" aria-haspopup="menu" aria-expanded="false" title="Tu cuenta">
+            <span class="av">{{ usuario.iniciales }}</span>
+            <span class="t"><b>{{ usuario.nombre }}</b><small>{{ usuario.rol_txt }}</small></span>
+            <svg class="chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 14l5-5 5 5"/></svg>
+          </button>
+          <div class="side-user-menu" id="menu-usuario" role="menu" hidden>
+            <button type="button" role="menuitem" onclick="abrirCambiarClave()">{{ _ic.llave|safe }}Cambiar mi contraseña</button>
+            {% if es_admin %}<a role="menuitem" href="{{ url_for('configuracion_page') }}#cfg-usuarios">{{ _ic.equipo|safe }}Usuarios del equipo</a>{% endif %}
+            <button type="button" role="menuitem" class="peligro" onclick="cerrarSesion()">{{ _ic.salir|safe }}Cerrar sesión</button>
+          </div>
+        </div>
+        {% endif %}
       </div>
     </aside>
 
@@ -187,7 +206,7 @@
     <a href="{{ url_for('agenda') }}" class="{{ 'on' if activo=='agenda' }}">{{ _ic.agenda|safe }}<span>Agenda</span></a>
     <a href="{{ url_for('pacientes') }}" class="{{ 'on' if activo in ['pacientes','ficha'] }}">{{ _ic.pacientes|safe }}<span>Pacientes</span></a>
     <a href="{{ url_for('ejercicios_page') }}" class="{{ 'on' if activo=='ejercicios' }}">{{ _ic.ejercicios|safe }}<span>Ejercicios</span></a>
-    <button onclick="toggleMas()" class="{{ 'on' if activo in ['plantillas','reportes','notificaciones','configuracion'] }}">{{ _ic.menu|safe }}<span>Más</span><span class="nav-badge" id="nav-notif-badge-m" {{ '' if notif_n else 'style="display:none;"'|safe }}>{{ notif_n or '' }}</span></button>
+    <button onclick="toggleMas()" class="{{ 'on' if activo in ['plantillas','liquidacion','reportes','notificaciones','configuracion'] }}">{{ _ic.menu|safe }}<span>Más</span><span class="nav-badge" id="nav-notif-badge-m" {{ '' if notif_n else 'style="display:none;"'|safe }}>{{ notif_n or '' }}</span></button>
   </nav>
 
   <!-- Hoja "Más" (celular) -->
@@ -199,11 +218,42 @@
       <a href="{{ url_for('hub') }}">{{ _ic.pin|safe }} Sede: <b style="margin-left:4px;">{{ sede_actual_nombre }}</b><span class="mas-cambiar">Cambiar</span></a>
       {% endif %}
       <a href="{{ url_for('plantillas_page') }}" class="{{ 'on' if activo=='plantillas' }}">{{ _ic.plantillas|safe }} Plantillas</a>
-      <a href="{{ url_for('reportes_page') }}" class="{{ 'on' if activo=='reportes' }}">{{ _ic.reportes|safe }} Reportes</a>
+      <a href="{{ url_for('liquidacion_page') }}" class="{{ 'on' if activo=='liquidacion' }}">{{ _ic.liquidacion|safe }} Liquidación</a>
+      {% if es_admin %}<a href="{{ url_for('reportes_page') }}" class="{{ 'on' if activo=='reportes' }}">{{ _ic.reportes|safe }} Reportes</a>{% endif %}
       <a href="{{ url_for('notificaciones_page') }}" class="{{ 'on' if activo=='notificaciones' }}">{{ _ic.notificaciones|safe }} Notificaciones</a>
       <a href="{{ url_for('configuracion_page') }}" class="{{ 'on' if activo=='configuracion' }}">{{ _ic.configuracion|safe }} Configuración</a>
       <a href="#" class="instalar-app" onclick="toggleMas(); instalarApp(); return false;" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="6" y="2.5" width="12" height="19" rx="2.5"/><path d="M12 8v6m-2.5-2.5L12 14l2.5-2.5"/></svg> Instalar la app en el celular</a>
       <a href="#" onclick="toggleMas(); abrirAyuda(); return false;">{{ _ic.ayuda|safe }} Guía de esta pestaña</a>
+      {% if usuario %}
+      <div class="mas-user">
+        <span class="av">{{ usuario.iniciales }}</span>
+        <span class="t"><b>{{ usuario.nombre }}</b><small>{{ usuario.rol_txt }}</small></span>
+      </div>
+      <a href="#" onclick="toggleMas(); abrirCambiarClave(); return false;">{{ _ic.llave|safe }} Cambiar mi contraseña</a>
+      <a href="#" class="mas-salir" onclick="cerrarSesion(); return false;">{{ _ic.salir|safe }} Cerrar sesión</a>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- Cambiar mi contraseña -->
+  <div class="modal-bg" id="modal-clave">
+    <div class="modal modal-sm">
+      <div class="modal-head">
+        <h3>Cambiar mi contraseña</h3>
+        <button class="x" onclick="cerrarModal('modal-clave')">&times;</button>
+      </div>
+      <form class="modal-body" id="form-clave" onsubmit="guardarClave(event)" autocomplete="on">
+        <input type="text" name="usuario" autocomplete="username" value="{{ usuario.usuario if usuario else '' }}" hidden>
+        <div class="field"><label for="cl-actual">Contraseña actual</label><input class="input" id="cl-actual" type="password" autocomplete="current-password" required></div>
+        <div class="field"><label for="cl-nueva">Contraseña nueva</label><input class="input" id="cl-nueva" type="password" autocomplete="new-password" minlength="8" required><div class="hint">Al menos 8 caracteres.</div></div>
+        <div class="field"><label for="cl-nueva2">Repetí la nueva</label><input class="input" id="cl-nueva2" type="password" autocomplete="new-password" minlength="8" required></div>
+        <div class="hint">Las sesiones abiertas en otros dispositivos se cierran; en este seguís adentro.</div>
+        <button type="submit" hidden></button>
+      </form>
+      <div class="modal-foot">
+        <button class="btn btn-ghost" onclick="cerrarModal('modal-clave')">Cancelar</button>
+        <button class="btn btn-primary" onclick="document.getElementById('form-clave').requestSubmit()">Guardar contraseña</button>
+      </div>
     </div>
   </div>
 
@@ -217,6 +267,7 @@
     window.SEDES = {{ sedes_all | tojson }};
     window.SEDE_ACTUAL = {{ (sede_actual_id if sede_actual_id is not none else 'null') | tojson }};
     window.MODO_DEMO = {{ 'true' if modo_demo else 'false' }};
+    window.ES_ADMIN = {{ 'true' if es_admin else 'false' }};
     // Color de la sede activa (mismo orden que el hub): se usa en el nombre y el punto de la sede.
     (function () {
       const COLS = ['#2F5FB0', '#12A150', '#C8891B', '#7A5BD8'];
