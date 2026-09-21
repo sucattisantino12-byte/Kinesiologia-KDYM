@@ -358,6 +358,7 @@ const AYUDA = {
         'En <b>Horario del centro</b> marcá qué días abre y en qué horario.',
         'Tocá <b>Cargar feriados de Argentina</b>.',
         'Cargá los <b>precios</b> que usan y el horario y la dirección de <b>retiro de plantillas</b>.',
+        'Revisá la lista de <b>obras sociales</b>: agregá las que falten y quitá las que no usan.',
       ] },
       { t: 'En este dispositivo', pasos: [
         '<b>Modo oscuro</b> y <b>sonido de la alarma</b> se guardan solo en este celular o compu.',
@@ -368,11 +369,12 @@ const AYUDA = {
         'El <b>Modo demo</b> muestra botones para cargar datos de ejemplo y probar la alarma. Dejalo apagado en el uso diario.',
       ] },
     ],
-    tips: ['Los cambios de sedes, horarios y precios valen para todos los que usan la app.'],
+    tips: ['Los cambios de sedes, horarios, precios y obras sociales valen para todos los que usan la app.'],
     tour: [
       { sel: '[data-tour="cfg-indice"]', t: 'Secciones', x: 'Saltá directo a lo que necesitás ajustar.' },
       { sel: '#cfg-sedes', t: 'Sedes y tope', x: 'Cuántos turnos se pueden dar en un mismo horario en cada sede.' },
       { sel: '#cfg-horario', t: 'Horario del centro', x: 'Los días y horarios en que se pueden dar turnos.' },
+      { sel: '#cfg-obras', t: 'Obras sociales', x: 'Las que aparecen al cargar un paciente. Agregá las que falten; si cargan una nueva desde un paciente, se suma sola.' },
       { sel: '#cfg-datos', t: 'Copia de seguridad', x: 'Descargá todos los datos para tenerlos resguardados.' },
     ],
   },

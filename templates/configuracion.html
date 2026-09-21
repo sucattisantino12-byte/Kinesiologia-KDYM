@@ -17,6 +17,7 @@
     <a href="#cfg-asistencia"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.8"/><path d="M4.5 20c.7-3.7 3.7-5.8 7.5-5.8M16 16l4 4M20 16l-4 4"/></svg>No vino automático</a>
     <a href="#cfg-feriados"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><rect x="3.5" y="5" width="17" height="15.5" rx="3"/><path d="M3.5 10h17M8 3v4M16 3v4M9 14l6 4M15 14l-6 4"/></svg>Feriados</a>
     <a href="#cfg-precios"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="6" width="18" height="12" rx="2.5"/><circle cx="12" cy="12" r="2.6"/></svg>Precios</a>
+    <a href="#cfg-obras"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7.5 3v5.5c0 4.6-3.2 8.2-7.5 9.5-4.3-1.3-7.5-4.9-7.5-9.5V6z"/><path d="M12 8.5v6M9 11.5h6"/></svg>Obras sociales</a>
     <a href="#cfg-whatsapp"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20l1.3-4A8 8 0 1112 20a8 8 0 01-4-1.1z"/></svg>Retiro de plantillas</a>
     <a href="#cfg-datos"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><ellipse cx="12" cy="6" rx="7.5" ry="3"/><path d="M4.5 6v6c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3V6M4.5 12v6c0 1.7 3.4 3 7.5 3s7.5-1.3 7.5-3v-6"/></svg>Copia de seguridad</a>
     <a href="#cfg-demo"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M9 3h6M10 3v6l-5.5 9.5A1.7 1.7 0 006 21h12a1.7 1.7 0 001.5-2.5L14 9V3"/><path d="M7.5 15h9"/></svg>Modo demo</a>
@@ -88,6 +89,20 @@
         <button class="btn btn-primary" onclick="agregarPrecioPreset()">Agregar</button>
       </div>
       <div id="precios-lista" style="margin-top:10px;"></div>
+    </section>
+
+    <section class="card cfg-card" id="cfg-obras">
+      <div class="cfg-card-head"><span class="cfg-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7.5 3v5.5c0 4.6-3.2 8.2-7.5 9.5-4.3-1.3-7.5-4.9-7.5-9.5V6z"/><path d="M12 8.5v6M9 11.5h6"/></svg></span><div><h3>Obras sociales y prepagas</h3><p>Las que aparecen para elegir al cargar un paciente. Si al cargar uno escriben una que no está, se suma sola a la lista.</p></div></div>
+      <div class="cfg-fila">
+        <div class="field grow" style="margin:0;"><label>Agregar obra social</label><input class="input" id="os-nueva" placeholder="Ej: OSPACA, Hospital Alemán, ART Provincia…" autocomplete="off" onkeydown="if(event.key==='Enter'){event.preventDefault();agregarObraSocial();}"></div>
+        <button class="btn btn-primary" onclick="agregarObraSocial()">Agregar</button>
+      </div>
+      <div class="os-tools" id="os-tools" hidden>
+        <input class="input" id="os-filtro" placeholder="Buscar en la lista…" autocomplete="off" oninput="pintarObras()">
+        <span class="os-cuenta" id="os-cuenta"></span>
+      </div>
+      <div class="os-lista" id="os-lista"><div class="cargando"></div></div>
+      <div class="hint" style="margin-top:10px;">Cambiar el nombre corrige también a los pacientes que la tienen (sirve para errores de tipeo). Quitarla de la lista no les cambia nada a esos pacientes.</div>
     </section>
 
     <section class="card cfg-card" id="cfg-whatsapp">
@@ -284,6 +299,61 @@ async function borrarPrecioPreset(id) {
   cargarPrecios();
 }
 cargarPrecios();
+
+// ---- Obras sociales ----
+let OBRAS = [];
+async function cargarObras() {
+  try { OBRAS = await apiGet('/api/obras_sociales'); } catch (e) { return; }
+  pintarObras();
+}
+function pintarObras() {
+  const cont = document.getElementById('os-lista');
+  const f = _sinAcentos(document.getElementById('os-filtro').value.trim());
+  document.getElementById('os-tools').hidden = OBRAS.length < 8;
+  document.getElementById('os-cuenta').textContent = OBRAS.length + ' en la lista';
+  const lista = f ? OBRAS.filter(o => _sinAcentos(o.nombre).includes(f)) : OBRAS;
+  if (!OBRAS.length) { cont.innerHTML = '<div class="hint">La lista está vacía. Agregá las obras sociales con las que trabajan.</div>'; return; }
+  if (!lista.length) { cont.innerHTML = '<div class="hint">Ninguna coincide con la búsqueda.</div>'; return; }
+  cont.innerHTML = lista.map(o => `
+    <div class="os-item">
+      <div class="os-nom"><b>${escapeHtml(o.nombre)}</b><span>${o.pacientes ? (o.pacientes === 1 ? '1 paciente' : o.pacientes + ' pacientes') : 'Sin pacientes'}</span></div>
+      <button class="btn-ic" title="Cambiar el nombre" aria-label="Cambiar el nombre de ${escapeHtml(o.nombre)}" onclick="renombrarObra(${o.id})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M4 20h4l10.5-10.5a2.1 2.1 0 00-4-4L4 16z"/></svg></button>
+      <button class="btn-ic peligro" title="Quitar de la lista" aria-label="Quitar ${escapeHtml(o.nombre)} de la lista" onclick="quitarObra(${o.id})"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg></button>
+    </div>`).join('');
+}
+function _osDatalist() {
+  const dl = document.getElementById('obras-sociales');
+  if (dl) dl.innerHTML = OBRAS.map(o => `<option value="${escapeHtml(o.nombre)}">`).join('');
+}
+async function agregarObraSocial() {
+  const inp = document.getElementById('os-nueva');
+  const nombre = inp.value.trim();
+  if (!nombre) { toast('Escribí el nombre de la obra social', 'alert'); inp.focus(); return; }
+  try { await api('/api/obra_social', { nombre }); } catch (e) { inp.select(); return; }
+  inp.value = '';
+  toast(nombre + ' agregada ✓', 'ok');
+  await cargarObras(); _osDatalist();
+}
+async function renombrarObra(id) {
+  const o = OBRAS.find(x => x.id === id); if (!o) return;
+  const nuevo = await pedirTexto('Cambiar el nombre', o.nombre, {
+    mensaje: o.pacientes ? (o.pacientes === 1 ? 'El paciente que la tiene pasa al nombre nuevo.' : `Los ${o.pacientes} pacientes que la tienen pasan al nombre nuevo.`) : '' });
+  if (nuevo === null || !nuevo.trim() || nuevo.trim() === o.nombre) return;
+  let r;
+  try { r = await api('/api/obra_social/' + id, { nombre: nuevo.trim() }); } catch (e) { return; }
+  toast(r.unida ? `Se unió con ${r.nombre} ✓` : 'Nombre cambiado ✓', 'ok');
+  await cargarObras(); _osDatalist();
+}
+async function quitarObra(id) {
+  const o = OBRAS.find(x => x.id === id); if (!o) return;
+  if (!await confirmar(`¿Quitar ${o.nombre} de la lista?`, {
+    mensaje: o.pacientes ? `Deja de aparecer para elegir. ${o.pacientes === 1 ? 'El paciente que la tiene la conserva' : 'Los ' + o.pacientes + ' pacientes que la tienen la conservan'}.` : 'Deja de aparecer para elegir al cargar un paciente.',
+    ok: 'Quitar' })) return;
+  try { await api('/api/obra_social/' + id + '/borrar'); } catch (e) { return; }
+  toast(o.nombre + ' quitada', 'ok');
+  await cargarObras(); _osDatalist();
+}
+cargarObras();
 
 // Modo demo: se guarda en el servidor y recarga para mostrar/ocultar los botones de prueba.
 document.getElementById('cfg-demo-on').addEventListener('change', async (e) => {

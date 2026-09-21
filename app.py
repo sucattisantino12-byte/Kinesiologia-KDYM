@@ -90,6 +90,15 @@ def _sin_acentos(s):
     return "".join(c for c in s if unicodedata.category(c) != "Mn").lower()
 
 
+# Lista inicial de obras sociales/prepagas (después se edita en Configuración).
+OBRAS_SOCIALES_BASE = [
+    "OSDE", "Swiss Medical", "Galeno", "Medifé", "OMINT", "IOMA", "PAMI",
+    "OSECAC", "OSDEPYM", "Unión Personal", "Sancor Salud", "Accord Salud",
+    "Medicus", "Hospital Italiano", "Prevención Salud", "Federada Salud",
+    "OSPE", "ART", "Particular",
+]
+
+
 def get_db():
     if "db" not in g:
         # timeout: espera si la base está ocupada (evita "database is locked"
@@ -344,6 +353,13 @@ def init_db():
             numero TEXT,
             creado TEXT
         );
+
+        -- Obras sociales / prepagas que se ofrecen al cargar un paciente.
+        CREATE TABLE IF NOT EXISTS obras_sociales (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre TEXT,
+            creado TEXT
+        );
         """
     )
     db.commit()
@@ -434,6 +450,19 @@ def init_db():
 
     if db.execute("SELECT COUNT(*) FROM catalogo_ejercicios").fetchone()[0] == 0:
         seed_catalogo(db)
+
+    # Obras sociales: la primera vez se arma la lista con las más comunes y
+    # las que ya tienen cargadas los pacientes (sin repetir por mayúsculas/tildes).
+    if db.execute("SELECT COUNT(*) FROM obras_sociales").fetchone()[0] == 0:
+        vistas, hoy_iso = set(), date.today().isoformat()
+        existentes = [r[0] for r in db.execute(
+            "SELECT DISTINCT TRIM(obra_social) FROM pacientes WHERE TRIM(COALESCE(obra_social,''))<>''")]
+        for nom in OBRAS_SOCIALES_BASE + sorted(existentes):
+            nom = " ".join(nom.split())
+            if nom and _sin_acentos(nom) not in vistas:
+                vistas.add(_sin_acentos(nom))
+                db.execute("INSERT INTO obras_sociales (nombre, creado) VALUES (?,?)", (nom, hoy_iso))
+        db.commit()
 
     if db.execute("SELECT COUNT(*) FROM pacientes").fetchone()[0] == 0:
         seed_demo(db)
@@ -767,14 +796,19 @@ def inject_sedes():
             notif_n = len(_alertas_abiertas())
         except Exception:
             notif_n = 0
+        try:
+            obras = _obras_sociales()
+        except Exception:
+            obras = list(OBRAS_SOCIALES_BASE)
         return {"sedes_all": sedes, "sede_actual_id": actual,
                 "sede_actual_nombre": nombre,
                 "side_boxes_n": (nb["c"] if nb else 0), "modo_demo": demo,
-                "side_encurso_n": (enc["c"] if enc else 0), "notif_n": notif_n}
+                "side_encurso_n": (enc["c"] if enc else 0), "notif_n": notif_n,
+                "obras_sociales": obras}
     except Exception:
         return {"sedes_all": [], "sede_actual_id": None,
                 "sede_actual_nombre": "", "side_boxes_n": 0, "modo_demo": False,
-                "side_encurso_n": 0, "notif_n": 0}
+                "side_encurso_n": 0, "notif_n": 0, "obras_sociales": list(OBRAS_SOCIALES_BASE)}
 
 
 # --------------------------------------------------------------------------
@@ -2187,6 +2221,26 @@ def _nombre_prolijo(txt):
     return txt
 
 
+def _obras_sociales():
+    return [r["nombre"] for r in q("SELECT nombre FROM obras_sociales ORDER BY nombre COLLATE NOCASE")]
+
+
+def _obra_social_canonica(txt, agregar=True):
+    """Devuelve la obra social como figura en la lista ('osde' -> 'OSDE').
+    Si no está, la agrega a la lista para que aparezca la próxima vez."""
+    txt = " ".join((txt or "").split())
+    if not txt:
+        return ""
+    clave = _sin_acentos(txt)
+    for r in q("SELECT nombre FROM obras_sociales"):
+        if _sin_acentos(r["nombre"]) == clave:
+            return r["nombre"]
+    if agregar:
+        run("INSERT INTO obras_sociales (nombre, creado) VALUES (?,?)",
+            (txt, date.today().isoformat()))
+    return txt
+
+
 def _sedes_de_pacientes():
     """Sede(s) de cada paciente para el filtro de la lista.
 
@@ -2232,7 +2286,7 @@ def api_nuevo_paciente():
            VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
         (
             nombre, apellido, (d.get("dni") or "").strip(),
-            (d.get("telefono") or "").strip(), (d.get("obra_social") or "").strip(),
+            (d.get("telefono") or "").strip(), _obra_social_canonica(d.get("obra_social")),
             (d.get("diagnostico") or "").strip(),
             int(d.get("sesiones_totales") or 0), int(d.get("sesiones_usadas") or 0),
             (d.get("dias") or "").strip(), (d.get("notas") or "").strip(),
@@ -2245,6 +2299,10 @@ def api_nuevo_paciente():
 @app.route("/api/paciente/<int:pid>", methods=["POST"])
 def api_editar_paciente(pid):
     d = request.get_json(force=True, silent=True) or {}
+    # Si no le cambiaron la obra social, no se vuelve a sumar a la lista
+    # (puede ser una que quitaron a propósito en Configuración).
+    antes = q1("SELECT obra_social FROM pacientes WHERE id=?", (pid,))
+    cambio = _sin_acentos(" ".join((d.get("obra_social") or "").split())) !=         _sin_acentos(" ".join(((antes["obra_social"] if antes else "") or "").split()))
     run(
         """UPDATE pacientes SET
              nombre=?, apellido=?, dni=?, telefono=?, obra_social=?, diagnostico=?,
@@ -2253,7 +2311,7 @@ def api_editar_paciente(pid):
         (
             _nombre_prolijo(d.get("nombre")), _nombre_prolijo(d.get("apellido")),
             (d.get("dni") or "").strip(), (d.get("telefono") or "").strip(),
-            (d.get("obra_social") or "").strip(), (d.get("diagnostico") or "").strip(),
+            _obra_social_canonica(d.get("obra_social"), agregar=cambio), (d.get("diagnostico") or "").strip(),
             int(d.get("sesiones_totales") or 0), int(d.get("sesiones_usadas") or 0),
             (d.get("dias") or "").strip(), (d.get("notas") or "").strip(), pid,
         ),
@@ -2883,6 +2941,70 @@ def api_precio_sesion(pid):
     except (TypeError, ValueError):
         precio = 0
     run("UPDATE pacientes SET precio_sesion=? WHERE id=?", (precio, pid))
+    return jsonify(ok=True)
+
+
+@app.route("/api/obras_sociales")
+def api_obras_sociales():
+    usos = {}
+    for r in q("SELECT obra_social FROM pacientes WHERE TRIM(COALESCE(obra_social,''))<>''"):
+        k = _sin_acentos(" ".join(r["obra_social"].split()))
+        usos[k] = usos.get(k, 0) + 1
+    rows = q("SELECT id, nombre FROM obras_sociales ORDER BY nombre COLLATE NOCASE")
+    return jsonify([{"id": r["id"], "nombre": r["nombre"],
+                     "pacientes": usos.get(_sin_acentos(r["nombre"]), 0)} for r in rows])
+
+
+def _obra_social_repetida(nombre, salvo_id=None):
+    clave = _sin_acentos(nombre)
+    for r in q("SELECT id, nombre FROM obras_sociales"):
+        if r["id"] != salvo_id and _sin_acentos(r["nombre"]) == clave:
+            return r
+    return None
+
+
+@app.route("/api/obra_social", methods=["POST"])
+def api_nueva_obra_social():
+    d = request.get_json(force=True, silent=True) or {}
+    nombre = " ".join((d.get("nombre") or "").split())
+    if not nombre:
+        return jsonify(ok=False, error="Escribí el nombre"), 400
+    if _obra_social_repetida(nombre):
+        return jsonify(ok=False, error="Esa obra social ya está en la lista"), 400
+    oid = run("INSERT INTO obras_sociales (nombre, creado) VALUES (?,?)",
+              (nombre, date.today().isoformat()))
+    return jsonify(ok=True, id=oid)
+
+
+@app.route("/api/obra_social/<int:oid>", methods=["POST"])
+def api_editar_obra_social(oid):
+    """Renombra (ej: corregir 'Swis Medical'). Los pacientes que la tenían pasan
+    al nombre nuevo. Si el nombre nuevo ya existe, se unen en una sola."""
+    d = request.get_json(force=True, silent=True) or {}
+    nombre = " ".join((d.get("nombre") or "").split())
+    actual = q1("SELECT id, nombre FROM obras_sociales WHERE id=?", (oid,))
+    if not actual:
+        return jsonify(ok=False, error="No existe"), 404
+    if not nombre:
+        return jsonify(ok=False, error="Escribí el nombre"), 400
+    otra = _obra_social_repetida(nombre, salvo_id=oid)
+    if otra:
+        nombre = otra["nombre"]
+        run("DELETE FROM obras_sociales WHERE id=?", (oid,))
+    else:
+        run("UPDATE obras_sociales SET nombre=? WHERE id=?", (nombre, oid))
+    viejo = _sin_acentos(actual["nombre"])
+    ids = [r["id"] for r in q("SELECT id, obra_social FROM pacientes WHERE TRIM(COALESCE(obra_social,''))<>''")
+           if _sin_acentos(" ".join(r["obra_social"].split())) == viejo]
+    for pid in ids:
+        run("UPDATE pacientes SET obra_social=? WHERE id=?", (nombre, pid))
+    return jsonify(ok=True, nombre=nombre, unida=bool(otra), pacientes=len(ids))
+
+
+@app.route("/api/obra_social/<int:oid>/borrar", methods=["POST"])
+def api_borrar_obra_social(oid):
+    # Sólo la saca de la lista: los pacientes que la tienen la conservan.
+    run("DELETE FROM obras_sociales WHERE id=?", (oid,))
     return jsonify(ok=True)
 
 

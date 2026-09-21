@@ -223,6 +223,7 @@ async function _guardarNuevoPaciente() {
       ok: 'Cargar igual', cancelar: 'Revisar', peligro: false })) return;
   } catch (e) {}
   const r = await api('/api/paciente', body);
+  _osRecordar(body.obra_social);
   const nombre = (body.nombre + ' ' + body.apellido).trim();
   toast('Paciente guardado ✓', 'ok');
   cerrarModal('modal-paciente');
@@ -1172,6 +1173,17 @@ function confirmar(texto, opciones) {
 function pedirTexto(titulo, valor, opciones) {
   const o = opciones || {};
   return _dialogo({ titulo, mensaje: o.mensaje || '', input: true, valor, tipoInput: o.tipo, ok: o.ok || 'Guardar' });
+}
+
+// Obra social nueva: el servidor la agrega a la lista; acá se suma al
+// desplegable para que aparezca sin recargar la página.
+function _osRecordar(nombre) {
+  nombre = (nombre || '').trim().replace(/\s+/g, ' ');
+  const dl = document.getElementById('obras-sociales');
+  if (!nombre || !dl) return;
+  const k = _sinAcentos(nombre);
+  if ([...dl.options].some(o => _sinAcentos(o.value) === k)) return;
+  const o = document.createElement('option'); o.value = nombre; dl.appendChild(o);
 }
 
 // Confirmar que un paciente vino. Si tiene obra social, pide (opcional) el token.

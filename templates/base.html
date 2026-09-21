@@ -207,12 +207,9 @@
     </div>
   </div>
 
-  <!-- Datalist global de obras sociales -->
+  <!-- Datalist global de obras sociales (se edita en Configuración) -->
   <datalist id="obras-sociales">
-    <option value="OSDE"><option value="Swiss Medical"><option value="Galeno">
-    <option value="Medifé"><option value="OMINT"><option value="IOMA">
-    <option value="PAMI"><option value="OSECAC"><option value="OSDEPYM">
-    <option value="Unión Personal"><option value="Sancor Salud"><option value="Particular">
+    {% for os_ in obras_sociales %}<option value="{{ os_ }}">{% endfor %}
   </datalist>
 
   <script>
