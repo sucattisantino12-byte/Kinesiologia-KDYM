@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1">
-  <title>Elegí la sede — KDYM</title>
+  <title>Elegí la sede — {{ marca }}</title>
   <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}?v={{ asset_v('style.css') }}">
   <link rel="manifest" href="/manifest.webmanifest">
@@ -41,7 +41,7 @@
     <div class="hub-brand">
       <span class="hub-mark">{% include "_logo_svg.html" %}</span>
       <div>
-        <div class="hub-nom">KDYM</div>
+        <div class="hub-nom">{{ marca }}</div>
         <div class="hub-sub">Kinesiología y rehabilitación</div>
       </div>
     </div>

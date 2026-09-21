@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Plantillas — KDYM{% endblock %}
+{% block title %}Plantillas — {{ marca }}{% endblock %}
 
 {% block content %}
 <div class="page-head">
@@ -140,7 +140,7 @@ function avisarPlantilla(tel, nombre) {
   tel = waNumeroAR(tel);
   if (!tel) { toast('Esa persona no tiene teléfono cargado', 'alert'); return; }
   const nom = (nombre || '').split(' ')[0];
-  let msg = `Hola ${nom}, ya podés retirar tus plantillas en KDYM.`;
+  let msg = `Hola ${nom}, ya podés retirar tus plantillas en {{ marca }}.`;
   if (PL_CONFIG.retiro_horario) msg += ` Horario de retiro: ${PL_CONFIG.retiro_horario}.`;
   if (PL_CONFIG.retiro_direccion) msg += ` Dirección: ${PL_CONFIG.retiro_direccion}.`;
   msg += ' ¡Te esperamos!';

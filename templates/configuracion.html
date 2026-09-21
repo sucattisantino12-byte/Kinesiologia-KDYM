@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Configuración — KDYM{% endblock %}
+{% block title %}Configuración — {{ marca }}{% endblock %}
 
 {% block content %}
 <div class="page-head">
@@ -423,7 +423,7 @@ Contraseña: ${body.clave}`;
 ${txt}`,
                    ok: 'Copiar para mandar', cancelar: 'Cerrar', ayuda: 'La contraseña no se vuelve a mostrar. Si se la olvida, le ponés una nueva desde acá.' });
   if (copiar) {
-    try { await navigator.clipboard.writeText(`KDYM — ${location.origin}
+    try { await navigator.clipboard.writeText(`{{ marca }} — ${location.origin}
 ${txt}`); toast('Copiado: pegalo en un mensaje ✓', 'ok'); }
     catch (e) { toast('No se pudo copiar. Anotalos a mano.', 'alert'); }
   }

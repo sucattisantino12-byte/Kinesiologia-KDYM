@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}{{ p.nombre_completo }} — KDYM{% endblock %}
+{% block title %}{{ p.nombre_completo }} — {{ marca }}{% endblock %}
 
 {% block content %}
 <nav class="migas"><a href="{{ url_for('pacientes') }}">Pacientes</a><span>›</span><b>{{ p.nombre_completo }}</b></nav>

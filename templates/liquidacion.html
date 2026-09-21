@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Liquidación — KDYM{% endblock %}
+{% block title %}Liquidación — {{ marca }}{% endblock %}
 
 {% block content %}
 <div class="page-head">
@@ -291,7 +291,7 @@ function _armarImpresion() {
       <td>${x.fecha.split('-').reverse().join('/')}</td><td>${x.hora ? escapeHtml(x.hora) : ''}</td><td class="${x.token ? '' : 'falta'}">${x.token ? escapeHtml(x.token) : 'Falta'}</td></tr>`).join('')).join('');
     return `<section class="lp-hoja">
       <header class="lp-cab">
-        <div><b>KDYM</b> · Kinesiología y rehabilitación</div>
+        <div><b>{{ marca }}</b> · Kinesiología y rehabilitación</div>
         <div>Sede: ${escapeHtml(sedeNom)}</div>
       </header>
       <h1>Liquidación ${escapeHtml(o.obra_social)}</h1>

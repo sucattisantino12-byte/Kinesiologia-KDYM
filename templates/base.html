@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
-  <title>{% block title %}KDYM{% endblock %}</title>
+  <title>{% block title %}{{ marca }}{% endblock %}</title>
   <script>
     // Aplica el modo oscuro ANTES de pintar, para que no parpadee.
     try { if (localStorage.getItem('kdym_tema') === 'oscuro') document.documentElement.dataset.theme = 'dark'; } catch (e) {}
@@ -24,7 +24,7 @@
   <meta name="theme-color" content="#0F2350">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-title" content="KDYM">
+  <meta name="apple-mobile-web-app-title" content="{{ marca }}">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <link rel="apple-touch-icon" href="{{ url_for('static', filename='icons/apple-touch-icon.png') }}">
   <link rel="icon" type="image/png" href="{{ url_for('static', filename='icons/favicon-64.png') }}">
@@ -97,7 +97,7 @@
         <circle cx="100" cy="100" r="84" fill="none" stroke="rgba(11,27,51,.18)" stroke-width="1.5" style="opacity:0;animation:kdymFade 0.38s ease-out 0.60s both"></circle>
       </svg>
       <div class="splash-hi">Bienvenido</div>
-      <div class="splash-name">KDYM</div>
+      <div class="splash-name">{{ marca }}</div>
       <div class="splash-line"></div>
       <div class="splash-sub">kinesiología y rehabilitación</div>
     </div>
@@ -111,7 +111,7 @@
       <a class="side-logo" href="{{ url_for('recepcion') }}">
         <span class="mk">{% include "_logo_svg.html" %}</span>
         <div>
-          <div class="nom">KDYM</div>
+          <div class="nom">{{ marca }}</div>
           <div class="sub">Kinesiología</div>
         </div>
       </a>
@@ -169,10 +169,16 @@
     </aside>
 
     <div class="main">
+      {% if es_demo %}
+      <div class="demo-cinta">
+        <span><b>Demo</b> · datos de ejemplo, probá lo que quieras. Se reinicia todos los días.</span>
+        {% if demo_whatsapp %}<a href="https://wa.me/{{ demo_whatsapp }}?text={{ ('Hola! Vi la demo de la app para centros de kinesiología y quiero más información.')|urlencode }}" target="_blank" rel="noopener">Quiero usarla en mi centro</a>{% endif %}
+      </div>
+      {% endif %}
       <!-- Header (celular) -->
       <header class="mtop">
         <div class="mtop-r1">
-          <a class="mtop-brand" href="{{ url_for('recepcion') }}"><span class="mtop-mk">{% include "_logo_svg.html" %}</span>KDYM</a>
+          <a class="mtop-brand" href="{{ url_for('recepcion') }}"><span class="mtop-mk">{% include "_logo_svg.html" %}</span>{{ marca }}</a>
           <span class="mtop-tools">
             <span id="m-reloj"></span>
             <button type="button" class="mtop-ic" onclick="abrirBuscador()" aria-label="Buscar">{{ _ic.buscar|safe }}</button>
@@ -181,7 +187,7 @@
         </div>
         <div class="mtop-r2">
           <div class="mtop-tit-wrap">
-            <div class="mtop-title">{{ _tit.get(activo, 'KDYM') }}</div>
+            <div class="mtop-title">{{ _tit.get(activo, marca) }}</div>
             <div class="mtop-fecha" id="m-fecha"></div>
           </div>
           {% if sede_actual_nombre %}

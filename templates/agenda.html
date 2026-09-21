@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}Agenda — KDYM{% endblock %}
+{% block title %}Agenda — {{ marca }}{% endblock %}
 
 {% block content %}
 <div class="page-head">
@@ -598,7 +598,7 @@ function recordarWa() {
   if (!tel) { toast('El paciente no tiene teléfono cargado en su ficha', 'alert'); return; }
   const d = new Date(TURNO_SEL.fecha + 'T12:00:00');
   const fstr = d.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric', month: 'long' });
-  const msg = `Hola ${TURNO_SEL.paciente.split(' ')[0]}, te recordamos tu turno en KDYM el ${fstr}` +
+  const msg = `Hola ${TURNO_SEL.paciente.split(' ')[0]}, te recordamos tu turno en {{ marca }} el ${fstr}` +
     (TURNO_SEL.hora ? ' a las ' + TURNO_SEL.hora : '') + '. ¡Te esperamos!';
   window.open('https://wa.me/' + tel + '?text=' + encodeURIComponent(msg), '_blank');
 }

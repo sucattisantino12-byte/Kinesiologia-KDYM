@@ -51,6 +51,13 @@ if _db_dir:
 
 app = Flask(__name__)
 app.config["TEMPLATES_AUTO_RELOAD"] = True
+
+# Nombre del centro que se ve en la app (en la demo pública: "Centro Demo").
+MARCA = (os.environ.get("MARCA") or "KDYM").strip()
+# Demo pública: datos de ejemplo, se entra sin contraseña y se reinicia todos los días.
+# NUNCA se activa en la app real (hace falta la variable KDYM_DEMO=1).
+ES_DEMO = os.environ.get("KDYM_DEMO") == "1"
+DEMO_WHATSAPP = "".join(ch for ch in (os.environ.get("DEMO_WHATSAPP") or "") if ch.isdigit())
 # Sesión de usuario: cookie firmada, no accesible desde JS, que no viaja en
 # pedidos que vienen de otros sitios, y que dura 30 días (se renueva al usar la app).
 app.config.update(
@@ -863,7 +870,7 @@ ROLES = {"admin": "Administrador", "recepcion": "Recepción"}
 CLAVE_MIN = 8
 
 # Lo único que se ve sin haber entrado: la pantalla de ingreso y lo que necesita.
-_ENDPOINTS_PUBLICOS = {"login", "login_post", "primer_usuario", "static", "sw_js", "manifest"}
+_ENDPOINTS_PUBLICOS = {"login", "login_post", "primer_usuario", "static", "sw_js", "manifest", "demo_entrar"}
 # Sólo administradores: la plata del centro, los usuarios, la base completa y el modo demo.
 _ENDPOINTS_ADMIN = {
     "reportes_page", "api_reportes",
@@ -993,6 +1000,11 @@ def _exigir_ingreso():
         if request.path.startswith("/api/"):
             return jsonify(ok=False, error="Esto lo puede hacer solo un administrador."), 403
         return redirect(url_for("recepcion"))
+    if ES_DEMO:
+        if request.method == "POST":
+            _DEMO_ULT["actividad"] = time.time()
+        elif not request.path.startswith("/api/"):
+            _demo_animar_hoy()
     return None
 
 
@@ -1002,19 +1014,22 @@ def inject_usuario():
         u = usuario_actual()
     except Exception:
         u = None
+    base = {"marca": MARCA, "es_demo": ES_DEMO, "demo_whatsapp": DEMO_WHATSAPP}
     if not u:
-        return {"usuario": None, "es_admin": False}
+        return dict(base, usuario=None, es_admin=False)
     nom = (u["nombre"] or u["usuario"] or "").strip()
     ini = "".join(w[0] for w in nom.split()[:2]).upper() or "?"
-    return {"usuario": {"nombre": nom, "usuario": u["usuario"], "rol": u["rol"],
-                        "rol_txt": ROLES.get(u["rol"], u["rol"]), "iniciales": ini},
-            "es_admin": u["rol"] == "admin"}
+    return dict(base, usuario={"nombre": nom, "usuario": u["usuario"], "rol": u["rol"],
+                               "rol_txt": ROLES.get(u["rol"], u["rol"]), "iniciales": ini},
+                es_admin=u["rol"] == "admin")
 
 
 @app.route("/login")
 def login():
     if usuario_actual():
         return redirect(_destino_seguro(request.args.get("next")))
+    if ES_DEMO:
+        return render_template("login.html", demo=True, alta=False, next="/", error="", valor="")
     return render_template("login.html", alta=not _hay_usuarios(),
                            next=_destino_seguro(request.args.get("next")), error="", valor="")
 
@@ -1046,7 +1061,7 @@ def login_post():
 def primer_usuario():
     """Crea la cuenta del primer administrador. Sólo funciona mientras no haya
     ningún usuario (después, los usuarios se crean desde Configuración)."""
-    if _hay_usuarios():
+    if _hay_usuarios() or ES_DEMO:
         return redirect(url_for("login"))
     f = request.form
     nombre = " ".join((f.get("nombre") or "").split())
@@ -1079,6 +1094,8 @@ def logout():
 @app.route("/api/yo/clave", methods=["POST"])
 def api_cambiar_mi_clave():
     u = usuario_actual()
+    if _es_usuario_demo(u):
+        return jsonify(ok=False, error="En la demo no se cambian las contraseñas de los usuarios de ejemplo."), 400
     d = request.get_json(force=True, silent=True) or {}
     nueva = d.get("nueva") or ""
     if not check_password_hash(u["clave"] or "", d.get("actual") or ""):
@@ -1128,6 +1145,8 @@ def api_editar_usuario(uid):
     r = q1("SELECT * FROM usuarios WHERE id=?", (uid,))
     if not r:
         return jsonify(ok=False, error="Ese usuario no existe."), 404
+    if _es_usuario_demo(r):
+        return jsonify(ok=False, error="Es un usuario de ejemplo de la demo: no se puede cambiar. Probá creando uno nuevo."), 400
     d = request.get_json(force=True, silent=True) or {}
     yo = usuario_actual()["id"]
     if "nombre" in d:
@@ -1167,6 +1186,8 @@ def api_borrar_usuario(uid):
         return jsonify(ok=True)
     if uid == usuario_actual()["id"]:
         return jsonify(ok=False, error="No podés borrar tu propio usuario."), 400
+    if _es_usuario_demo(r):
+        return jsonify(ok=False, error="Es un usuario de ejemplo de la demo: no se puede borrar."), 400
     if r["rol"] == "admin" and r["activo"] and not _admins_activos(uid):
         return jsonify(ok=False, error="Tiene que quedar al menos un administrador."), 400
     run("DELETE FROM usuarios WHERE id=?", (uid,))
@@ -1404,8 +1425,8 @@ def manifest():
     except Exception:
         v = 0
     data = {
-        "name": "KDYM · Kinesiología",
-        "short_name": "KDYM",
+        "name": f"{MARCA} · Kinesiología",
+        "short_name": MARCA[:12],
         "description": "Recepción, agenda y pacientes del centro de kinesiología.",
         "start_url": "/recepcion",
         "scope": "/",
@@ -3519,7 +3540,7 @@ def api_liquidacion_excel():
     # Resumen
     ws = wb.active
     ws.title = hoja_nombre("Resumen")
-    ws.append(["KDYM · Liquidación a obras sociales"]); ws["A1"].font = titulo
+    ws.append([f"{MARCA} · Liquidación a obras sociales"]); ws["A1"].font = titulo
     ws.append([f"Período: {_mes_txt(mes)}", "", f"Sede: {sede_nom}"])
     ws.append([])
     cols = ["Obra social", "Pacientes", "Sesiones", "Con token", "Sin token", "Estado"]
@@ -3908,11 +3929,340 @@ def _start_backup_thread():
         pass
 
 
+# --------------------------------------------------------------------------
+# Demo pública (sólo con KDYM_DEMO=1): datos de ejemplo que se reinician todos
+# los días, y "hoy" se rearma según la hora para que siempre haya movimiento.
+# --------------------------------------------------------------------------
+DEMO_USUARIOS = {"admin": ("demo-admin", "Laura Méndez"), "recepcion": ("demo-recepcion", "Sofía Ruiz")}
+
+DEMO_PACIENTES = [  # nombre, apellido, obra social, diagnóstico, sede (0 = Centro, 1 = Norte)
+    ("Martina", "Acosta", "OSDE", "Esguince de tobillo grado II", 0),
+    ("Julián", "Benítez", "Swiss Medical", "Post-operatorio de ligamento cruzado anterior", 0),
+    ("Valentina", "Cabrera", "IOMA", "Lumbalgia mecánica", 0),
+    ("Tomás", "Domínguez", "OSDE", "Tendinitis del manguito rotador", 0),
+    ("Camila", "Espinoza", "Galeno", "Cervicalgia", 0),
+    ("Mateo", "Fernández", "PAMI", "Post-operatorio de prótesis de rodilla", 0),
+    ("Sofía", "García", "Particular", "Fascitis plantar", 0),
+    ("Benjamín", "Herrera", "Medifé", "Epicondilitis lateral", 0),
+    ("Lucía", "Ibarra", "OSDE", "Hombro congelado", 0),
+    ("Santiago", "Juárez", "IOMA", "Hernia de disco L5-S1", 0),
+    ("Emma", "Luna", "Swiss Medical", "Síndrome del túnel carpiano", 0),
+    ("Joaquín", "Medina", "PAMI", "Rehabilitación post ACV", 0),
+    ("Isabella", "Navarro", "Particular", "Contractura de trapecio", 0),
+    ("Lautaro", "Ortiz", "OSDE", "Desgarro de isquiotibiales", 0),
+    ("Mía", "Paz", "Galeno", "Condromalacia rotuliana", 0),
+    ("Felipe", "Quiroga", "OMINT", "Fractura de radio distal (post yeso)", 0),
+    ("Catalina", "Ríos", "Sancor Salud", "Tendinopatía aquiliana", 1),
+    ("Thiago", "Sosa", "OSDE", "Lumbociatalgia", 1),
+    ("Victoria", "Torres", "IOMA", "Escoliosis", 1),
+    ("Bautista", "Vega", "Swiss Medical", "Esguince de rodilla", 1),
+    ("Olivia", "Zapata", "PAMI", "Artrosis de cadera", 1),
+    ("Agustín", "Álvarez", "Particular", "Pubalgia", 1),
+    ("Renata", "Blanco", "Accord Salud", "Bursitis de hombro", 1),
+    ("Nicolás", "Castro", "Medifé", "Post-operatorio de menisco", 1),
+    ("Delfina", "Díaz", "OSDE", "Cervicobraquialgia", 1),
+    ("Facundo", "Giménez", "Galeno", "Esguince de muñeca", 1),
+]
+DEMO_EVOLUCIONES = [
+    "Buena evolución. Disminuye el dolor (EVA 4/10). Se progresa carga.",
+    "Refiere molestia al final del rango. Se trabaja movilidad y fortalecimiento isométrico.",
+    "Mejora el rango articular. Tolera bien los ejercicios de propiocepción.",
+    "Sin dolor en reposo. Se agregan ejercicios para hacer en casa.",
+    "Primera sesión: evaluación inicial, plan de 10 sesiones. Objetivo: volver a correr.",
+]
+
+
+def _es_usuario_demo(u):
+    return bool(ES_DEMO and u and u["usuario"] in {v[0] for v in DEMO_USUARIOS.values()})
+
+
+def _demo_db():
+    db = sqlite3.connect(DB_PATH, timeout=30)
+    db.row_factory = sqlite3.Row
+    return db
+
+
+def _demo_reset():
+    """Borra todo y carga el centro de ejemplo. Sólo corre en la demo."""
+    if not ES_DEMO:
+        return
+    import random
+    rnd = random.Random(date.today().toordinal())
+    hoy = date.today()
+    db = _demo_db()
+    try:
+        for t in ("pacientes", "ejercicios", "turnos", "eventos", "notif_cerradas", "evoluciones",
+                  "plantillas", "feriados", "pagos", "adjuntos", "consentimientos", "precios",
+                  "tokens", "liquidaciones", "obras_sociales", "boxes", "config"):
+            db.execute(f"DELETE FROM {t}")
+        db.execute("DELETE FROM usuarios WHERE usuario NOT IN (?, ?)",
+                   tuple(v[0] for v in DEMO_USUARIOS.values()))
+
+        # Sedes y boxes
+        sedes = [r["id"] for r in db.execute("SELECT id FROM sedes ORDER BY orden, id")]
+        while len(sedes) < 2:
+            sedes.append(db.execute("INSERT INTO sedes (nombre) VALUES ('x')").lastrowid)
+        db.execute("UPDATE sedes SET nombre='Centro', tope_turnos=4, orden=0, activo=1 WHERE id=?", (sedes[0],))
+        db.execute("UPDATE sedes SET nombre='Norte', tope_turnos=3, orden=1, activo=1 WHERE id=?", (sedes[1],))
+        db.execute(f"UPDATE sedes SET activo=0 WHERE id NOT IN ({sedes[0]}, {sedes[1]})")
+        for sede, n in ((sedes[0], 4), (sedes[1], 3)):
+            for i in range(1, n + 1):
+                db.execute("INSERT INTO boxes (nombre, activo, sede_id) VALUES (?, 1, ?)", (f"Box {i}", sede))
+
+        # Configuración del centro
+        horarios = {str(d): {"a": "07:00", "c": "23:59"} for d in range(7)}
+        for k, v in {"centro_horarios": json.dumps(horarios), "tolerancia_min": "30",
+                     "retiro_horario": "Lun a Vie de 9 a 18 hs", "retiro_direccion": "Av. Siempre Viva 742",
+                     "modo_demo": "0"}.items():
+            db.execute("INSERT INTO config (clave, valor) VALUES (?, ?)", (k, v))
+        aranceles = {"OSDE": 14500, "Swiss Medical": 15000, "Galeno": 13000, "IOMA": 9800,
+                     "PAMI": 8500, "Medifé": 13500, "OMINT": 15500}
+        for nom in OBRAS_SOCIALES_BASE:
+            db.execute("INSERT INTO obras_sociales (nombre, creado, arancel) VALUES (?, ?, ?)",
+                       (nom, hoy.isoformat(), aranceles.get(nom)))
+        for nom, monto in (("Sesión particular", 18000), ("Bono 10 sesiones", 160000), ("Evaluación inicial", 20000)):
+            db.execute("INSERT INTO precios (nombre, monto) VALUES (?, ?)", (nom, monto))
+
+        # Pacientes con su tratamiento: días fijos, horario fijo, sesiones hacia atrás y hacia adelante.
+        catalogo = [(r["nombre"], r["categoria"]) for r in db.execute("SELECT nombre, categoria FROM catalogo_ejercicios")]
+        slots = [f"{h:02d}:{m:02d}" for h in range(8, 20) for m in (0, 30)]
+        mes_ant = (hoy.replace(day=1) - timedelta(days=1)).strftime("%Y-%m")
+        pids = []
+        for i, (nom, ape, os_, diag, si) in enumerate(DEMO_PACIENTES):
+            sede = sedes[si]
+            sabado = i % 5 == 0
+            dias = sorted(rnd.sample(range(5), 2 if i % 3 else 3))
+            if sabado:
+                dias = [dias[0], 5]
+            hora = slots[(i * 7) % len(slots)]
+            hor = {str(d): (hora if d < 5 else f"{9 + i % 4:02d}:00") for d in dias}
+            totales = rnd.choice([10, 10, 12, 15, 20])
+            inicio = hoy - timedelta(days=rnd.randint(10, 55))
+            fechas, d = [], inicio
+            while len(fechas) < totales and d <= hoy + timedelta(days=35):
+                if d.weekday() in dias:
+                    fechas.append(d)
+                d += timedelta(days=1)
+            if os_ == "Particular":
+                afiliado = ""
+            elif rnd.random() < .12:
+                afiliado = ""   # le falta: aparece en la liquidación
+            elif os_ == "OSDE":
+                afiliado = f"61 {rnd.randint(100000, 999999)} {rnd.randint(1, 9)} 01"
+            elif os_ == "IOMA":
+                afiliado = f"{rnd.randint(1000000, 9999999)}/0{rnd.randint(0, 3)}"
+            elif os_ == "PAMI":
+                afiliado = f"15{rnd.randint(1000000000, 9999999999)} 00"
+            else:
+                afiliado = str(rnd.randint(10000000, 99999999))
+            pid = db.execute(
+                """INSERT INTO pacientes (nombre, apellido, dni, telefono, obra_social, nro_afiliado,
+                   diagnostico, sesiones_totales, sesiones_usadas, dias, horarios, notas, creado, sede_id,
+                   precio_sesion) VALUES (?,?,?,?,?,?,?,?,0,?,?,?,?,?,?)""",
+                (nom, ape, str(rnd.randint(20_000_000, 45_999_999)), f"11 0000-{1000 + i:04d}", os_, afiliado,
+                 diag, totales, dias_to_str(dias), json.dumps(hor),
+                 "Paciente de ejemplo de la demo." if i % 4 == 0 else "", inicio.isoformat(), sede,
+                 18000 if os_ == "Particular" else None)).lastrowid
+            pids.append(pid)
+            for f in fechas:
+                if f == hoy:
+                    continue   # los de hoy se arman según la hora (ver _demo_animar_hoy)
+                h = hor[str(f.weekday())]
+                if f < hoy:
+                    estado = "ausente" if rnd.random() < .09 else "terminado"
+                    ini = datetime.combine(f, datetime.min.time()) + timedelta(hours=int(h[:2]), minutes=int(h[3:]))
+                    tid = db.execute(
+                        """INSERT INTO turnos (paciente_id, fecha, hora, estado, inicio, fin, duracion_min, sede_id, sim)
+                           VALUES (?,?,?,?,?,?,30,?,0)""",
+                        (pid, f.isoformat(), h, estado, ini.isoformat() if estado == "terminado" else None,
+                         (ini + timedelta(minutes=30)).isoformat() if estado == "terminado" else None, sede)).lastrowid
+                    if estado == "terminado" and os_ != "Particular":
+                        falta = rnd.random() < (.3 if (hoy - f).days <= 6 else .04)
+                        if not falta:
+                            db.execute("INSERT INTO tokens (paciente_id, turno_id, fecha, numero, creado) VALUES (?,?,?,?,?)",
+                                       (pid, tid, f.isoformat(), str(rnd.randint(100000, 999999)), f.isoformat()))
+                    if estado == "terminado" and os_ == "Particular":
+                        db.execute("INSERT INTO pagos (paciente_id, sede_id, fecha, monto, metodo, concepto, creado) VALUES (?,?,?,?,?,?,?)",
+                                   (pid, sede, f.isoformat(), 18000, rnd.choice(["Efectivo", "Transferencia", "Mercado Pago"]),
+                                    "Sesión", f.isoformat()))
+                else:
+                    db.execute("""INSERT INTO turnos (paciente_id, fecha, hora, estado, duracion_min, sede_id, sim)
+                                  VALUES (?,?,?,'agendado',30,?,0)""", (pid, f.isoformat(), h, sede))
+            # Ejercicios y evolución para algunos
+            if catalogo and i % 2 == 0:
+                for nomej, cat in rnd.sample(catalogo, 3):
+                    db.execute("INSERT INTO ejercicios (paciente_id, nombre, categoria, series, reps, notas) VALUES (?,?,?,?,?,?)",
+                               (pid, nomej, cat, str(rnd.choice([2, 3, 4])), rnd.choice(["10", "12", "15", "30 seg"]), ""))
+            if i % 3 == 0:
+                for k in range(rnd.randint(1, 3)):
+                    db.execute("INSERT INTO evoluciones (paciente_id, fecha, texto) VALUES (?,?,?)",
+                               (pid, (inicio + timedelta(days=4 * k)).isoformat(), DEMO_EVOLUCIONES[(i + k) % len(DEMO_EVOLUCIONES)]))
+
+        # Plantillas ortopédicas en distintos pasos
+        for idx, (estado, dm, precio, senia) in enumerate([("pedida", None, "48000", ""), ("fabricacion", 6, "48000", "20000"),
+                                                            ("fabricacion", 3, "52000", "25000"), ("lista", 12, "48000", "20000"),
+                                                            ("entregada", 25, "45000", "45000")]):
+            db.execute("""INSERT INTO plantillas (paciente_id, sede_id, estado, fecha_molde, fecha_entrega, precio, senia, notas, creado)
+                          VALUES (?,?,?,?,?,?,?,?,?)""",
+                       (pids[idx * 3], sedes[0], estado, (hoy - timedelta(days=dm)).isoformat() if dm else None,
+                        (hoy - timedelta(days=dm - 10)).isoformat() if estado in ("lista", "entregada") and dm else None,
+                        precio, senia, "", (hoy - timedelta(days=(dm or 1) + 2)).isoformat()))
+        db.execute("""INSERT INTO plantillas (nombre_libre, telefono_libre, sede_id, estado, fecha_molde, precio, senia, creado)
+                      VALUES ('Roberto Sánchez', '11 0000-2001', ?, 'lista', ?, '50000', '25000', ?)""",
+                   (sedes[1], (hoy - timedelta(days=9)).isoformat(), (hoy - timedelta(days=10)).isoformat()))
+
+        # Liquidación del mes pasado: una cobrada y una presentada
+        for os_, est in (("OSDE", "cobrada"), ("Swiss Medical", "presentada")):
+            db.execute("INSERT INTO liquidaciones (obra_social, mes, estado, arancel, actualizado) VALUES (?,?,?,?,?)",
+                       (os_, mes_ant, est, aranceles.get(os_), hoy.isoformat()))
+        db.commit()
+    finally:
+        db.close()
+    _demo_animar_hoy(forzar=True)
+
+
+_DEMO_ULT = {"t": 0.0, "actividad": 0.0}
+_DEMO_LOCK = threading.Lock()
+
+
+def _demo_animar_hoy(forzar=False):
+    """Arma los turnos de HOY según la hora: los de antes ya atendidos, algunos
+    en los boxes con el reloj corriendo, otros esperando en la sala y el resto
+    por venir. Se rehace cada 20 minutos, pero nunca mientras alguien la está
+    usando (así no se le borra lo que acaba de hacer)."""
+    if not ES_DEMO:
+        return
+    with _DEMO_LOCK:
+        ahora_ts = time.time()
+        if not forzar and (ahora_ts - _DEMO_ULT["t"] < 1200 or ahora_ts - _DEMO_ULT["actividad"] < 900):
+            return
+        _DEMO_ULT["t"] = ahora_ts
+    import random
+    rnd = random.Random()
+    ahora = datetime.now()
+    hoy = date.today()
+    hoy_s, wd = hoy.isoformat(), hoy.weekday()
+    min_ahora = ahora.hour * 60 + ahora.minute
+    db = _demo_db()
+    try:
+        db.execute("DELETE FROM tokens WHERE turno_id IN (SELECT id FROM turnos WHERE fecha=?)", (hoy_s,))
+        db.execute("DELETE FROM turnos WHERE fecha=?", (hoy_s,))
+        libres = {}
+        for b in db.execute("SELECT id, sede_id FROM boxes WHERE activo=1 ORDER BY id"):
+            libres.setdefault(b["sede_id"], []).append(b["id"])
+        de_hoy = []
+        for p in db.execute("SELECT * FROM pacientes WHERE creado <= ?", (hoy_s,)):
+            h = parse_horarios(p["horarios"]).get(str(wd))
+            if not h:
+                continue
+            hechas = db.execute("""SELECT COUNT(*) FROM turnos WHERE paciente_id=?
+                                   AND estado IN ('presente','en_curso','terminado')""", (p["id"],)).fetchone()[0]
+            if hechas >= (p["sesiones_totales"] or 0):
+                continue
+            de_hoy.append((int(h[:2]) * 60 + int(h[3:]), h, p))
+        de_hoy.sort(key=lambda x: x[0])
+        en_box = 0
+        for hm, h, p in de_hoy:
+            base = datetime.combine(hoy, datetime.min.time()) + timedelta(minutes=hm)
+            box, ini, fin, estado = None, None, None, "agendado"
+            if hm <= min_ahora - 40:
+                estado, ini, fin = "terminado", base, base + timedelta(minutes=30)
+            elif hm <= min_ahora and libres.get(p["sede_id"]):
+                estado, box = "en_curso", libres[p["sede_id"]].pop(0)
+                ini = ahora - timedelta(minutes=max(2, min(min_ahora - hm, 26)))
+                en_box += 1
+            elif hm <= min_ahora + 15:
+                estado = "presente"
+            tid = db.execute(
+                """INSERT INTO turnos (paciente_id, fecha, hora, estado, box_id, inicio, fin, duracion_min, sede_id, sim)
+                   VALUES (?,?,?,?,?,?,?,?,?,0)""",
+                (p["id"], hoy_s, h, estado, box, ini.isoformat() if ini else None,
+                 fin.isoformat() if fin else None, 45 if hm % 60 == 30 else 30, p["sede_id"])).lastrowid
+            if estado == "terminado" and p["obra_social"] != "Particular" and rnd.random() < .8:
+                db.execute("INSERT INTO tokens (paciente_id, turno_id, fecha, numero, creado) VALUES (?,?,?,?,?)",
+                           (p["id"], tid, hoy_s, str(rnd.randint(100000, 999999)), hoy_s))
+        # A cualquier hora que se abra la demo, que haya gente en los boxes y en la sala.
+        slot = f"{ahora.hour:02d}:{0 if ahora.minute < 30 else 30:02d}"
+        prox = (datetime.combine(hoy, datetime.min.time()) + timedelta(hours=ahora.hour, minutes=(60 if ahora.minute >= 30 else 30)))
+        prox_s = prox.strftime("%H:%M") if prox.date() == hoy else "23:30"
+        ocupados = {r[0] for r in db.execute(
+            "SELECT paciente_id FROM turnos WHERE fecha=? AND estado IN ('agendado','presente','en_curso')", (hoy_s,))}
+        candidatos = [p for p in db.execute("""SELECT p.*, (SELECT COUNT(*) FROM turnos t WHERE t.paciente_id = p.id
+                                                  AND t.estado IN ('presente','en_curso','terminado')) hechas
+                                               FROM pacientes p ORDER BY p.id""")
+                      if p["id"] not in ocupados and (p["sesiones_totales"] or 0) - p["hechas"] >= 3]
+        rnd.shuffle(candidatos)
+        def _nuevo(p, estado, hora, box=None, ini=None):
+            db.execute("""INSERT INTO turnos (paciente_id, fecha, hora, estado, box_id, inicio, duracion_min, sede_id, sim)
+                          VALUES (?,?,?,?,?,?,?,?,0)""",
+                       (p["id"], hoy_s, hora, estado, box, ini, rnd.choice([30, 30, 45]), p["sede_id"]))
+        # Por sede: 2 en los boxes, 2 esperando y 2 por venir en la próxima media hora.
+        for sede in list(libres.keys()):
+            de_sede = [p for p in candidatos if p["sede_id"] == sede]
+            en_curso = db.execute("SELECT COUNT(*) FROM turnos WHERE fecha=? AND estado='en_curso' AND sede_id=?",
+                                  (hoy_s, sede)).fetchone()[0]
+            en_sala = db.execute("SELECT COUNT(*) FROM turnos WHERE fecha=? AND estado='presente' AND sede_id=?",
+                                 (hoy_s, sede)).fetchone()[0]
+            por_venir = db.execute("SELECT COUNT(*) FROM turnos WHERE fecha=? AND estado='agendado' AND sede_id=?",
+                                   (hoy_s, sede)).fetchone()[0]
+            while en_curso < 2 and libres[sede] and de_sede:
+                _nuevo(de_sede.pop(), "en_curso", slot, libres[sede].pop(0),
+                       (ahora - timedelta(minutes=rnd.randint(3, 24))).isoformat())
+                en_curso += 1
+            while en_sala < 2 and de_sede:
+                _nuevo(de_sede.pop(), "presente", slot)
+                en_sala += 1
+            while por_venir < 2 and de_sede:
+                _nuevo(de_sede.pop(), "agendado", prox_s)
+                por_venir += 1
+        db.execute("""UPDATE pacientes SET sesiones_usadas = (SELECT COUNT(*) FROM turnos t
+                      WHERE t.paciente_id = pacientes.id AND t.estado IN ('presente','en_curso','terminado'))""")
+        db.commit()
+    finally:
+        db.close()
+
+
+def _demo_loop():
+    # Reinicia la demo todos los días a las 5 de la mañana.
+    while True:
+        ahora = datetime.now()
+        prox = datetime.combine(ahora.date(), datetime.min.time()) + timedelta(hours=5)
+        if prox <= ahora:
+            prox += timedelta(days=1)
+        time.sleep(max(60, (prox - ahora).total_seconds()))
+        try:
+            _demo_reset()
+        except Exception:
+            pass
+
+
+@app.route("/demo/entrar", methods=["POST"])
+def demo_entrar():
+    """En la demo se entra sin contraseña, eligiendo cómo verla."""
+    if not ES_DEMO:
+        abort(404)
+    rol = "admin" if request.form.get("rol") == "admin" else "recepcion"
+    usuario, nombre = DEMO_USUARIOS[rol]
+    r = q1("SELECT * FROM usuarios WHERE usuario=?", (usuario,))
+    if not r:
+        run("INSERT INTO usuarios (nombre, usuario, clave, rol, activo, creado) VALUES (?,?,?,?,1,?)",
+            (nombre, usuario, generate_password_hash(secrets.token_hex(24)), rol, date.today().isoformat()))
+    else:
+        run("UPDATE usuarios SET nombre=?, rol=?, activo=1 WHERE id=?", (nombre, rol, r["id"]))
+    _iniciar_sesion(q1("SELECT * FROM usuarios WHERE usuario=?", (usuario,)), recordar=False)
+    _demo_animar_hoy()
+    return redirect("/hub")
+
+
 # init_db() se ejecuta al importar el módulo para que las tablas existan también
 # cuando corre bajo gunicorn (Railway no ejecuta el bloque __main__).
 init_db()
 app.secret_key = _clave_de_sesion()
-_start_backup_thread()
+if ES_DEMO:
+    _demo_reset()
+    threading.Thread(target=_demo_loop, daemon=True).start()
+else:
+    _start_backup_thread()
 
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 8090))

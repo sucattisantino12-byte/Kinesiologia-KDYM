@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-  <title>{{ 'Crear la cuenta' if alta else 'Ingresar' }} — KDYM</title>
+  <title>{{ 'Crear la cuenta' if alta else 'Ingresar' }} — {{ marca }}</title>
   <meta name="robots" content="noindex, nofollow">
   <script>
     try { if (localStorage.getItem('kdym_tema') === 'oscuro') document.documentElement.dataset.theme = 'dark'; } catch (e) {}
@@ -22,13 +22,30 @@
     <div class="login-brand">
       <span class="hub-mark">{% include "_logo_svg.html" %}</span>
       <div>
-        <div class="hub-nom">KDYM</div>
+        <div class="hub-nom">{{ marca }}</div>
         <div class="hub-sub">Kinesiología y rehabilitación</div>
       </div>
     </div>
 
-    <div class="login-card">
-      {% if alta %}
+    <div class="login-card{{ ' login-demo' if demo }}">
+      {% if demo %}
+      <span class="login-demo-tag">Demo</span>
+      <h1>Probá la app de tu centro</h1>
+      <p class="login-sub">Es un centro de kinesiología de ejemplo, con dos sedes, pacientes y turnos cargados. Tocá, cargá y probá lo que quieras: los datos son inventados y se reinician todos los días.</p>
+      <form method="post" action="{{ url_for('demo_entrar') }}" class="demo-roles">
+        <button class="demo-rol" type="submit" name="rol" value="admin">
+          <span class="demo-rol-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3l7.5 3v5.5c0 4.6-3.2 8.2-7.5 9.5-4.3-1.3-7.5-4.9-7.5-9.5V6z"/><path d="M9 12l2 2 4-4"/></svg></span>
+          <span class="demo-rol-t"><b>Entrar como dueño/a</b><small>Ve todo: turnos, pacientes, liquidación a obras sociales y la plata del centro.</small></span>
+          <svg class="demo-rol-go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>
+        </button>
+        <button class="demo-rol" type="submit" name="rol" value="recepcion">
+          <span class="demo-rol-ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round"><circle cx="12" cy="12" r="8.5"/><path d="M12 7.5V12l3 2"/></svg></span>
+          <span class="demo-rol-t"><b>Entrar como recepción</b><small>El día a día: sala de espera, boxes con reloj, agenda y llegada de pacientes.</small></span>
+          <svg class="demo-rol-go" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 5l7 7-7 7"/></svg>
+        </button>
+      </form>
+      <p class="login-pie">No hace falta usuario ni contraseña. Cada pestaña tiene una guía de uso (botón <b>“Cómo se usa”</b>).</p>
+      {% elif alta %}
       <h1>Creá la cuenta del administrador</h1>
       <p class="login-sub">Es la primera vez que se abre la app. Con esta cuenta vas a poder crear los usuarios del resto del equipo.</p>
       {% if error %}<div class="login-error" role="alert">{{ error }}</div>{% endif %}
